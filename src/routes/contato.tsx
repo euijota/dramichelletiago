@@ -40,7 +40,7 @@ function Contato() {
           Vamos conversar
         </h1>
         <p className="mt-7 max-w-[50ch] text-base leading-relaxed text-muted-foreground">
-          Para agendar, o caminho mais rápido é o formulário online. Para dúvidas
+          Para agendar, o caminho mais rápido é a agenda online no consultorio.me. Para dúvidas
           sobre tratamentos, fale direto com a recepção.
         </p>
 
