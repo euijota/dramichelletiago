@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { CLINIC, INSURANCE_PLANS } from "@/lib/clinic";
+import { CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-clinica.jpg";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
@@ -49,6 +49,8 @@ const pillars = [
     body: "Agenda com espaçamento generoso, para que ninguém seja atendido com pressa.",
   },
 ];
+
+const homeInsurancePlans = [...CLINIC_INSURANCE_PLANS];
 
 function Home() {
   const { data: services } = useQuery({
@@ -101,7 +103,7 @@ function Home() {
                 Planos odontológicos atendidos
               </p>
               <ul className="mt-4 flex flex-wrap gap-2">
-                {INSURANCE_PLANS.map((plan) => (
+                {homeInsurancePlans.map((plan) => (
                   <li
                     key={plan}
                     className="rounded-full border border-border px-4 py-2 text-sm text-foreground"
