@@ -22,12 +22,12 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:title",
-        content: "Dra. Michelle Barbosa Tiago — Odontologia estética",
+        content: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá",
       },
       {
         property: "og:description",
         content:
-          "Agende sua consulta online. Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia com cuidado delicado em Macapá, Amapá.",
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
       },
     ],
   }),
