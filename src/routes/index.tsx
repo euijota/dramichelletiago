@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { CLINIC } from "@/lib/clinic";
+import { CLINIC, INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-clinica.jpg";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
