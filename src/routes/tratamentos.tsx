@@ -83,6 +83,29 @@ function Tratamentos() {
           ))}
         </div>
 
+        <section className="mt-20 rounded-2xl border border-border bg-card px-8 py-10 sm:px-10">
+          <p className="text-kicker text-primary-soft">Convênios</p>
+          <h2 className="mt-5 max-w-[22ch] font-display text-3xl leading-tight text-foreground">
+            Planos odontológicos atendidos
+          </h2>
+          <ul className="mt-8 flex flex-wrap gap-3">
+            {INSURANCE_PLANS.map((plan) => (
+              <li
+                key={plan}
+                className="rounded-full border border-border px-5 py-2.5 text-sm text-foreground"
+              >
+                {plan}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-7 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
+            Também atendemos particular. Em caso de dúvida sobre a cobertura do
+            seu plano, fale com a gente antes da consulta.
+          </p>
+        </section>
+
+
+
         <Link
           to="/agendar"
           className="mt-16 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
