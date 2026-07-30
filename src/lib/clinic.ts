@@ -1,5 +1,7 @@
 /** Shared, serialisable clinic constants used by both public and admin views. */
 
+export const BOOKING_URL = "https://consultorio.me/pro/dramichellebarbosatiago";
+
 export const CLINIC = {
   name: "Dra. Michelle Barbosa Tiago",
   shortName: "Dra. Michelle Tiago",

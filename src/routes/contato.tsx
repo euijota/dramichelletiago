@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { CLINIC, SCHEDULE_SUMMARY } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC, SCHEDULE_SUMMARY  } from "@/lib/clinic";
 
 export const Route = createFileRoute("/contato")({
   head: () => ({
@@ -71,12 +71,14 @@ function Contato() {
         </div>
 
         <div className="mt-16 flex flex-wrap gap-4">
-          <Link
-            to="/agendar"
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
             className="rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
           >
             Agendar consulta
-          </Link>
+          </a>
           <a
             href={`https://wa.me/${CLINIC.whatsapp}`}
             target="_blank"

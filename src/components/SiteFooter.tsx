@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/Logo";
-import { CLINIC } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC  } from "@/lib/clinic";
 
 export function SiteFooter() {
   return (
@@ -34,9 +34,11 @@ export function SiteFooter() {
               <Link to="/contato" className="transition-silk hover:opacity-70">
                 Contato
               </Link>
-              <Link to="/agendar" className="transition-silk hover:opacity-70">
+              <a href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer" className="transition-silk hover:opacity-70">
                 Agendar consulta
-              </Link>
+              </a>
               <Link to="/auth" className="transition-silk hover:opacity-70">
                 Área da Dra.
               </Link>

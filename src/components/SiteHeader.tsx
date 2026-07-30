@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/Logo";
-import { CLINIC } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC  } from "@/lib/clinic";
 
 export function SiteHeader() {
   return (
@@ -41,12 +41,14 @@ export function SiteHeader() {
         </Link>
 
         <div className="flex flex-1 justify-end">
-          <Link
-            to="/agendar"
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
             className="rounded-full bg-primary px-6 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
           >
             Agendar
-          </Link>
+          </a>
         </div>
       </div>
     </header>
