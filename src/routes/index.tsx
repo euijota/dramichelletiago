@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { CLINIC } from "@/lib/clinic";
+import { CLINIC, INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import heroImage from "@/assets/hero-clinica.jpg";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
@@ -94,12 +94,22 @@ function Home() {
               >
                 Agendar consulta
               </Link>
-              <Link
-                to="/tratamentos"
-                className="rounded-full border border-border px-9 py-4 text-kicker text-foreground transition-silk hover:bg-accent"
-              >
-                Ver tratamentos
-              </Link>
+            </div>
+
+            <div className="mt-10">
+              <p className="text-kicker text-primary-soft">
+                Planos odontológicos atendidos
+              </p>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {INSURANCE_PLANS.map((plan) => (
+                  <li
+                    key={plan}
+                    className="rounded-full border border-border px-4 py-2 text-sm text-foreground"
+                  >
+                    {plan}
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="mt-14 flex items-center gap-4 border-t border-border pt-8">
