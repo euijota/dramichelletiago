@@ -5,12 +5,8 @@ import { CLINIC } from "@/lib/clinic";
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/85 backdrop-blur-xl">
-      <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-6">
-        <Link to="/" aria-label={CLINIC.name}>
-          <Logo />
-        </Link>
-
-        <nav className="hidden items-center gap-9 md:flex">
+      <div className="mx-auto grid h-24 max-w-6xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-6">
+        <nav className="hidden items-center gap-9 justify-self-start md:flex">
           <Link
             to="/sobre"
             className="text-kicker text-muted-foreground transition-silk hover:text-primary"
@@ -32,20 +28,22 @@ export function SiteHeader() {
           >
             Contato
           </Link>
-          <Link
-            to="/agendar"
-            className="rounded-full bg-primary px-6 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
-          >
-            Agendar
-          </Link>
         </nav>
+        <span className="hidden md:block" />
+
+        <Link to="/" aria-label={CLINIC.name} className="justify-self-center">
+          <Logo className="h-12 w-auto sm:h-14" />
+        </Link>
 
         <Link
           to="/agendar"
-          className="rounded-full bg-primary px-5 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep md:hidden"
+          className="justify-self-end rounded-full bg-primary px-6 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
         >
           Agendar
         </Link>
+
+        <span className="md:hidden" />
+        <span className="md:hidden" />
       </div>
     </header>
   );
