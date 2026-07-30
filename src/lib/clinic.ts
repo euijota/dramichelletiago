@@ -44,6 +44,17 @@ export const SCHEDULE_SUMMARY = [
   { day: "Domingo", hours: "Fechado" },
 ] as const;
 
+/** Convênios odontológicos atendidos no consultório. */
+export const INSURANCE_PLANS = [
+  "BB Dental",
+  "Bradesco Dental",
+  "Amil Dental",
+  "Odonto Santander",
+  "Odontoprev",
+  "HapVida",
+  "SulAmérica",
+] as const;
+
 export const STATUS_LABELS: Record<string, string> = {
   pending: "Pendente",
   confirmed: "Confirmado",
