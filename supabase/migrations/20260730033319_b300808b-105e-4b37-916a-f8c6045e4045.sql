@@ -1,0 +1,1 @@
+DELETE FROM public.appointments WHERE patient_email = 'teste.playwright@example.com';
