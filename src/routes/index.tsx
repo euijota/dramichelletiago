@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
 import { CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
-import heroImage from "@/assets/hero-clinica.jpg";
+import heroAsset from "@/assets/dra-michelle.jpg.asset.json";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
 
 
@@ -128,10 +128,10 @@ function Home() {
           <div className="animate-veil">
             <div className="relative overflow-hidden rounded-t-[14rem] rounded-b-3xl shadow-bloom">
               <img
-                src={heroImage}
-                alt="Recepção da clínica da Dra. Michelle Tiago, com poltrona vinho e luz natural"
-                width={1200}
-                height={1504}
+                src={heroAsset.url}
+                alt="Dra. Michelle Barbosa Tiago, cirurgiã-dentista em Macapá"
+                width={786}
+                height={786}
                 className="h-full w-full object-cover"
               />
             </div>
