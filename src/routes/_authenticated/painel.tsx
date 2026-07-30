@@ -222,7 +222,7 @@ function Painel() {
           </Link>
           <div className="flex items-center gap-3">
             <Link
-              to="/agendar"
+              to="/"
               className="hidden rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent sm:inline-flex"
             >
               Ver site

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS  } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import heroAsset from "@/assets/dra-michelle.jpg.asset.json";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
@@ -90,12 +90,14 @@ function Home() {
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <Link
-                to="/agendar"
+              <a
+                href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
                 className="rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
               >
                 Agendar consulta
-              </Link>
+              </a>
             </div>
 
             <div className="mt-10">
@@ -205,12 +207,14 @@ function Home() {
           decoding="async"
         />
 
-        <Link
-          to="/agendar"
+        <a
+          href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
           className="mt-12 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
         >
           Reservar meu horário
-        </Link>
+        </a>
       </section>
 
       <SiteFooter />

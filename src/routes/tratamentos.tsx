@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { supabase } from "@/integrations/supabase/client";
-import { INSURANCE_PLANS } from "@/lib/clinic";
+import { BOOKING_URL, INSURANCE_PLANS  } from "@/lib/clinic";
 
 export const Route = createFileRoute("/tratamentos")({
   head: () => ({
@@ -106,12 +106,14 @@ function Tratamentos() {
 
 
 
-        <Link
-          to="/agendar"
+        <a
+          href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
           className="mt-16 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
         >
           Agendar consulta
-        </Link>
+        </a>
       </section>
 
       <SiteFooter />

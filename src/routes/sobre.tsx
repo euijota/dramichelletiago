@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { CLINIC } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC  } from "@/lib/clinic";
 import heroImage from "@/assets/hero-clinica.jpg";
 
 export const Route = createFileRoute("/sobre")({
@@ -83,12 +83,14 @@ function Sobre() {
             </div>
           </dl>
 
-          <Link
-            to="/agendar"
+          <a
+            href={BOOKING_URL}
+            target="_blank"
+            rel="noreferrer"
             className="mt-12 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
           >
             Agendar consulta
-          </Link>
+          </a>
         </div>
       </section>
 
