@@ -90,7 +90,6 @@ export function weekdayOf(isoDate: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
-
 /** "2026-07-30" → "quinta-feira, 30 de julho" */
 export function formatLongDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);

@@ -155,7 +155,6 @@ function Painel() {
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
   }
 
-
   async function updateAppointment(id: string, patch: Partial<Appointment>) {
     const { error } = await supabase.from("appointments").update(patch).eq("id", id);
     if (error) {
@@ -176,11 +175,9 @@ function Painel() {
 
   const todayISO = toISODate(new Date());
   const todayCount =
-    weekAppointments?.filter(
-      (a) => a.appointment_date === todayISO && a.status !== "cancelled",
-    ).length ?? 0;
-  const confirmedCount =
-    weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
+    weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled")
+      .length ?? 0;
+  const confirmedCount = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
   const pendingCount = pending?.length ?? 0;
 
   if (loading) {
@@ -195,12 +192,10 @@ function Painel() {
     return (
       <div className="grid min-h-screen place-items-center bg-gradient-blush px-6">
         <div className="max-w-md rounded-3xl bg-card p-10 text-center shadow-bloom">
-          <h1 className="font-display text-3xl text-foreground">
-            Acesso não autorizado
-          </h1>
+          <h1 className="font-display text-3xl text-foreground">Acesso não autorizado</h1>
           <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
-            Sua conta não tem permissão para ver a agenda do consultório. Fale com
-            a Dra. Michelle para liberar o acesso.
+            Sua conta não tem permissão para ver a agenda do consultório. Fale com a Dra. Michelle
+            para liberar o acesso.
           </p>
           <button
             onClick={handleSignOut}
@@ -255,9 +250,7 @@ function Painel() {
               className="rounded-2xl border border-border bg-card p-7 shadow-petal"
             >
               <p className="text-kicker text-muted-foreground">{stat.label}</p>
-              <p className="mt-4 font-display text-5xl text-primary">
-                {stat.value}
-              </p>
+              <p className="mt-4 font-display text-5xl text-primary">{stat.value}</p>
             </div>
           ))}
         </div>
@@ -347,12 +340,10 @@ function Painel() {
 
         {/* Reminders for tomorrow */}
         <section className="mt-20">
-          <h2 className="font-display text-3xl text-foreground">
-            Lembretes de amanhã
-          </h2>
+          <h2 className="font-display text-3xl text-foreground">Lembretes de amanhã</h2>
           <p className="mt-3 text-sm text-muted-foreground">
-            {formatLongDate(tomorrowISO)} · a mensagem já vai pronta pelo
-            WhatsApp e o envio fica registrado aqui.
+            {formatLongDate(tomorrowISO)} · a mensagem já vai pronta pelo WhatsApp e o envio fica
+            registrado aqui.
           </p>
 
           <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
@@ -371,15 +362,12 @@ function Painel() {
                     {appointment.patient_name}
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    {appointment.service_name} às{" "}
-                    {trimSeconds(appointment.appointment_time)} ·{" "}
+                    {appointment.service_name} às {trimSeconds(appointment.appointment_time)} ·{" "}
                     {STATUS_LABELS[appointment.status]}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/80">
-                    {appointment.reminder_sent_at
-                      ? "Lembrete já enviado"
-                      : "Lembrete pendente"}{" "}
-                    · {appointment.patient_phone}
+                    {appointment.reminder_sent_at ? "Lembrete já enviado" : "Lembrete pendente"} ·{" "}
+                    {appointment.patient_phone}
                   </p>
                 </div>
 
@@ -395,9 +383,7 @@ function Painel() {
                       : "bg-primary text-primary-foreground hover:bg-primary-deep",
                   )}
                 >
-                  {appointment.reminder_sent_at
-                    ? "Enviar novamente"
-                    : "Enviar lembrete"}
+                  {appointment.reminder_sent_at ? "Enviar novamente" : "Enviar lembrete"}
                 </a>
               </div>
             ))}
@@ -407,9 +393,7 @@ function Painel() {
         {/* Pending queue */}
 
         <section className="mt-20">
-          <h2 className="font-display text-3xl text-foreground">
-            Aguardando confirmação
-          </h2>
+          <h2 className="font-display text-3xl text-foreground">Aguardando confirmação</h2>
           <p className="mt-3 text-sm text-muted-foreground">
             Confirme o horário e avise o paciente pelo WhatsApp em um clique.
           </p>
@@ -430,8 +414,7 @@ function Painel() {
                     {appointment.patient_name}
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground">
-                    {appointment.service_name} ·{" "}
-                    {formatLongDate(appointment.appointment_date)} às{" "}
+                    {appointment.service_name} · {formatLongDate(appointment.appointment_date)} às{" "}
                     {trimSeconds(appointment.appointment_time)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/80">
@@ -441,9 +424,7 @@ function Painel() {
 
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={() =>
-                      updateAppointment(appointment.id, { status: "confirmed" })
-                    }
+                    onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
                     className="rounded-full bg-primary px-5 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
                   >
                     Confirmar
@@ -457,9 +438,7 @@ function Painel() {
                     Avisar
                   </a>
                   <button
-                    onClick={() =>
-                      updateAppointment(appointment.id, { status: "cancelled" })
-                    }
+                    onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
                     className="rounded-full border border-border px-5 py-2.5 text-kicker text-muted-foreground transition-silk hover:text-destructive"
                   >
                     Recusar
@@ -519,15 +498,9 @@ function AppointmentSheet({
         onClick={(e) => e.stopPropagation()}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-9 shadow-bloom sm:rounded-3xl"
       >
-        <p className="text-kicker text-primary-soft">
-          {STATUS_LABELS[appointment.status]}
-        </p>
-        <h2 className="mt-4 font-display text-3xl text-foreground">
-          {appointment.patient_name}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {appointment.service_name}
-        </p>
+        <p className="text-kicker text-primary-soft">{STATUS_LABELS[appointment.status]}</p>
+        <h2 className="mt-4 font-display text-3xl text-foreground">{appointment.patient_name}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{appointment.service_name}</p>
 
         <dl className="mt-8 space-y-3 border-y border-border py-7 text-sm">
           <div className="flex justify-between gap-6">
@@ -541,9 +514,7 @@ function AppointmentSheet({
           {appointment.notes && (
             <div className="pt-2">
               <dt className="text-muted-foreground">Observações</dt>
-              <dd className="mt-2 leading-relaxed text-foreground">
-                {appointment.notes}
-              </dd>
+              <dd className="mt-2 leading-relaxed text-foreground">{appointment.notes}</dd>
             </div>
           )}
         </dl>
@@ -587,7 +558,11 @@ function AppointmentSheet({
             Salvar e confirmar
           </button>
           <a
-            href={buildWhatsAppLink({ ...appointment, appointment_date: date, appointment_time: time })}
+            href={buildWhatsAppLink({
+              ...appointment,
+              appointment_date: date,
+              appointment_time: time,
+            })}
             target="_blank"
             rel="noreferrer"
             className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { BOOKING_URL, CLINIC, SCHEDULE_SUMMARY  } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC, SCHEDULE_SUMMARY } from "@/lib/clinic";
 
 export const Route = createFileRoute("/contato")({
   head: () => ({
@@ -15,8 +15,7 @@ export const Route = createFileRoute("/contato")({
       { property: "og:title", content: "Contato — Dra. Michelle Tiago" },
       {
         property: "og:description",
-        content:
-          "Telefone, WhatsApp, endereço e horários do consultório em Macapá, Amapá.",
+        content: "Telefone, WhatsApp, endereço e horários do consultório em Macapá, Amapá.",
       },
     ],
   }),
@@ -48,9 +47,7 @@ function Contato() {
           {blocks.map((block) => (
             <div key={block.label}>
               <dt className="text-kicker text-primary-soft">{block.label}</dt>
-              <dd className="mt-3 font-display text-2xl text-foreground">
-                {block.value}
-              </dd>
+              <dd className="mt-3 font-display text-2xl text-foreground">{block.value}</dd>
             </div>
           ))}
         </dl>

@@ -1,13 +1,14 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS  } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
+import { BookingModal } from "@/components/BookingModal";
 import heroAsset from "@/assets/dra-michelle.jpg.asset.json";
 import signatureWine from "@/assets/signature-wine.png.asset.json";
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,7 +35,6 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-
 const pillars = [
   {
     title: "Escuta antes do tratamento",
@@ -53,6 +53,8 @@ const pillars = [
 const homeInsurancePlans = [...CLINIC_INSURANCE_PLANS];
 
 function Home() {
+  const [bookingOpen, setBookingOpen] = useState(false);
+
   const { data: services } = useQuery({
     queryKey: ["services"],
     queryFn: async () => {
@@ -74,36 +76,30 @@ function Home() {
       <section className="relative overflow-hidden">
         <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
           <div className="animate-rise">
-            <p className="text-kicker text-primary-soft">
-              {CLINIC.role} · CRO-AP 596
-            </p>
+            <p className="text-kicker text-primary-soft">{CLINIC.role} · CRO-AP 596</p>
             <h1 className="mt-7 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl lg:text-7xl">
               Especialista em
               <br />
               <span className="font-script text-primary">transformar sorrisos</span>
             </h1>
             <p className="mt-8 max-w-[46ch] text-base leading-relaxed text-muted-foreground">
-              Atendimento para adultos e crianças. Odontologia estética e
-              reabilitadora em um consultório pensado para acalmar. Escolha o
-              horário que combina com a sua rotina e receba a confirmação da
-              própria Dra. Michelle.
+              Atendimento para adultos e crianças. Odontologia estética e reabilitadora em um
+              consultório pensado para acalmar. Escolha o horário que combina com a sua rotina e
+              receba a confirmação da própria Dra. Michelle.
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <a
-                href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
-                className="rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
+              <button
+                type="button"
+                onClick={() => setBookingOpen(true)}
+                className="rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep cursor-pointer"
               >
                 Agendar consulta
-              </a>
+              </button>
             </div>
 
             <div className="mt-10">
-              <p className="text-kicker text-primary-soft">
-                Planos odontológicos atendidos
-              </p>
+              <p className="text-kicker text-primary-soft">Planos odontológicos atendidos</p>
               <ul className="mt-4 flex flex-wrap gap-2">
                 {homeInsurancePlans.map((plan) => (
                   <li
@@ -125,7 +121,6 @@ function Home() {
               </p>
             </div>
           </div>
-
 
           <div className="animate-veil">
             <div className="relative overflow-hidden rounded-t-[14rem] rounded-b-3xl shadow-bloom">
@@ -149,9 +144,7 @@ function Home() {
             {pillars.map((pillar) => (
               <div key={pillar.title} className="space-y-4">
                 <span className="block h-px w-12 bg-primary/40" />
-                <h2 className="font-display text-2xl text-foreground">
-                  {pillar.title}
-                </h2>
+                <h2 className="font-display text-2xl text-foreground">{pillar.title}</h2>
                 <p className="max-w-[38ch] text-sm leading-relaxed text-muted-foreground">
                   {pillar.body}
                 </p>
@@ -172,9 +165,7 @@ function Home() {
           {services?.map((service) => (
             <article key={service.id} className="space-y-3">
               <ToothMark className="h-5 text-primary-soft" />
-              <h3 className="font-display text-2xl text-foreground">
-                {service.name}
-              </h3>
+              <h3 className="font-display text-2xl text-foreground">{service.name}</h3>
               <p className="max-w-[36ch] text-sm leading-relaxed text-muted-foreground">
                 {service.description}
               </p>
@@ -190,14 +181,11 @@ function Home() {
         </Link>
       </section>
 
-
-
       {/* Invitation */}
       <section className="mx-auto max-w-3xl px-6 py-28 text-center">
         <ToothMark className="mx-auto h-8 text-primary" />
         <p className="mt-10 font-display text-3xl leading-snug text-foreground sm:text-4xl">
-          “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao
-          mundo.”
+          “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao mundo.”
         </p>
         <img
           src={signatureWine.url}
@@ -207,17 +195,18 @@ function Home() {
           decoding="async"
         />
 
-        <a
-          href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
-          className="mt-12 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
+        <button
+          type="button"
+          onClick={() => setBookingOpen(true)}
+          className="mt-12 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep cursor-pointer"
         >
           Reservar meu horário
-        </a>
+        </button>
       </section>
 
       <SiteFooter />
+
+      <BookingModal open={bookingOpen} onOpenChange={setBookingOpen} />
     </div>
   );
 }

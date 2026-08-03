@@ -19,9 +19,7 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <p className="text-kicker text-primary-soft">Erro 404</p>
-        <h1 className="mt-5 font-display text-4xl text-foreground">
-          Página não encontrada
-        </h1>
+        <h1 className="mt-5 font-display text-4xl text-foreground">Página não encontrada</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           O endereço que você procura não existe ou foi movido.
         </p>
@@ -49,9 +47,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <p className="text-kicker text-primary-soft">Ops</p>
-        <h1 className="mt-5 font-display text-3xl text-foreground">
-          Esta página não carregou
-        </h1>
+        <h1 className="mt-5 font-display text-3xl text-foreground">Esta página não carregou</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Algo deu errado do nosso lado. Tente novamente ou volte ao início.
         </p>
@@ -87,13 +83,39 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { name: "theme-color", content: "#8a4a52" },
       { title: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá" },
-      { property: "og:title", content: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá" },
-      { name: "twitter:title", content: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá" },
-      { name: "description", content: "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá." },
-      { property: "og:description", content: "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá." },
-      { name: "twitter:description", content: "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp" },
+      {
+        property: "og:title",
+        content: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá",
+      },
+      {
+        name: "twitter:title",
+        content: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá",
+      },
+      {
+        name: "description",
+        content:
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
+      },
+      {
+        property: "og:description",
+        content:
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -136,11 +158,7 @@ function RootComponent() {
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (
-        event !== "SIGNED_IN" &&
-        event !== "SIGNED_OUT" &&
-        event !== "USER_UPDATED"
-      ) {
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
         return;
       }
       router.invalidate();

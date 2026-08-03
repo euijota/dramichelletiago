@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Logo } from "@/components/Logo";
-import { BOOKING_URL, CLINIC  } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC } from "@/lib/clinic";
 
 export function SiteFooter() {
   return (
@@ -10,8 +10,8 @@ export function SiteFooter() {
           <div>
             <Logo onWine />
             <p className="mt-6 max-w-[34ch] text-sm leading-relaxed text-primary-foreground/70">
-              {CLINIC.role}. Odontologia estética e reabilitadora com um cuidado
-              atento a cada detalhe.
+              {CLINIC.role}. Odontologia estética e reabilitadora com um cuidado atento a cada
+              detalhe.
             </p>
           </div>
 
@@ -34,9 +34,12 @@ export function SiteFooter() {
               <Link to="/contato" className="transition-silk hover:opacity-70">
                 Contato
               </Link>
-              <a href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer" className="transition-silk hover:opacity-70">
+              <a
+                href={BOOKING_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="transition-silk hover:opacity-70"
+              >
                 Agendar consulta
               </a>
               <Link to="/auth" className="transition-silk hover:opacity-70">

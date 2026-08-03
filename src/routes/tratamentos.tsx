@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { supabase } from "@/integrations/supabase/client";
-import { BOOKING_URL, INSURANCE_PLANS  } from "@/lib/clinic";
+import { BOOKING_URL, INSURANCE_PLANS } from "@/lib/clinic";
 
 export const Route = createFileRoute("/tratamentos")({
   head: () => ({
@@ -49,10 +49,9 @@ function Tratamentos() {
           Especialista em transformar sorrisos
         </h1>
         <p className="mt-7 max-w-[52ch] text-base leading-relaxed text-muted-foreground">
-          Atendimento para adultos e crianças. A duração indicada é a reserva na
-          agenda — sempre com folga, para que a consulta nunca seja apressada.
+          Atendimento para adultos e crianças. A duração indicada é a reserva na agenda — sempre com
+          folga, para que a consulta nunca seja apressada.
         </p>
-
 
         <div className="mt-16 divide-y divide-border border-y border-border">
           {isLoading &&
@@ -99,17 +98,15 @@ function Tratamentos() {
             ))}
           </ul>
           <p className="mt-7 max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
-            Também atendemos particular. Em caso de dúvida sobre a cobertura do
-            seu plano, fale com a gente antes da consulta.
+            Também atendemos particular. Em caso de dúvida sobre a cobertura do seu plano, fale com
+            a gente antes da consulta.
           </p>
         </section>
 
-
-
         <a
           href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
+          target="_blank"
+          rel="noreferrer"
           className="mt-16 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
         >
           Agendar consulta

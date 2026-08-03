@@ -112,27 +112,19 @@
   --sidebar-border: oklch(0.385 0.068 13.5);
   --sidebar-ring: oklch(0.62 0.062 12);
 
-  --gradient-wine: linear-gradient(
-    155deg,
-    oklch(0.446 0.077 13.5) 0%,
-    oklch(0.36 0.066 10) 100%
-  );
+  --gradient-wine: linear-gradient(155deg, oklch(0.446 0.077 13.5) 0%, oklch(0.36 0.066 10) 100%);
   --gradient-veil: linear-gradient(
     180deg,
     oklch(0.982 0.006 62 / 0) 0%,
     oklch(0.982 0.006 62 / 0.92) 78%,
     oklch(0.982 0.006 62) 100%
   );
-  --gradient-blush: linear-gradient(
-    135deg,
-    oklch(0.96 0.016 30) 0%,
-    oklch(0.93 0.026 10) 100%
-  );
+  --gradient-blush: linear-gradient(135deg, oklch(0.96 0.016 30) 0%, oklch(0.93 0.026 10) 100%);
 
-  --shadow-soft: 0 1px 2px oklch(0.446 0.077 13.5 / 0.04),
-    0 8px 24px -12px oklch(0.446 0.077 13.5 / 0.14);
-  --shadow-raised: 0 2px 4px oklch(0.446 0.077 13.5 / 0.05),
-    0 24px 60px -28px oklch(0.446 0.077 13.5 / 0.28);
+  --shadow-soft:
+    0 1px 2px oklch(0.446 0.077 13.5 / 0.04), 0 8px 24px -12px oklch(0.446 0.077 13.5 / 0.14);
+  --shadow-raised:
+    0 2px 4px oklch(0.446 0.077 13.5 / 0.05), 0 24px 60px -28px oklch(0.446 0.077 13.5 / 0.28);
 
   --ease-silk: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -221,8 +213,7 @@
 }
 
 @utility transition-silk {
-  transition-property: color, background-color, border-color, opacity, transform,
-    box-shadow;
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
   transition-duration: 500ms;
   transition-timing-function: var(--ease-silk);
 }
@@ -265,4 +256,3 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
-

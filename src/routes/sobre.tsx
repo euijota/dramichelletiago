@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
-import { BOOKING_URL, CLINIC  } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC } from "@/lib/clinic";
 import heroImage from "@/assets/hero-clinica.jpg";
 
 export const Route = createFileRoute("/sobre")({
@@ -51,35 +51,29 @@ function Sobre() {
 
           <div className="mt-9 space-y-6 text-base leading-relaxed text-muted-foreground">
             <p>
-              A Dra. Michelle Barbosa Tiago é cirurgiã-dentista com atuação em
-              odontologia estética e reabilitação oral. Seu trabalho parte de uma
-              ideia simples: entender a pessoa antes de planejar o sorriso.
+              A Dra. Michelle Barbosa Tiago é cirurgiã-dentista com atuação em odontologia estética
+              e reabilitação oral. Seu trabalho parte de uma ideia simples: entender a pessoa antes
+              de planejar o sorriso.
             </p>
             <p>
-              O consultório foi desenhado para diminuir a ansiedade que muita
-              gente carrega ao marcar uma consulta — luz natural, silêncio e
-              horários espaçados, para que cada atendimento tenha o tempo que
-              precisa.
+              O consultório foi desenhado para diminuir a ansiedade que muita gente carrega ao
+              marcar uma consulta — luz natural, silêncio e horários espaçados, para que cada
+              atendimento tenha o tempo que precisa.
             </p>
             <p>
-              Do clareamento às facetas, da limpeza de rotina à reabilitação
-              completa, o cuidado é o mesmo: técnica precisa e um resultado que
-              continua parecendo seu.
+              Do clareamento às facetas, da limpeza de rotina à reabilitação completa, o cuidado é o
+              mesmo: técnica precisa e um resultado que continua parecendo seu.
             </p>
           </div>
 
           <dl className="mt-12 grid gap-8 border-t border-border pt-10 sm:grid-cols-2">
             <div>
               <dt className="text-kicker text-primary-soft">Atendimento</dt>
-              <dd className="mt-3 text-sm text-muted-foreground">
-                {CLINIC.hours}
-              </dd>
+              <dd className="mt-3 text-sm text-muted-foreground">{CLINIC.hours}</dd>
             </div>
             <div>
               <dt className="text-kicker text-primary-soft">Consultório</dt>
-              <dd className="mt-3 text-sm text-muted-foreground">
-                {CLINIC.address}
-              </dd>
+              <dd className="mt-3 text-sm text-muted-foreground">{CLINIC.address}</dd>
             </div>
           </dl>
 
