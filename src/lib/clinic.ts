@@ -159,3 +159,37 @@ export function buildGoogleCalendarUrl(
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+export interface ICSEvent {
+  date: string;
+  time: string;
+  summary: string;
+}
+
+/** Parser para extrair agendamentos de feeds iCal (.ics do Google Agenda). */
+export function parseICSFeed(icsData: string): ICSEvent[] {
+  const events: ICSEvent[] = [];
+  const blocks = icsData.split("BEGIN:VEVENT");
+
+  for (let i = 1; i < blocks.length; i++) {
+    const block = blocks[i];
+    const dtstartMatch = block.match(/DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{4,6}))?/);
+    const summaryMatch = block.match(/SUMMARY:(.*)/);
+
+    if (dtstartMatch) {
+      const rawDate = dtstartMatch[1];
+      const rawTime = dtstartMatch[2];
+
+      const date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+      let time = "09:00";
+      if (rawTime) {
+        time = `${rawTime.slice(0, 2)}:${rawTime.slice(2, 4)}`;
+      }
+
+      const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";
+      events.push({ date, time, summary });
+    }
+  }
+
+  return events;
+}
