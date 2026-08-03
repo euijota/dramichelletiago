@@ -24,6 +24,7 @@ import {
   INSURANCE_PLANS,
   buildTimeSlots,
   buildGoogleCalendarUrl,
+  parseICSFeed,
   weekdayOf,
 } from "@/lib/clinic";
 import { toast } from "sonner";
@@ -114,28 +115,46 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     }
   }, []);
 
-  // Fetch booked slots from Supabase for selected day
+  // Fetch booked slots from Supabase + live iCal feed from Consultorio.me / Google Agenda
   useEffect(() => {
     if (!selectedDay) return;
 
     async function fetchBooked() {
       try {
-        const { data, error } = await supabase
+        const occupied: string[] = [];
+
+        // 1. Fetch from Supabase
+        const { data } = await supabase
           .from("appointments")
           .select("appointment_time")
           .eq("appointment_date", selectedDay!.dateString)
           .neq("status", "cancelled");
 
-        if (error) {
-          console.error("Erro ao buscar horários agendados:", error);
-          return;
+        if (data) {
+          data.forEach((item) => occupied.push(item.appointment_time.slice(0, 5)));
         }
 
-        if (data) {
-          setBookedSlots(data.map((item) => item.appointment_time.slice(0, 5)));
+        // 2. Fetch live iCal feed from Google Agenda (Consultório.me)
+        try {
+          const ICAL_URL =
+            "https://calendar.google.com/calendar/ical/dramichellebarbosatiago%40gmail.com/private-01e577e4ac71421318a056fcd50dd223/basic.ics";
+          const res = await fetch(ICAL_URL);
+          if (res.ok) {
+            const text = await res.text();
+            const events = parseICSFeed(text);
+            events.forEach((evt) => {
+              if (evt.date === selectedDay!.dateString) {
+                occupied.push(evt.time.slice(0, 5));
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("iCal fetch warning:", e);
         }
+
+        setBookedSlots(Array.from(new Set(occupied)));
       } catch (err) {
-        console.error(err);
+        console.error("Erro ao buscar horários agendados:", err);
       }
     }
 
