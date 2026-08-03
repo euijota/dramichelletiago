@@ -11,6 +11,7 @@ import {
   STATUS_LABELS,
   addDays,
   buildTimeSlots,
+  buildGoogleCalendarUrl,
   formatLongDate,
   formatShortDate,
   startOfWeek,
@@ -568,6 +569,19 @@ function AppointmentSheet({
             className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
           >
             WhatsApp
+          </a>
+          <a
+            href={buildGoogleCalendarUrl(
+              `Consulta Odontológica: ${appointment.patient_name}`,
+              date,
+              time,
+              `Paciente: ${appointment.patient_name}\nTelefone: ${appointment.patient_phone}\nServiço: ${appointment.service_name}\nObservações: ${appointment.notes || "Nenhuma"}`,
+            )}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
+          >
+            Google Agenda
           </a>
           <button
             onClick={() => onSave(appointment.id, { status: "completed" })}

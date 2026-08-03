@@ -132,3 +132,30 @@ export function addDays(date: Date, days: number): Date {
 export function trimSeconds(time: string): string {
   return time.slice(0, 5);
 }
+
+/** Gerador de link de sincronização para Google Agenda (Duração 1h). */
+export function buildGoogleCalendarUrl(
+  title: string,
+  isoDate: string,
+  timeHHMM: string,
+  details: string,
+): string {
+  const cleanDate = isoDate.replace(/-/g, "");
+  const [hStr, mStr] = timeHHMM.split(":");
+  const h = Number(hStr);
+  const startH = String(h).padStart(2, "0");
+  const endH = String(h + 1).padStart(2, "0");
+  const m = String(mStr || "00").padStart(2, "0");
+
+  const dates = `${cleanDate}T${startH}${m}00/${cleanDate}T${endH}${m}00`;
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: dates,
+    details: details,
+    location: "Travessa Joaquim Pinheiro Borges, 964 — Alvorada, Macapá/AP",
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

@@ -19,7 +19,13 @@ import {
 } from "@/components/ui/select";
 import { Calendar, Clock, Check, Send, Phone, User, FileText, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { CLINIC, INSURANCE_PLANS, buildTimeSlots, weekdayOf } from "@/lib/clinic";
+import {
+  CLINIC,
+  INSURANCE_PLANS,
+  buildTimeSlots,
+  buildGoogleCalendarUrl,
+  weekdayOf,
+} from "@/lib/clinic";
 import { toast } from "sonner";
 
 interface BookingModalProps {
@@ -278,6 +284,24 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
             >
               <Send className="w-5 h-5" /> Enviar Confirmação pelo WhatsApp
             </Button>
+
+            {selectedDay && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const gUrl = buildGoogleCalendarUrl(
+                    `Consulta Odontológica - Dra. Michelle Tiago (${confirmedBooking.name})`,
+                    selectedDay.dateString,
+                    confirmedBooking.time,
+                    `Agendamento para ${confirmedBooking.name} (${confirmedBooking.phone}). Protocolo: ${confirmedBooking.protocol}`,
+                  );
+                  window.open(gUrl, "_blank");
+                }}
+                className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
+              >
+                <Calendar className="w-4 h-4 text-primary" /> Adicionar à minha Google Agenda
+              </Button>
+            )}
 
             <Button variant="outline" onClick={handleReset} className="rounded-full w-full">
               Concluir
