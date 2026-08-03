@@ -136,27 +136,17 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
 
         // 2. Fetch live iCal feed from Google Agenda (Consultório.me)
         try {
-          const ICAL_RAW =
-            "https://calendar.google.com/calendar/ical/dramichellebarbosatiago%40gmail.com/private-01e577e4ac71421318a056fcd50dd223/basic.ics";
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ICAL_RAW)}`;
-
-          let text = "";
-          try {
-            const res = await fetch(ICAL_RAW);
-            if (res.ok) text = await res.text();
-          } catch {
-            const res = await fetch(proxyUrl);
-            if (res.ok) text = await res.text();
-          }
-
-          if (text) {
-            const events = parseICSFeed(text);
-            events.forEach((evt) => {
-              if (evt.date === selectedDay!.dateString) {
-                occupied.push(evt.time.slice(0, 5));
-              }
-            });
-          }
+          // Call server‑side proxy that adds CORS header
+          const res = await fetch("/api/ical");
+          if (!res.ok) throw new Error("Failed to fetch iCal via server proxy");
+          const text = await res.text();
+          console.log("Fetched iCal via server proxy, length:", text.length);
+          const events = parseICSFeed(text);
+          events.forEach((evt) => {
+            if (evt.date === selectedDay!.dateString) {
+              occupied.push(evt.time.slice(0, 5));
+            }
+          });
         } catch (e) {
           console.warn("iCal fetch warning:", e);
         }

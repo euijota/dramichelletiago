@@ -2,7 +2,10 @@
 
 import { createLovableAuth } from "@lovable.dev/cloud-auth-js";
 import { supabase } from "../supabase/client";
-const lovableAuth = createLovableAuth();
+const previewOrigin = typeof window !== "undefined" ? window.location.origin : "";
+const lovableAuth = createLovableAuth({
+  supportedOAuthOrigins: [previewOrigin, "https://lovable.dev"],
+});
 
 type SignInOptions = {
   redirect_uri?: string;
