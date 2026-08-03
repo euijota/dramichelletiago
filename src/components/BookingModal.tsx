@@ -136,11 +136,20 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
 
         // 2. Fetch live iCal feed from Google Agenda (Consultório.me)
         try {
-          const ICAL_URL =
+          const ICAL_RAW =
             "https://calendar.google.com/calendar/ical/dramichellebarbosatiago%40gmail.com/private-01e577e4ac71421318a056fcd50dd223/basic.ics";
-          const res = await fetch(ICAL_URL);
-          if (res.ok) {
-            const text = await res.text();
+          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ICAL_RAW)}`;
+
+          let text = "";
+          try {
+            const res = await fetch(ICAL_RAW);
+            if (res.ok) text = await res.text();
+          } catch {
+            const res = await fetch(proxyUrl);
+            if (res.ok) text = await res.text();
+          }
+
+          if (text) {
             const events = parseICSFeed(text);
             events.forEach((evt) => {
               if (evt.date === selectedDay!.dateString) {
