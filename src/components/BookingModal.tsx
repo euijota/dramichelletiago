@@ -390,7 +390,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                             {p}
                           </SelectItem>
                         ))}
-                        <SelectItem value="Outro">Outro Convênio</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

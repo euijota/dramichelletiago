@@ -64,7 +64,7 @@ export const STATUS_LABELS: Record<string, string> = {
   completed: "Concluído",
 };
 
-/** 30-minute slots for a given weekday, following the clinic's opening hours. */
+/** 1-hour slots for a given weekday, following the clinic's opening hours. */
 export function buildTimeSlots(weekday?: number): string[] {
   const ranges =
     weekday === undefined
@@ -75,7 +75,7 @@ export function buildTimeSlots(weekday?: number): string[] {
       : (OPENING_HOURS[weekday] ?? []);
   const slots: string[] = [];
   for (const [start, end] of ranges) {
-    for (let minutes = start * 60; minutes < end * 60; minutes += 30) {
+    for (let minutes = start * 60; minutes < end * 60; minutes += 60) {
       const h = String(Math.floor(minutes / 60)).padStart(2, "0");
       const m = String(minutes % 60).padStart(2, "0");
       slots.push(`${h}:${m}`);
