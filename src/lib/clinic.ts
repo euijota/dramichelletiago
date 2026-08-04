@@ -177,9 +177,7 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
     const block = blocks[i];
 
     // Captura DTSTART com ou sem fuso e com ou sem horário
-    const dtstartMatch = block.match(
-      /DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/,
-    );
+    const dtstartMatch = block.match(/DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/);
     const summaryMatch = block.match(/SUMMARY:(.*)/);
 
     if (dtstartMatch) {
