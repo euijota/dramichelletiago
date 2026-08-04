@@ -166,24 +166,50 @@ export interface ICSEvent {
   summary: string;
 }
 
-/** Parser para extrair agendamentos de feeds iCal (.ics do Google Agenda). */
+/** Parser para extrair agendamentos de feeds iCal (.ics do Google Agenda).
+ *  Converte datas/horas UTC (sufixo Z) para o fuso de Macapá (UTC-3).
+ */
 export function parseICSFeed(icsData: string): ICSEvent[] {
   const events: ICSEvent[] = [];
   const blocks = icsData.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i];
-    const dtstartMatch = block.match(/DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{4,6}))?/);
+
+    // Captura DTSTART com ou sem fuso e com ou sem horário
+    const dtstartMatch = block.match(
+      /DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/,
+    );
     const summaryMatch = block.match(/SUMMARY:(.*)/);
 
     if (dtstartMatch) {
-      const rawDate = dtstartMatch[1];
-      const rawTime = dtstartMatch[2];
+      const rawDate = dtstartMatch[1]; // ex: "20260804"
+      const rawH = dtstartMatch[2]; // ex: "18"
+      const rawM = dtstartMatch[3]; // ex: "00"
+      const isUTC = dtstartMatch[5] === "Z"; // sufixo Z = UTC
 
-      const date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+      let date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
       let time = "09:00";
-      if (rawTime) {
-        time = `${rawTime.slice(0, 2)}:${rawTime.slice(2, 4)}`;
+
+      if (rawH !== undefined && rawM !== undefined) {
+        if (isUTC) {
+          // Converte UTC → Macapá (UTC-3)
+          const utcDate = new Date(
+            `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}T${rawH}:${rawM}:00Z`,
+          );
+          // subtrai 3h
+          const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
+          const y = localDate.getUTCFullYear();
+          const mo = String(localDate.getUTCMonth() + 1).padStart(2, "0");
+          const d = String(localDate.getUTCDate()).padStart(2, "0");
+          const h = String(localDate.getUTCHours()).padStart(2, "0");
+          const m = String(localDate.getUTCMinutes()).padStart(2, "0");
+          date = `${y}-${mo}-${d}`;
+          time = `${h}:${m}`;
+        } else {
+          // Hora local já no fuso certo
+          time = `${rawH}:${rawM}`;
+        }
       }
 
       const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";

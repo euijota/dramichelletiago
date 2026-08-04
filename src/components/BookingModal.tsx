@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { fetchICalFeed } from "@/lib/ical-server";
 import {
   Dialog,
   DialogContent,
@@ -134,13 +135,10 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           data.forEach((item) => occupied.push(item.appointment_time.slice(0, 5)));
         }
 
-        // 2. Fetch live iCal feed from Google Agenda (Consultório.me)
+        // 2. Fetch live iCal feed from Google Agenda via server function
         try {
-          // Call server‑side proxy that adds CORS header
-          const res = await fetch("/api/ical");
-          if (!res.ok) throw new Error("Failed to fetch iCal via server proxy");
-          const text = await res.text();
-          console.log("Fetched iCal via server proxy, length:", text.length);
+          const text = await fetchICalFeed();
+          console.log("Fetched iCal via server fn, length:", text.length);
           const events = parseICSFeed(text);
           events.forEach((evt) => {
             if (evt.date === selectedDay!.dateString) {
