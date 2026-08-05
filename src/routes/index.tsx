@@ -8,6 +8,7 @@ import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "
 import { supabase } from "@/integrations/supabase/client";
 import { BookingModal } from "@/components/BookingModal";
 import draMichelleImg from "@/assets/dra-michelle.jpg";
+import signatureWine from "@/assets/signature-wine.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -186,9 +187,13 @@ function Home() {
         <p className="mt-10 font-display text-3xl leading-snug text-foreground sm:text-4xl">
           “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao mundo.”
         </p>
-        <p className="mx-auto mt-6 font-script text-3xl text-primary font-medium sm:text-4xl">
-          Dra. Michelle Barbosa Tiago
-        </p>
+        <img
+          src={signatureWine}
+          alt="Dra. Michelle Barbosa Tiago"
+          className="mx-auto mt-8 h-12 w-auto sm:h-14 object-contain"
+          loading="lazy"
+          decoding="async"
+        />
 
         <button
           type="button"
