@@ -100,7 +100,7 @@ function Painel() {
 
   const { data: weekAppointments } = useQuery({
     queryKey: ["appointments", rangeStart, rangeEnd],
-    enabled: isAdmin,
+    enabled: !!session,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
@@ -115,7 +115,7 @@ function Painel() {
 
   const { data: googleEvents = [] } = useQuery({
     queryKey: ["googleAgendaFeed"],
-    enabled: isAdmin,
+    enabled: !!session,
     queryFn: async () => {
       try {
         const text = await fetchICalFeed();
@@ -125,12 +125,13 @@ function Painel() {
         return [];
       }
     },
+    staleTime: 0,
     refetchInterval: 60000,
   });
 
   const { data: pending } = useQuery({
     queryKey: ["appointments", "pending"],
-    enabled: isAdmin,
+    enabled: !!session,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
