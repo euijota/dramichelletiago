@@ -12,13 +12,7 @@ type LogoProps = {
 };
 
 /** Exact tooth mark from the Canva brand design. */
-export function ToothMark({
-  className,
-  onWine = false,
-}: {
-  className?: string;
-  onWine?: boolean;
-}) {
+export function ToothMark({ className, onWine = false }: { className?: string; onWine?: boolean }) {
   return (
     <img
       src={onWine ? toothWhite : toothWine}
@@ -38,7 +32,10 @@ export function Logo({ className, onWine = false, showName = true }: LogoProps) 
     <img
       src={onWine ? logoWhite : logoWine}
       alt="Dra. Michelle Barbosa Tiago — Odontologia Estética"
-      className={cn("h-10 w-auto sm:h-12 object-contain", className)}
+      className={cn(
+        "h-10 w-auto max-w-[180px] shrink-0 object-contain sm:h-12 sm:max-w-[220px]",
+        className,
+      )}
       loading="eager"
       decoding="async"
     />

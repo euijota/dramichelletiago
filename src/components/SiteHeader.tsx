@@ -38,7 +38,7 @@ export function SiteHeader() {
           </div>
 
           <Link to="/" aria-label={CLINIC.name} className="flex shrink-0 justify-center">
-            <Logo className="h-12 w-auto sm:h-14" />
+            <Logo className="h-12 sm:h-14" />
           </Link>
 
           <div className="flex flex-1 justify-end">
