@@ -207,11 +207,34 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         setBookedSlots(uniqueBooked);
 
         const allSlots = buildTimeSlots(selectedDay!.weekday);
-        const firstAvailable = allSlots.find((slot) => !uniqueBooked.includes(slot));
-        if (firstAvailable) {
-          setSelectedSlot(firstAvailable);
+        const now = new Date();
+        const year = now.getFullYear();
+        const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+        const dateNum = String(now.getDate()).padStart(2, "0");
+        const todayIso = `${year}-${monthStr}-${dateNum}`;
+        const isToday = selectedDay!.dateString === todayIso;
+
+        const availableSlots = allSlots.filter((slot) => {
+          if (uniqueBooked.includes(slot)) return false;
+          if (isToday) {
+            const slotHour = parseInt(slot.split(":")[0], 10);
+            if (slotHour <= now.getHours()) return false;
+          }
+          return true;
+        });
+
+        if (availableSlots.length > 0) {
+          setSelectedSlot(availableSlots[0]);
         } else {
-          setSelectedSlot(null);
+          // Se o dia atual não tem mais horários vagos, avança para o próximo dia com horários!
+          const currentIndex = days.findIndex((d) => d.dateString === selectedDay!.dateString);
+          if (currentIndex >= 0 && currentIndex < days.length - 1) {
+            const nextDay = days[currentIndex + 1];
+            setSelectedDay(nextDay);
+            setSelectedMonth(nextDay.monthYear);
+          } else {
+            setSelectedSlot(null);
+          }
         }
       } catch (err) {
         console.error("Erro ao buscar horários agendados:", err);
