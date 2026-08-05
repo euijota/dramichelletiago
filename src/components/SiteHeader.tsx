@@ -10,9 +10,9 @@ export function SiteHeader() {
   return (
     <>
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-24 max-w-6xl items-center px-6">
-          <div className="flex flex-1 justify-start">
-            <nav className="hidden items-center gap-9 md:flex">
+        <div className="mx-auto flex h-20 sm:h-24 max-w-6xl items-center justify-between md:justify-start px-6">
+          <div className="hidden md:flex flex-1 justify-start">
+            <nav className="flex items-center gap-9">
               <Link
                 to="/sobre"
                 className="text-kicker text-muted-foreground transition-silk hover:text-primary"
@@ -37,11 +37,11 @@ export function SiteHeader() {
             </nav>
           </div>
 
-          <Link to="/" aria-label={CLINIC.name} className="flex shrink-0 justify-center">
-            <Logo className="h-12 sm:h-14" />
+          <Link to="/" aria-label={CLINIC.name} className="flex shrink-0 justify-center mx-auto">
+            <Logo className="h-10 sm:h-14" />
           </Link>
 
-          <div className="flex flex-1 justify-end">
+          <div className="hidden md:flex flex-1 justify-end">
             <button
               type="button"
               onClick={() => setBookingOpen(true)}
