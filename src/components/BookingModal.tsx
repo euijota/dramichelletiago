@@ -408,48 +408,9 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
             </Button>
           </div>
         ) : (
-          /* Main Step Tabs: Interactive Calendar OR Consultorio.me Iframe */
+          /* Main Step: Interactive Calendar */
           <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
-            {/* Mode Switcher */}
-            <div className="flex rounded-2xl bg-muted p-1 border border-border">
-              <button
-                type="button"
-                onClick={() => setBookingMode("interactive")}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                  bookingMode === "interactive"
-                    ? "bg-[#90464f] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                📅 Agenda Inteligente
-              </button>
-              <button
-                type="button"
-                onClick={() => setBookingMode("iframe")}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
-                  bookingMode === "iframe"
-                    ? "bg-[#90464f] text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                🖥️ Consultório.me
-              </button>
-            </div>
-
-            {bookingMode === "iframe" ? (
-              /* Embedded Consultorio.me iframe */
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-border overflow-hidden bg-white min-h-[480px]">
-                  <iframe
-                    src="https://consultorio.me/pro/dramichellebarbosatiago?external=true"
-                    title="Agendamento Dra Michelle Barbosa Tiago"
-                    className="w-full h-[500px] border-none"
-                  />
-                </div>
-              </div>
-            ) : (
-              /* Custom Synchronized Form */
-              <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Month Tabs & Day Carousel */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -705,7 +666,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                   </Button>
                 </div>
               </form>
-            )}
           </div>
         )}
 
