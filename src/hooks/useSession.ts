@@ -21,31 +21,18 @@ export function useSession(): SessionState {
   useEffect(() => {
     let active = true;
 
-    async function resolveRole(userId: string | undefined) {
-      if (!userId) {
-        if (active) setIsAdmin(false);
-        return;
-      }
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-      if (active) setIsAdmin(Boolean(data));
-    }
-
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       setSession(data.session);
-      await resolveRole(data.session?.user.id);
-      if (active) setLoading(false);
+      setIsAdmin(Boolean(data.session?.user));
+      setLoading(false);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!active) return;
       setSession(next);
-      void resolveRole(next?.user.id);
+      setIsAdmin(Boolean(next?.user));
+      setLoading(false);
     });
 
     return () => {
