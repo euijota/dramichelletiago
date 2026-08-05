@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchICalFeed } from "@/lib/ical-server";
+import { notifyDentistNewBooking } from "@/lib/notify-server";
 import {
   Dialog,
   DialogContent,
@@ -289,6 +290,20 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     } catch (err: unknown) {
       console.warn("Supabase save attempt notice:", err);
     } finally {
+      // Dispara a notificação automática para a Dra. Michelle no servidor
+      notifyDentistNewBooking({
+        data: {
+          protocol,
+          patientName: patientName.trim(),
+          patientPhone: patientPhone.trim(),
+          patientEmail: patientEmail.trim() || "Não informado",
+          dateFormatted: selectedDay.fullFormatted,
+          time: selectedSlot,
+          serviceName,
+          notes: notes.trim(),
+        },
+      }).catch((err) => console.warn("Notice dispatch:", err));
+
       setIsSubmitting(false);
 
       const confirmed = {
