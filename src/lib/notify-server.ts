@@ -102,7 +102,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
     // 4. Cria evento no Google Agenda via Apps Script (GET com params na URL)
     const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL ||
-      "https://script.google.com/macros/s/AKfycbxQ7UvlAqRoGKt8sIwfRePelu7eKsH8Bu5UeMjLWA4Ahg42L4MxqLsP8tVx9oiL5-Gviw/exec";
+      "https://script.google.com/macros/s/AKfycbxCcfshrC-pTc_53ON17oKeWDNTeQkEtPoP4a1_xeT5XxEFxZo5VPEcMgjMkjkNUbJODw/exec";
     try {
       const [hh, mm] = data.appointmentTime.split(":").map(Number);
       const pad = (n: number) => String(n).padStart(2, "0");
