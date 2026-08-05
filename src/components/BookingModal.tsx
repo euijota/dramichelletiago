@@ -349,7 +349,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     const notesText = notes.trim() ? `[${protocol}] ${notes.trim()}` : `[${protocol}]`;
 
     try {
-      // Server function: tenta salvar no banco e SEMPRE envia e-mail de notificação
+      // Server function: tenta salvar no banco e envia e-mail de notificação
       await saveAppointmentAndNotify({
         data: {
           protocol,
@@ -363,9 +363,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         },
       });
     } catch (err: unknown) {
-      // Mesmo com erro no servidor, mostra confirmação ao paciente
-      // pois a Dra. Michelle sempre recebe o e-mail independentemente
-      console.warn("Booking server fn warning (notification still sent):", err);
+      console.warn("Booking server fn warning:", err);
     } finally {
       const confirmed = {
         protocol,
@@ -377,6 +375,18 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       setConfirmedBooking(confirmed);
       toast.success("Solicitação de agendamento realizada com sucesso!");
       setIsSubmitting(false);
+
+      // Notificação imediata: abre WhatsApp da Dra. Michelle com os dados do agendamento
+      const dentistMsg = encodeURIComponent(
+        `🦷 *NOVO AGENDAMENTO RECEBIDO*\n\n` +
+        `📌 Protocolo: ${protocol}\n` +
+        `👤 Paciente: ${patientName.trim()}\n` +
+        `📞 Telefone: ${patientPhone.trim()}\n` +
+        `📅 Data: ${selectedDay.fullFormatted} às ${selectedSlot}\n` +
+        `💼 Serviço: ${serviceName}\n` +
+        `📝 Obs: ${notes.trim() || "Nenhuma"}`
+      );
+      window.open(`https://wa.me/${CLINIC.whatsapp}?text=${dentistMsg}`, "_blank");
     }
   }
 
