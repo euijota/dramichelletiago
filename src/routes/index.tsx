@@ -7,8 +7,7 @@ import { ToothMark } from "@/components/Logo";
 import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import { BookingModal } from "@/components/BookingModal";
-import heroAsset from "@/assets/dra-michelle.jpg.asset.json";
-import signatureWine from "@/assets/signature-wine.png.asset.json";
+import draMichelleImg from "@/assets/dra-michelle.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -125,7 +124,7 @@ function Home() {
           <div className="animate-veil">
             <div className="relative overflow-hidden rounded-t-[14rem] rounded-b-3xl shadow-bloom">
               <img
-                src={heroAsset.url}
+                src={draMichelleImg}
                 alt="Dra. Michelle Barbosa Tiago, cirurgiã-dentista em Macapá"
                 width={786}
                 height={786}
@@ -187,13 +186,9 @@ function Home() {
         <p className="mt-10 font-display text-3xl leading-snug text-foreground sm:text-4xl">
           “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao mundo.”
         </p>
-        <img
-          src={signatureWine.url}
-          alt="Dra. Michelle Barbosa Tiago"
-          className="mx-auto mt-10 h-9 w-auto sm:h-11"
-          loading="lazy"
-          decoding="async"
-        />
+        <p className="mx-auto mt-6 font-script text-3xl text-primary font-medium sm:text-4xl">
+          Dra. Michelle Barbosa Tiago
+        </p>
 
         <button
           type="button"

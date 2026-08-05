@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { fetchICalFeed } from "@/lib/ical-server";
 import {
   Dialog,
@@ -18,7 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, Check, Send, Phone, User, FileText, CheckCircle2 } from "lucide-react";
+import {
+  Calendar as CalendarIcon,
+  Clock,
+  Send,
+  User,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   CLINIC,
@@ -26,7 +35,6 @@ import {
   buildTimeSlots,
   buildGoogleCalendarUrl,
   parseICSFeed,
-  weekdayOf,
 } from "@/lib/clinic";
 import { toast } from "sonner";
 
@@ -41,15 +49,22 @@ interface DayItem {
   dayName: string;
   dayNumber: string;
   monthName: string;
+  fullMonthName: string;
+  monthYear: string;
   fullFormatted: string;
   weekday: number;
 }
 
 export function BookingModal({ open, onOpenChange, defaultService }: BookingModalProps) {
   const [days, setDays] = useState<DayItem[]>([]);
+  const [availableMonths, setAvailableMonths] = useState<string[]>([]);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedDay, setSelectedDay] = useState<DayItem | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+
+  const carouselRef = useRef<HTMLDivElement>(null);
 
   // Form State
   const [patientName, setPatientName] = useState("");
@@ -67,14 +82,15 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     phone: string;
   } | null>(null);
 
-  // Generates next 14 available days (skipping Sundays)
+  // Generates 60 available days (skipping Sundays) across current and next month
   useEffect(() => {
     const nextDays: DayItem[] = [];
+    const monthsSet = new Set<string>();
     const today = new Date();
     const curr = new Date(today);
 
     const dayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
-    const monthNames = [
+    const monthNamesShort = [
       "Jan",
       "Fev",
       "Mar",
@@ -88,37 +104,69 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       "Nov",
       "Dez",
     ];
+    const monthNamesFull = [
+      "Janeiro",
+      "Fevereiro",
+      "Março",
+      "Abril",
+      "Maio",
+      "Junho",
+      "Julho",
+      "Agosto",
+      "Setembro",
+      "Outubro",
+      "Novembro",
+      "Dezembro",
+    ];
 
-    while (nextDays.length < 14) {
+    while (nextDays.length < 60) {
       const weekday = curr.getDay();
       if (weekday !== 0) {
         // Skip Sunday
         const year = curr.getFullYear();
-        const month = String(curr.getMonth() + 1).padStart(2, "0");
+        const monthNum = curr.getMonth();
+        const monthStr = String(monthNum + 1).padStart(2, "0");
         const dateNum = String(curr.getDate()).padStart(2, "0");
-        const dateString = `${year}-${month}-${dateNum}`;
+        const dateString = `${year}-${monthStr}-${dateNum}`;
+        const monthYear = `${monthNamesFull[monthNum]} ${year}`;
+
+        monthsSet.add(monthYear);
 
         nextDays.push({
           dateString,
           dayName: dayNames[weekday],
           dayNumber: dateNum,
-          monthName: monthNames[curr.getMonth()],
-          fullFormatted: `${dayNames[weekday]}, ${dateNum} de ${monthNames[curr.getMonth()]}`,
+          monthName: monthNamesShort[monthNum],
+          fullMonthName: monthNamesFull[monthNum],
+          monthYear,
+          fullFormatted: `${dayNames[weekday]}, ${dateNum} de ${monthNamesFull[monthNum]}`,
           weekday,
         });
       }
       curr.setDate(curr.getDate() + 1);
     }
 
+    const monthsArr = Array.from(monthsSet);
     setDays(nextDays);
+    setAvailableMonths(monthsArr);
+
+    if (monthsArr.length > 0) {
+      setSelectedMonth(monthsArr[0]);
+    }
     if (nextDays.length > 0) {
       setSelectedDay(nextDays[0]);
     }
   }, []);
 
-  // Fetch booked slots from Supabase + live iCal feed from Consultorio.me / Google Agenda
+  // Filter days by selected month
+  const filteredDays = days.filter((d) => d.monthYear === selectedMonth);
+
+  // Fetch booked slots from Supabase + live iCal feed, then auto-select first available time slot
   useEffect(() => {
     if (!selectedDay) return;
+
+    let isMounted = true;
+    setIsLoadingSlots(true);
 
     async function fetchBooked() {
       try {
@@ -138,7 +186,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         // 2. Fetch live iCal feed from Google Agenda via server function
         try {
           const text = await fetchICalFeed();
-          console.log("Fetched iCal via server fn, length:", text.length);
           const events = parseICSFeed(text);
           events.forEach((evt) => {
             if (evt.date === selectedDay!.dateString) {
@@ -149,16 +196,41 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           console.warn("iCal fetch warning:", e);
         }
 
-        setBookedSlots(Array.from(new Set(occupied)));
+        if (!isMounted) return;
+
+        const uniqueBooked = Array.from(new Set(occupied));
+        setBookedSlots(uniqueBooked);
+
+        // Auto-select first available time slot for selectedDay
+        const allSlots = buildTimeSlots(selectedDay!.weekday);
+        const firstAvailable = allSlots.find((slot) => !uniqueBooked.includes(slot));
+        if (firstAvailable) {
+          setSelectedSlot(firstAvailable);
+        } else {
+          setSelectedSlot(null);
+        }
       } catch (err) {
         console.error("Erro ao buscar horários agendados:", err);
+      } finally {
+        if (isMounted) setIsLoadingSlots(false);
       }
     }
 
     fetchBooked();
+
+    return () => {
+      isMounted = false;
+    };
   }, [selectedDay]);
 
   const availableTimeSlots = selectedDay ? buildTimeSlots(selectedDay.weekday) : [];
+
+  function scrollCarousel(direction: "left" | "right") {
+    if (carouselRef.current) {
+      const scrollAmount = direction === "left" ? -240 : 240;
+      carouselRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
+    }
+  }
 
   // Mask Phone: (XX) XXXXX-XXXX
   function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -315,7 +387,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                 }}
                 className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
               >
-                <Calendar className="w-4 h-4 text-primary" /> Adicionar à minha Google Agenda
+                <CalendarIcon className="w-4 h-4 text-primary" /> Adicionar à minha Google Agenda
               </Button>
             )}
 
@@ -325,69 +397,139 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           </div>
         ) : (
           /* Form Step */
-          <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-            {/* Carousel Days */}
-            <div>
-              <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5 mb-2">
-                <Calendar className="w-4 h-4" /> 1. Selecione o dia da consulta
-              </Label>
-              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-                {days.map((day) => {
-                  const isActive = selectedDay?.dateString === day.dateString;
-                  return (
-                    <button
-                      key={day.dateString}
-                      type="button"
-                      onClick={() => {
-                        setSelectedDay(day);
-                        setSelectedSlot(null);
-                      }}
-                      className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
-                        isActive
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-card hover:bg-accent border-border text-foreground"
-                      }`}
-                    >
-                      <div className="text-[11px] font-bold uppercase opacity-80">
-                        {day.dayName}
-                      </div>
-                      <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
-                      <div className="text-[11px] opacity-80">{day.monthName}</div>
-                    </button>
-                  );
-                })}
+          <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[78vh] overflow-y-auto">
+            {/* Month Tabs & Day Carousel */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5">
+                  <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
+                </Label>
+                {/* Month Selector Pills */}
+                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                  {availableMonths.map((month) => {
+                    const isSelected = selectedMonth === month;
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(month);
+                          const firstDayOfMonth = days.find((d) => d.monthYear === month);
+                          if (firstDayOfMonth) {
+                            setSelectedDay(firstDayOfMonth);
+                          }
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {month}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Day Carousel with Navigation Arrows */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel("left")}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  aria-label="Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div
+                  ref={carouselRef}
+                  className="flex gap-2.5 overflow-x-auto px-6 py-1 scrollbar-none scroll-smooth"
+                >
+                  {filteredDays.map((day) => {
+                    const isActive = selectedDay?.dateString === day.dateString;
+                    return (
+                      <button
+                        key={day.dateString}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setSelectedSlot(null);
+                        }}
+                        className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
+                          isActive
+                            ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
+                            : "bg-card hover:bg-accent border-border text-foreground"
+                        }`}
+                      >
+                        <div className="text-[11px] font-bold uppercase opacity-80">
+                          {day.dayName}
+                        </div>
+                        <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
+                        <div className="text-[11px] opacity-80">{day.monthName}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel("right")}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  aria-label="Próximo"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
             {/* Time Slots */}
             <div>
-              <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5 mb-2">
-                <Clock className="w-4 h-4" /> 2. Escolha o horário vago (
-                {selectedDay?.fullFormatted})
-              </Label>
-              <div className="grid grid-cols-4 gap-2.5">
-                {availableTimeSlots.map((time) => {
-                  const isBooked = bookedSlots.includes(time);
-                  const isSelected = selectedSlot === time;
-                  return (
-                    <button
-                      key={time}
-                      type="button"
-                      disabled={isBooked}
-                      onClick={() => setSelectedSlot(time)}
-                      className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
-                        isBooked
-                          ? "bg-muted text-muted-foreground border-border line-through opacity-50 cursor-not-allowed"
-                          : isSelected
-                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                            : "bg-card hover:bg-accent border-primary/40 text-primary"
-                      }`}
-                    >
-                      {time}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" /> 2. Escolha o horário ({selectedDay?.fullFormatted})
+                </Label>
+                {selectedSlot && (
+                  <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                    <Sparkles className="w-3 h-3" /> Selecionado automaticamente
+                  </span>
+                )}
               </div>
+
+              {isLoadingSlots ? (
+                <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
+                  Verificando disponibilidade de horários...
+                </div>
+              ) : availableTimeSlots.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">
+                  Nenhum horário disponível para este dia.
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2.5">
+                  {availableTimeSlots.map((time) => {
+                    const isBooked = bookedSlots.includes(time);
+                    const isSelected = selectedSlot === time;
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        disabled={isBooked}
+                        onClick={() => setSelectedSlot(time)}
+                        className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
+                          isBooked
+                            ? "bg-muted text-muted-foreground border-border line-through opacity-40 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-primary text-primary-foreground border-primary shadow-md ring-2 ring-primary/30 scale-[1.02]"
+                              : "bg-card hover:bg-accent border-primary/40 text-primary"
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Patient Form Fields */}
