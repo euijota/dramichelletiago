@@ -187,9 +187,13 @@ function Home() {
         <p className="mt-10 font-display text-3xl leading-snug text-foreground sm:text-4xl">
           “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao mundo.”
         </p>
-        <p className="mx-auto mt-6 font-script text-4xl text-primary font-normal tracking-wide sm:text-5xl">
-          Dra. Michelle Barbosa Tiago
-        </p>
+        <img
+          src={signatureWine}
+          alt="Dra. Michelle Barbosa Tiago"
+          className="mx-auto mt-6 h-11 w-auto sm:h-14 object-contain"
+          loading="lazy"
+          decoding="async"
+        />
 
         <button
           type="button"
