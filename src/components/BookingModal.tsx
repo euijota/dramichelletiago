@@ -589,7 +589,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" /> 2. Escolha o horário ({selectedDay?.fullFormatted})
+                      <Clock className="w-4 h-4" /> 2. Próximo horário disponível para atendimento ({selectedDay?.fullFormatted})
                     </Label>
                     {selectedSlot && (
                       <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
