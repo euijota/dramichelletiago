@@ -100,39 +100,30 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       console.warn("[saveAppointmentAndNotify] Email notification warning:", e);
     }
 
-    // 4. Cria evento no Google Agenda via Apps Script para bloquear o horário
-    const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
-    if (appsScriptUrl) {
-      try {
-        // Monta início e fim do evento (consulta = 1 hora)
-        const [year, month, day] = data.appointmentDate.split("-").map(Number);
-        const [hh, mm] = data.appointmentTime.split(":").map(Number);
-        // Google Apps Script espera formato ISO local (sem Z)
-        const pad = (n: number) => String(n).padStart(2, "0");
-        const startStr = `${data.appointmentDate}T${pad(hh)}:${pad(mm)}:00`;
-        const endHh = (hh + 1) % 24;
-        const endStr = `${data.appointmentDate}T${pad(endHh)}:${pad(mm)}:00`;
-
-        await fetch(appsScriptUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: `🦷 ${data.patientName}`,
-            description:
-              `Protocolo: ${data.protocol}\n` +
-              `Telefone: ${data.patientPhone}\n` +
-              `Serviço: ${data.serviceName}\n` +
-              `Obs: ${data.notes || "Nenhuma"}`,
-            start: startStr,
-            end: endStr,
-          }),
-        });
-        console.log("[saveAppointmentAndNotify] Google Calendar event created for", data.protocol);
-      } catch (e) {
-        console.warn("[saveAppointmentAndNotify] Google Calendar event warning:", e);
-      }
-    } else {
-      console.log("[saveAppointmentAndNotify] GOOGLE_APPS_SCRIPT_URL not set, skipping calendar event");
+    // 4. Cria evento no Google Agenda via Apps Script (GET com params na URL)
+    const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL ||
+      "https://script.google.com/macros/s/AKfycbxQ7UvlAqRoGKt8sIwfRePelu7eKsH8Bu5UeMjLWA4Ahg42L4MxqLsP8tVx9oiL5-Gviw/exec";
+    try {
+      const [hh, mm] = data.appointmentTime.split(":").map(Number);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const startStr = `${data.appointmentDate}T${pad(hh)}:${pad(mm)}:00`;
+      const endHh = (hh + 1) % 24;
+      const endStr = `${data.appointmentDate}T${pad(endHh)}:${pad(mm)}:00`;
+      const desc = `Protocolo: ${data.protocol}\nTelefone: ${data.patientPhone}\nServiço: ${data.serviceName}\nObs: ${data.notes || "Nenhuma"}`;
+      const params = new URLSearchParams({
+        title: `🦷 ${data.patientName}`,
+        description: desc,
+        start: startStr,
+        end: endStr,
+      });
+      const res = await fetch(`${appsScriptUrl}?${params.toString()}`, {
+        method: "GET",
+        redirect: "follow",
+      });
+      const text = await res.text();
+      console.log("[saveAppointmentAndNotify] Google Calendar response:", text.substring(0, 200));
+    } catch (e) {
+      console.warn("[saveAppointmentAndNotify] Google Calendar event warning:", e);
     }
 
     return { success: true, dbSaved, protocol: data.protocol };
