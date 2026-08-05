@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { claimAdminIfUnclaimed } from "@/lib/admin.functions";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
+import { fetchICalFeed } from "@/lib/ical-server";
 import {
   CLINIC,
   STATUS_LABELS,
@@ -14,6 +15,7 @@ import {
   buildGoogleCalendarUrl,
   formatLongDate,
   formatShortDate,
+  parseICSFeed,
   startOfWeek,
   weekdayOf,
   toISODate,
@@ -109,6 +111,21 @@ function Painel() {
       if (error) throw error;
       return data as Appointment[];
     },
+  });
+
+  const { data: googleEvents = [] } = useQuery({
+    queryKey: ["googleAgendaFeed"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      try {
+        const text = await fetchICalFeed();
+        return parseICSFeed(text);
+      } catch (e) {
+        console.warn("Google Agenda iCal fetch notice:", e);
+        return [];
+      }
+    },
+    refetchInterval: 60000,
   });
 
   const { data: pending } = useQuery({
@@ -289,8 +306,30 @@ function Painel() {
             {weekDays.map((day, index) => {
               const iso = toISODate(day);
               const isToday = iso === todayISO;
-              const dayAppointments =
+              const supaAppointments =
                 weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
+              const gEvents = googleEvents.filter((g) => g.date === iso);
+
+              const combined = [
+                ...supaAppointments.map((a) => ({
+                  id: a.id,
+                  time: trimSeconds(a.appointment_time),
+                  title: a.patient_name,
+                  subtitle: a.service_name,
+                  isGoogle: false,
+                  status: a.status,
+                  raw: a,
+                })),
+                ...gEvents.map((g, idx) => ({
+                  id: `gcal-${g.date}-${g.time}-${idx}`,
+                  time: g.time,
+                  title: g.summary,
+                  subtitle: "Google Agenda",
+                  isGoogle: true,
+                  status: "confirmed" as const,
+                  raw: null,
+                })),
+              ].sort((a, b) => a.time.localeCompare(b.time));
 
               return (
                 <div key={iso} className="min-h-[420px] p-4">
@@ -307,28 +346,36 @@ function Painel() {
                   </div>
 
                   <div className="space-y-2.5">
-                    {dayAppointments.length === 0 && (
+                    {combined.length === 0 && (
                       <p className="pt-8 text-center text-xs text-muted-foreground/60">
                         Sem consultas
                       </p>
                     )}
-                    {dayAppointments.map((appointment) => (
+                    {combined.map((item) => (
                       <button
-                        key={appointment.id}
-                        onClick={() => setSelected(appointment)}
+                        key={item.id}
+                        disabled={item.isGoogle}
+                        onClick={() => item.raw && setSelected(item.raw)}
                         className={cn(
                           "w-full rounded-lg border-l-2 border-y border-r p-3 text-left transition-silk hover:shadow-petal",
-                          statusTone[appointment.status],
+                          item.isGoogle
+                            ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200"
+                            : statusTone[item.status],
                         )}
                       >
-                        <span className="block text-xs font-medium">
-                          {trimSeconds(appointment.appointment_time)}
+                        <span className="block text-xs font-medium flex items-center justify-between">
+                          <span>{item.time}</span>
+                          {item.isGoogle && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded">
+                              Google
+                            </span>
+                          )}
                         </span>
-                        <span className="mt-1 block truncate text-sm text-foreground">
-                          {appointment.patient_name}
+                        <span className="mt-1 block truncate text-sm font-semibold text-foreground">
+                          {item.title}
                         </span>
                         <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {appointment.service_name}
+                          {item.subtitle}
                         </span>
                       </button>
                     ))}
