@@ -27,6 +27,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  ExternalLink,
+  ShieldCheck,
+  CalendarCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -36,6 +39,7 @@ import {
   buildGoogleCalendarUrl,
   parseICSFeed,
 } from "@/lib/clinic";
+import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 
 interface BookingModalProps {
@@ -56,6 +60,7 @@ interface DayItem {
 }
 
 export function BookingModal({ open, onOpenChange, defaultService }: BookingModalProps) {
+  const [bookingMode, setBookingMode] = useState<"interactive" | "iframe">("interactive");
   const [days, setDays] = useState<DayItem[]>([]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
@@ -82,7 +87,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     phone: string;
   } | null>(null);
 
-  // Generates 60 available days (skipping Sundays) across current and next month
+  // Generates 60 available days (skipping Sundays)
   useEffect(() => {
     const nextDays: DayItem[] = [];
     const monthsSet = new Set<string>();
@@ -158,10 +163,9 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     }
   }, []);
 
-  // Filter days by selected month
   const filteredDays = days.filter((d) => d.monthYear === selectedMonth);
 
-  // Fetch booked slots from Supabase + live iCal feed, then auto-select first available time slot
+  // Fetch booked slots from Supabase + iCal, auto-select first available time slot
   useEffect(() => {
     if (!selectedDay) return;
 
@@ -172,7 +176,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       try {
         const occupied: string[] = [];
 
-        // 1. Fetch from Supabase
+        // 1. Supabase
         const { data } = await supabase
           .from("appointments")
           .select("appointment_time")
@@ -183,7 +187,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           data.forEach((item) => occupied.push(item.appointment_time.slice(0, 5)));
         }
 
-        // 2. Fetch live iCal feed from Google Agenda via server function
+        // 2. iCal Server Function
         try {
           const text = await fetchICalFeed();
           const events = parseICSFeed(text);
@@ -201,7 +205,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         const uniqueBooked = Array.from(new Set(occupied));
         setBookedSlots(uniqueBooked);
 
-        // Auto-select first available time slot for selectedDay
         const allSlots = buildTimeSlots(selectedDay!.weekday);
         const firstAvailable = allSlots.find((slot) => !uniqueBooked.includes(slot));
         if (firstAvailable) {
@@ -232,7 +235,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     }
   }
 
-  // Mask Phone: (XX) XXXXX-XXXX
   function handlePhoneChange(e: React.ChangeEvent<HTMLInputElement>) {
     let val = e.target.value.replace(/\D/g, "");
     if (val.length > 11) val = val.slice(0, 11);
@@ -325,23 +327,33 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl rounded-3xl p-0 overflow-hidden bg-background border border-border shadow-bloom">
-        {/* Header */}
-        <div className="bg-primary px-6 py-5 text-primary-foreground">
-          <DialogTitle className="font-display text-2xl font-normal text-white">
-            {confirmedBooking ? "Agendamento Solicitado!" : "Solicitação de Agendamento"}
-          </DialogTitle>
-          <DialogDescription className="text-primary-foreground/80 text-sm mt-1">
-            {confirmedBooking
-              ? "Sua solicitação foi registrada no consultório"
-              : "Escolha o melhor dia e horário para a sua consulta"}
+      <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-background border border-[#90464f]/20 shadow-2xl">
+        {/* Exact Header Banner with Official Burgundy Background */}
+        <div className="bg-[#90464f] py-6 px-6 text-center border-b border-white/10 flex flex-col items-center justify-center">
+          <Logo onWine className="h-11 w-auto max-w-[320px]" />
+          <DialogTitle className="sr-only">Agendamento Dra Michelle Barbosa Tiago</DialogTitle>
+          <DialogDescription className="text-white/80 text-xs mt-2 font-medium tracking-wide">
+            Consultório Odontológico · CRO-AP 596 · Macapá
           </DialogDescription>
+        </div>
+
+        {/* Info Strip */}
+        <div className="bg-[#FAF5F5] px-6 py-3 border-b border-[#90464f]/10 grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
+            <CalendarCheck className="w-3.5 h-3.5 text-[#90464f]" /> Hora Marcada
+          </div>
+          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium border-x border-[#90464f]/10">
+            <Clock className="w-3.5 h-3.5 text-[#90464f]" /> Seg a Sex
+          </div>
+          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-[#90464f]" /> Confirmado
+          </div>
         </div>
 
         {/* Confirmation Screen */}
         {confirmedBooking ? (
           <div className="p-8 text-center space-y-6">
-            <div className="mx-auto w-16 h-16 bg-success/15 text-success rounded-full flex items-center justify-center text-3xl">
+            <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl">
               <CheckCircle2 className="w-10 h-10 text-emerald-600" />
             </div>
 
@@ -358,7 +370,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
             </div>
 
             <div className="bg-accent/40 p-4 rounded-2xl border border-border text-sm text-foreground space-y-1">
-              <p className="font-semibold text-primary">Consulta marcada para:</p>
+              <p className="font-semibold text-[#90464f]">Consulta marcada para:</p>
               <p className="text-base font-medium">
                 {confirmedBooking.dateFormatted} às {confirmedBooking.time}
               </p>
@@ -387,7 +399,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                 }}
                 className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
               >
-                <CalendarIcon className="w-4 h-4 text-primary" /> Adicionar à minha Google Agenda
+                <CalendarIcon className="w-4 h-4 text-[#90464f]" /> Adicionar à minha Google Agenda
               </Button>
             )}
 
@@ -396,266 +408,328 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
             </Button>
           </div>
         ) : (
-          /* Form Step */
-          <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[78vh] overflow-y-auto">
-            {/* Month Tabs & Day Carousel */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5">
-                  <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
-                </Label>
-                {/* Month Selector Pills */}
-                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
-                  {availableMonths.map((month) => {
-                    const isSelected = selectedMonth === month;
-                    return (
-                      <button
-                        key={month}
-                        type="button"
-                        onClick={() => {
-                          setSelectedMonth(month);
-                          const firstDayOfMonth = days.find((d) => d.monthYear === month);
-                          if (firstDayOfMonth) {
-                            setSelectedDay(firstDayOfMonth);
-                          }
-                        }}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                          isSelected
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {month}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Day Carousel with Navigation Arrows */}
-              <div className="relative group">
-                <button
-                  type="button"
-                  onClick={() => scrollCarousel("left")}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
-                  aria-label="Anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-
-                <div
-                  ref={carouselRef}
-                  className="flex gap-2.5 overflow-x-auto px-6 py-1 scrollbar-none scroll-smooth"
-                >
-                  {filteredDays.map((day) => {
-                    const isActive = selectedDay?.dateString === day.dateString;
-                    return (
-                      <button
-                        key={day.dateString}
-                        type="button"
-                        onClick={() => {
-                          setSelectedDay(day);
-                          setSelectedSlot(null);
-                        }}
-                        className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
-                          isActive
-                            ? "bg-primary text-primary-foreground border-primary shadow-sm scale-105"
-                            : "bg-card hover:bg-accent border-border text-foreground"
-                        }`}
-                      >
-                        <div className="text-[11px] font-bold uppercase opacity-80">
-                          {day.dayName}
-                        </div>
-                        <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
-                        <div className="text-[11px] opacity-80">{day.monthName}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => scrollCarousel("right")}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
-                  aria-label="Próximo"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Time Slots */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" /> 2. Escolha o horário ({selectedDay?.fullFormatted})
-                </Label>
-                {selectedSlot && (
-                  <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                    <Sparkles className="w-3 h-3" /> Selecionado automaticamente
-                  </span>
-                )}
-              </div>
-
-              {isLoadingSlots ? (
-                <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
-                  Verificando disponibilidade de horários...
-                </div>
-              ) : availableTimeSlots.length === 0 ? (
-                <div className="py-4 text-center text-xs text-muted-foreground">
-                  Nenhum horário disponível para este dia.
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-2.5">
-                  {availableTimeSlots.map((time) => {
-                    const isBooked = bookedSlots.includes(time);
-                    const isSelected = selectedSlot === time;
-                    return (
-                      <button
-                        key={time}
-                        type="button"
-                        disabled={isBooked}
-                        onClick={() => setSelectedSlot(time)}
-                        className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
-                          isBooked
-                            ? "bg-muted text-muted-foreground border-border line-through opacity-40 cursor-not-allowed"
-                            : isSelected
-                              ? "bg-primary text-primary-foreground border-primary shadow-md ring-2 ring-primary/30 scale-[1.02]"
-                              : "bg-card hover:bg-accent border-primary/40 text-primary"
-                        }`}
-                      >
-                        {time}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Patient Form Fields */}
-            <div className="space-y-4 pt-2 border-t border-border">
-              <Label className="text-xs font-bold uppercase tracking-wider text-primary-soft flex items-center gap-1.5">
-                <User className="w-4 h-4" /> 3. Dados do Paciente
-              </Label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="type" className="text-xs font-semibold">
-                    Tipo de Atendimento
-                  </Label>
-                  <Select
-                    value={attendanceType}
-                    onValueChange={(v: "particular" | "convenio") => setAttendanceType(v)}
-                  >
-                    <SelectTrigger id="type" className="rounded-xl">
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="particular">Particular</SelectItem>
-                      <SelectItem value="convenio">Plano de Saúde (Convênio)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {attendanceType === "convenio" && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="plan" className="text-xs font-semibold">
-                      Convênio
-                    </Label>
-                    <Select value={healthPlan} onValueChange={setHealthPlan}>
-                      <SelectTrigger id="plan" className="rounded-xl">
-                        <SelectValue placeholder="Selecione o plano" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {INSURANCE_PLANS.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="name" className="text-xs font-semibold">
-                  Nome Completo *
-                </Label>
-                <Input
-                  id="name"
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Seu nome completo"
-                  className="rounded-xl"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="phone" className="text-xs font-semibold">
-                    Celular / WhatsApp *
-                  </Label>
-                  <Input
-                    id="phone"
-                    value={patientPhone}
-                    onChange={handlePhoneChange}
-                    placeholder="(00) 00000-0000"
-                    className="rounded-xl"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-xs font-semibold">
-                    E-mail (opcional)
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={patientEmail}
-                    onChange={(e) => setPatientEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="notes" className="text-xs font-semibold">
-                  Observações / Motivo da Consulta
-                </Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Ex: Avaliação inicial, Clareamento, Alinhadores estéticos..."
-                  className="rounded-xl resize-none"
-                  rows={2}
-                />
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-border flex justify-end gap-3">
-              <Button
+          /* Main Step Tabs: Interactive Calendar OR Consultorio.me Iframe */
+          <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+            {/* Mode Switcher */}
+            <div className="flex rounded-2xl bg-muted p-1 border border-border">
+              <button
                 type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="rounded-full"
+                onClick={() => setBookingMode("interactive")}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                  bookingMode === "interactive"
+                    ? "bg-[#90464f] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting || !selectedSlot}
-                className="bg-primary hover:bg-primary-deep text-primary-foreground rounded-full px-6 shadow-md transition-silk gap-2"
+                📅 Agenda Inteligente
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingMode("iframe")}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                  bookingMode === "iframe"
+                    ? "bg-[#90464f] text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {isSubmitting ? "Enviando..." : "Solicitar Agendamento"}
-              </Button>
+                🖥️ Consultório.me
+              </button>
             </div>
-          </form>
+
+            {bookingMode === "iframe" ? (
+              /* Embedded Consultorio.me iframe */
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-border overflow-hidden bg-white min-h-[480px]">
+                  <iframe
+                    src="https://consultorio.me/pro/dramichellebarbosatiago?external=true"
+                    title="Agendamento Dra Michelle Barbosa Tiago"
+                    className="w-full h-[500px] border-none"
+                  />
+                </div>
+              </div>
+            ) : (
+              /* Custom Synchronized Form */
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Month Tabs & Day Carousel */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                      <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
+                    </Label>
+                    <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                      {availableMonths.map((month) => {
+                        const isSelected = selectedMonth === month;
+                        return (
+                          <button
+                            key={month}
+                            type="button"
+                            onClick={() => {
+                              setSelectedMonth(month);
+                              const firstDayOfMonth = days.find((d) => d.monthYear === month);
+                              if (firstDayOfMonth) {
+                                setSelectedDay(firstDayOfMonth);
+                              }
+                            }}
+                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                              isSelected
+                                ? "bg-[#90464f] text-white shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {month}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => scrollCarousel("left")}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                      aria-label="Anterior"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    <div
+                      ref={carouselRef}
+                      className="flex gap-2.5 overflow-x-auto px-6 py-1 scrollbar-none scroll-smooth"
+                    >
+                      {filteredDays.map((day) => {
+                        const isActive = selectedDay?.dateString === day.dateString;
+                        return (
+                          <button
+                            key={day.dateString}
+                            type="button"
+                            onClick={() => {
+                              setSelectedDay(day);
+                              setSelectedSlot(null);
+                            }}
+                            className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
+                              isActive
+                                ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
+                                : "bg-card hover:bg-accent border-border text-foreground"
+                            }`}
+                          >
+                            <div className="text-[11px] font-bold uppercase opacity-80">
+                              {day.dayName}
+                            </div>
+                            <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
+                            <div className="text-[11px] opacity-80">{day.monthName}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => scrollCarousel("right")}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                      aria-label="Próximo"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Time Slots */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" /> 2. Escolha o horário ({selectedDay?.fullFormatted})
+                    </Label>
+                    {selectedSlot && (
+                      <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                        <Sparkles className="w-3 h-3" /> Selecionado automaticamente
+                      </span>
+                    )}
+                  </div>
+
+                  {isLoadingSlots ? (
+                    <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
+                      Verificando disponibilidade de horários...
+                    </div>
+                  ) : availableTimeSlots.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      Nenhum horário disponível para este dia.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2.5">
+                      {availableTimeSlots.map((time) => {
+                        const isBooked = bookedSlots.includes(time);
+                        const isSelected = selectedSlot === time;
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            disabled={isBooked}
+                            onClick={() => setSelectedSlot(time)}
+                            className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
+                              isBooked
+                                ? "bg-muted text-muted-foreground border-border line-through opacity-40 cursor-not-allowed"
+                                : isSelected
+                                  ? "bg-[#90464f] text-white border-[#90464f] shadow-md ring-2 ring-[#90464f]/30 scale-[1.02]"
+                                  : "bg-card hover:bg-accent border-[#90464f]/40 text-[#90464f]"
+                            }`}
+                          >
+                            {time}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Patient Form Fields */}
+                <div className="space-y-4 pt-2 border-t border-border">
+                  <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                    <User className="w-4 h-4" /> 3. Dados do Paciente
+                  </Label>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="type" className="text-xs font-semibold">
+                        Tipo de Atendimento
+                      </Label>
+                      <Select
+                        value={attendanceType}
+                        onValueChange={(v: "particular" | "convenio") => setAttendanceType(v)}
+                      >
+                        <SelectTrigger id="type" className="rounded-xl">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="particular">Particular</SelectItem>
+                          <SelectItem value="convenio">Plano de Saúde (Convênio)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {attendanceType === "convenio" && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="plan" className="text-xs font-semibold">
+                          Convênio
+                        </Label>
+                        <Select value={healthPlan} onValueChange={setHealthPlan}>
+                          <SelectTrigger id="plan" className="rounded-xl">
+                            <SelectValue placeholder="Selecione o plano" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {INSURANCE_PLANS.map((p) => (
+                              <SelectItem key={p} value={p}>
+                                {p}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-xs font-semibold">
+                      Nome Completo *
+                    </Label>
+                    <Input
+                      id="name"
+                      value={patientName}
+                      onChange={(e) => setPatientName(e.target.value)}
+                      placeholder="Seu nome completo"
+                      className="rounded-xl"
+                      required
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="phone" className="text-xs font-semibold">
+                        Celular / WhatsApp *
+                      </Label>
+                      <Input
+                        id="phone"
+                        value={patientPhone}
+                        onChange={handlePhoneChange}
+                        placeholder="(00) 00000-0000"
+                        className="rounded-xl"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email" className="text-xs font-semibold">
+                        E-mail (opcional)
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={patientEmail}
+                        onChange={(e) => setPatientEmail(e.target.value)}
+                        placeholder="seu@email.com"
+                        className="rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="notes" className="text-xs font-semibold">
+                      Observações / Motivo da Consulta
+                    </Label>
+                    <Textarea
+                      id="notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Ex: Avaliação inicial, Clareamento, Alinhadores estéticos..."
+                      className="rounded-xl resize-none"
+                      rows={2}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border flex justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
+                    className="rounded-full"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting || !selectedSlot}
+                    className="bg-[#90464f] hover:bg-[#77373f] text-white rounded-full px-6 shadow-md transition-silk gap-2"
+                  >
+                    {isSubmitting ? "Enviando..." : "Solicitar Agendamento"}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
         )}
+
+        {/* WhatsApp Assistance Bar */}
+        <div className="bg-gradient-to-r from-background to-[#FAF5F5] px-6 py-4 border-t border-[#90464f]/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-left">
+            <p className="font-semibold text-foreground text-xs">
+              Dúvidas ou prefere agendar por mensagem?
+            </p>
+            <span className="text-[11px] text-muted-foreground">
+              Fale diretamente com nossa equipe no WhatsApp
+            </span>
+          </div>
+          <a
+            href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent(
+              "Olá, gostaria de agendar uma consulta com a Dra Michelle",
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all"
+          >
+            <Send className="w-3.5 h-3.5" /> Agendar via WhatsApp
+          </a>
+        </div>
       </DialogContent>
     </Dialog>
   );
