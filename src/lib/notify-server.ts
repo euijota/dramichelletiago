@@ -100,6 +100,41 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       console.warn("[saveAppointmentAndNotify] Email notification warning:", e);
     }
 
+    // 4. Cria evento no Google Agenda via Apps Script para bloquear o horário
+    const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
+    if (appsScriptUrl) {
+      try {
+        // Monta início e fim do evento (consulta = 1 hora)
+        const [year, month, day] = data.appointmentDate.split("-").map(Number);
+        const [hh, mm] = data.appointmentTime.split(":").map(Number);
+        // Google Apps Script espera formato ISO local (sem Z)
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const startStr = `${data.appointmentDate}T${pad(hh)}:${pad(mm)}:00`;
+        const endHh = (hh + 1) % 24;
+        const endStr = `${data.appointmentDate}T${pad(endHh)}:${pad(mm)}:00`;
+
+        await fetch(appsScriptUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `🦷 ${data.patientName}`,
+            description:
+              `Protocolo: ${data.protocol}\n` +
+              `Telefone: ${data.patientPhone}\n` +
+              `Serviço: ${data.serviceName}\n` +
+              `Obs: ${data.notes || "Nenhuma"}`,
+            start: startStr,
+            end: endStr,
+          }),
+        });
+        console.log("[saveAppointmentAndNotify] Google Calendar event created for", data.protocol);
+      } catch (e) {
+        console.warn("[saveAppointmentAndNotify] Google Calendar event warning:", e);
+      }
+    } else {
+      console.log("[saveAppointmentAndNotify] GOOGLE_APPS_SCRIPT_URL not set, skipping calendar event");
+    }
+
     return { success: true, dbSaved, protocol: data.protocol };
   });
 
