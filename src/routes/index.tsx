@@ -183,14 +183,14 @@ function Home() {
 
       {/* Invitation */}
       <section className="mx-auto max-w-3xl px-6 py-28 text-center">
-        <ToothMark className="mx-auto h-8 text-primary" />
+        <ToothMark className="mx-auto h-6 sm:h-7 text-primary" />
         <p className="mt-10 font-display text-3xl leading-snug text-foreground sm:text-4xl">
           “Cuidar de um sorriso é cuidar da forma como alguém se apresenta ao mundo.”
         </p>
         <img
           src={signatureWine}
           alt="Dra. Michelle Barbosa Tiago"
-          className="mx-auto mt-6 h-11 w-auto sm:h-14 object-contain"
+          className="mx-auto mt-6 h-7 w-auto sm:h-9 object-contain opacity-95"
           loading="lazy"
           decoding="async"
         />
