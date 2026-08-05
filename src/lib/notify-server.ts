@@ -11,45 +11,77 @@ export interface NotificationPayload {
   notes: string;
 }
 
-/** Envia notificação por e-mail e webhook do servidor assim que um agendamento é feito. */
-export const notifyDentistNewBooking = createServerFn({ method: "POST" })
-  .validator((data: NotificationPayload) => data)
+export interface BookingPayload {
+  appointmentDate: string;
+  appointmentTime: string;
+  patientName: string;
+  patientPhone: string;
+  patientEmail: string;
+  serviceName: string;
+  notes: string;
+  protocol: string;
+}
+
+/** Salva o agendamento via supabaseAdmin (bypassa RLS) e envia notificação para a Dra. Michelle. */
+export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
+  .validator((data: BookingPayload) => data)
   .handler(async (ctx) => {
     const data = ctx.data;
-    console.log("Novo agendamento recebido no servidor para Dra. Michelle:", data);
+
+    // 1. Salva no Supabase com chave de serviço (bypassa RLS)
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("appointments").insert({
+      appointment_date: data.appointmentDate,
+      appointment_time: data.appointmentTime,
+      patient_name: data.patientName,
+      patient_phone: data.patientPhone,
+      patient_email: data.patientEmail || "nao_informado@paciente.com",
+      service_name: data.serviceName,
+      notes: data.notes,
+      status: "pending",
+    });
+
+    if (error) {
+      console.error("[saveAppointmentAndNotify] Supabase insert error:", error);
+      throw new Error("Erro ao salvar agendamento: " + error.message);
+    }
+
+    // 2. Notificação por e-mail via Formspree
+    const messageText =
+      `📌 NOVO AGENDAMENTO RECEBIDO\n\n` +
+      `Protocolo: ${data.protocol}\n` +
+      `Paciente: ${data.patientName}\n` +
+      `Telefone: ${data.patientPhone}\n` +
+      `E-mail: ${data.patientEmail || "Não informado"}\n` +
+      `Data e Hora: ${data.appointmentDate} às ${data.appointmentTime}\n` +
+      `Serviço / Plano: ${data.serviceName}\n` +
+      `Observações: ${data.notes || "Nenhuma"}`;
 
     try {
-      // Notificação por e-mail para dramichellebarbosatiago@gmail.com
-      const messageText =
-        `📌 NOVO AGENDAMENTO RECEBIDO\n\n` +
-        `Protocolo: ${data.protocol}\n` +
-        `Paciente: ${data.patientName}\n` +
-        `Telefone: ${data.patientPhone}\n` +
-        `E-mail: ${data.patientEmail}\n` +
-        `Data e Hora: ${data.dateFormatted} às ${data.time}\n` +
-        `Serviço / Plano: ${data.serviceName}\n` +
-        `Observações: ${data.notes || "Nenhuma"}`;
-
       await fetch("https://formspree.io/f/xbjnqpyz", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           _replyto: data.patientEmail,
-          subject: `🩺 [Agendamento Site] ${data.patientName} - ${data.dateFormatted} às ${data.time}`,
+          subject: `🩺 [Agendamento Site] ${data.patientName} - ${data.appointmentDate} às ${data.appointmentTime}`,
           message: messageText,
           protocol: data.protocol,
           patientName: data.patientName,
           patientPhone: data.patientPhone,
-          dateFormatted: data.dateFormatted,
-          time: data.time,
         }),
-      }).catch((e) => console.warn("Email webhook dispatch warning:", e));
-    } catch (err) {
-      console.warn("Notification handler warning:", err);
+      });
+    } catch (e) {
+      console.warn("[saveAppointmentAndNotify] Email notification warning:", e);
     }
 
+    return { success: true, protocol: data.protocol };
+  });
+
+/** @deprecated use saveAppointmentAndNotify instead */
+export const notifyDentistNewBooking = createServerFn({ method: "POST" })
+  .validator((data: NotificationPayload) => data)
+  .handler(async (ctx) => {
+    console.log("notifyDentistNewBooking called (legacy):", ctx.data.protocol);
     return { success: true };
   });
+

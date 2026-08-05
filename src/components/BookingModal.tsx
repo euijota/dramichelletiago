@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { fetchICalFeed } from "@/lib/ical-server";
-import { notifyDentistNewBooking } from "@/lib/notify-server";
+import { saveAppointmentAndNotify } from "@/lib/notify-server";
 import {
   Dialog,
   DialogContent,
@@ -346,40 +346,22 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         : "Consulta Odontológica (Particular)");
 
     const formattedTime = selectedSlot.length === 5 ? `${selectedSlot}:00` : selectedSlot;
+    const notesText = notes.trim() ? `[${protocol}] ${notes.trim()}` : `[${protocol}]`;
 
     try {
-      const { error } = await supabase.from("appointments").insert({
-        appointment_date: selectedDay.dateString,
-        appointment_time: formattedTime,
-        patient_name: patientName.trim(),
-        patient_phone: patientPhone.trim(),
-        patient_email: patientEmail.trim() || "nao_informado@paciente.com",
-        service_name: serviceName,
-        notes: notes.trim() ? `[${protocol}] ${notes.trim()}` : `[${protocol}]`,
-        status: "pending",
-      });
-
-      if (error) {
-        console.warn("Supabase insert notice:", error.message);
-      }
-    } catch (err: unknown) {
-      console.warn("Supabase save attempt notice:", err);
-    } finally {
-      // Dispara a notificação automática para a Dra. Michelle no servidor
-      notifyDentistNewBooking({
+      // Usa server function com supabaseAdmin para bypassa RLS
+      await saveAppointmentAndNotify({
         data: {
           protocol,
+          appointmentDate: selectedDay.dateString,
+          appointmentTime: formattedTime,
           patientName: patientName.trim(),
           patientPhone: patientPhone.trim(),
-          patientEmail: patientEmail.trim() || "Não informado",
-          dateFormatted: selectedDay.fullFormatted,
-          time: selectedSlot,
+          patientEmail: patientEmail.trim() || "",
           serviceName,
-          notes: notes.trim(),
+          notes: notesText,
         },
-      }).catch((err) => console.warn("Notice dispatch:", err));
-
-      setIsSubmitting(false);
+      });
 
       const confirmed = {
         protocol,
@@ -388,9 +370,13 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         name: patientName.trim(),
         phone: patientPhone.trim(),
       };
-
       setConfirmedBooking(confirmed);
       toast.success("Solicitação de agendamento realizada com sucesso!");
+    } catch (err: unknown) {
+      console.error("Booking submit error:", err);
+      toast.error("Ocorreu um erro ao salvar o agendamento. Tente novamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
