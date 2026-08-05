@@ -167,88 +167,140 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
   const filteredDays = days.filter((d) => d.monthYear === selectedMonth);
 
   // Fetch booked slots from Supabase + iCal, auto-select first available time slot
+  // Cache of occupied events by date: { "2026-08-10": ["15:00", "16:00", "17:00"] }
+  const [occupiedMap, setOccupiedMap] = useState<Record<string, string[]>>({});
+  const [isFeedLoaded, setIsFeedLoaded] = useState(false);
+
+  // 1. Fetch iCal Feed & Supabase appointments ONCE when modal opens
   useEffect(() => {
-    if (!selectedDay) return;
+    if (!open) return;
 
     let isMounted = true;
     setIsLoadingSlots(true);
 
-    async function fetchBooked() {
+    async function loadAllOccupied() {
       try {
-        const occupied: string[] = [];
+        const map: Record<string, string[]> = {};
 
-        // 1. Supabase
-        const { data } = await supabase
+        // 1. Fetch Supabase
+        const { data: supaData } = await supabase
           .from("appointments")
-          .select("appointment_time")
-          .eq("appointment_date", selectedDay!.dateString)
+          .select("appointment_date, appointment_time")
           .neq("status", "cancelled");
 
-        if (data) {
-          data.forEach((item) => occupied.push(item.appointment_time.slice(0, 5)));
+        if (supaData) {
+          supaData.forEach((item) => {
+            const d = item.appointment_date;
+            const t = item.appointment_time.slice(0, 5);
+            if (!map[d]) map[d] = [];
+            map[d].push(t);
+          });
         }
 
-        // 2. iCal Server Function
+        // 2. Fetch iCal Feed
         try {
           const text = await fetchICalFeed();
           const events = parseICSFeed(text);
           events.forEach((evt) => {
-            if (evt.date === selectedDay!.dateString) {
-              occupied.push(evt.time.slice(0, 5));
-            }
+            if (!map[evt.date]) map[evt.date] = [];
+            map[evt.date].push(evt.time.slice(0, 5));
           });
         } catch (e) {
-          console.warn("iCal fetch warning:", e);
+          console.warn("iCal feed fetch notice:", e);
         }
 
         if (!isMounted) return;
 
-        const uniqueBooked = Array.from(new Set(occupied));
-        setBookedSlots(uniqueBooked);
+        // Deduplicate slots per date
+        const cleanMap: Record<string, string[]> = {};
+        Object.keys(map).forEach((dateKey) => {
+          cleanMap[dateKey] = Array.from(new Set(map[dateKey]));
+        });
 
-        const allSlots = buildTimeSlots(selectedDay!.weekday);
+        setOccupiedMap(cleanMap);
+        setIsFeedLoaded(true);
+
+        // Auto-find the absolute FIRST day & slot available in the entire calendar
         const now = new Date();
         const year = now.getFullYear();
         const monthStr = String(now.getMonth() + 1).padStart(2, "0");
         const dateNum = String(now.getDate()).padStart(2, "0");
         const todayIso = `${year}-${monthStr}-${dateNum}`;
-        const isToday = selectedDay!.dateString === todayIso;
 
-        const availableSlots = allSlots.filter((slot) => {
-          if (uniqueBooked.includes(slot)) return false;
-          if (isToday) {
-            const slotHour = parseInt(slot.split(":")[0], 10);
-            if (slotHour <= now.getHours()) return false;
-          }
-          return true;
-        });
+        let firstAvailableDay: DayItem | null = null;
+        let firstAvailableSlot: string | null = null;
 
-        if (availableSlots.length > 0) {
-          setSelectedSlot(availableSlots[0]);
-        } else {
-          // Se o dia atual não tem mais horários vagos, avança para o próximo dia com horários!
-          const currentIndex = days.findIndex((d) => d.dateString === selectedDay!.dateString);
-          if (currentIndex >= 0 && currentIndex < days.length - 1) {
-            const nextDay = days[currentIndex + 1];
-            setSelectedDay(nextDay);
-            setSelectedMonth(nextDay.monthYear);
-          } else {
-            setSelectedSlot(null);
+        for (const day of days) {
+          const occupiedForDay = cleanMap[day.dateString] || [];
+          const allSlots = buildTimeSlots(day.weekday);
+          const isToday = day.dateString === todayIso;
+
+          const avail = allSlots.filter((slot) => {
+            if (occupiedForDay.includes(slot)) return false;
+            if (isToday) {
+              const slotHour = parseInt(slot.split(":")[0], 10);
+              if (slotHour <= now.getHours()) return false;
+            }
+            return true;
+          });
+
+          if (avail.length > 0) {
+            firstAvailableDay = day;
+            firstAvailableSlot = avail[0];
+            break;
           }
         }
+
+        if (firstAvailableDay) {
+          setSelectedMonth(firstAvailableDay.monthYear);
+          setSelectedDay(firstAvailableDay);
+          setSelectedSlot(firstAvailableSlot);
+        }
       } catch (err) {
-        console.error("Erro ao buscar horários agendados:", err);
+        console.error("Erro ao carregar agenda:", err);
       } finally {
         if (isMounted) setIsLoadingSlots(false);
       }
     }
 
-    fetchBooked();
+    loadAllOccupied();
 
     return () => {
       isMounted = false;
     };
-  }, [selectedDay]);
+  }, [open, days]);
+
+  // 2. When feed loads or selectedDay changes, calculate available slots INSTANTLY
+  useEffect(() => {
+    if (!selectedDay || !isFeedLoaded) return;
+
+    const dateKey = selectedDay.dateString;
+    const occupiedForDay = occupiedMap[dateKey] || [];
+    setBookedSlots(occupiedForDay);
+
+    const allSlots = buildTimeSlots(selectedDay.weekday);
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthStr = String(now.getMonth() + 1).padStart(2, "0");
+    const dateNum = String(now.getDate()).padStart(2, "0");
+    const todayIso = `${year}-${monthStr}-${dateNum}`;
+    const isToday = selectedDay.dateString === todayIso;
+
+    const availableSlots = allSlots.filter((slot) => {
+      if (occupiedForDay.includes(slot)) return false;
+      if (isToday) {
+        const slotHour = parseInt(slot.split(":")[0], 10);
+        if (slotHour <= now.getHours()) return false;
+      }
+      return true;
+    });
+
+    if (availableSlots.length > 0) {
+      setSelectedSlot(availableSlots[0]);
+    } else {
+      setSelectedSlot(null);
+    }
+  }, [selectedDay, isFeedLoaded, occupiedMap]);
 
   const availableTimeSlots = selectedDay ? buildTimeSlots(selectedDay.weekday) : [];
 
