@@ -171,12 +171,14 @@ export interface ICSEvent {
  */
 export function parseICSFeed(icsData: string): ICSEvent[] {
   const events: ICSEvent[] = [];
-  const blocks = icsData.split("BEGIN:VEVENT");
+  // Unfold folded lines in iCal format
+  const unfolded = icsData.replace(/\r\n\s/g, "").replace(/\n\s/g, "");
+  const blocks = unfolded.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i];
 
-    // Captura DTSTART com ou sem fuso e com ou sem horário
+    // Match DTSTART with optional parameters like TZID or VALUE=DATE
     const dtstartMatch = block.match(/DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/);
     const summaryMatch = block.match(/SUMMARY:(.*)/);
 
@@ -184,30 +186,18 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
       const rawDate = dtstartMatch[1]; // ex: "20260804"
       const rawH = dtstartMatch[2]; // ex: "18"
       const rawM = dtstartMatch[3]; // ex: "00"
-      const isUTC = dtstartMatch[5] === "Z"; // sufixo Z = UTC
+      const isUTC = dtstartMatch[5] === "Z" || block.includes("TZID=UTC") || block.includes("Z\n") || block.includes("Z\r");
 
       let date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
       let time = "09:00";
 
       if (rawH !== undefined && rawM !== undefined) {
+        let hInt = parseInt(rawH, 10);
         if (isUTC) {
-          // Converte UTC → Macapá (UTC-3)
-          const utcDate = new Date(
-            `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}T${rawH}:${rawM}:00Z`,
-          );
-          // subtrai 3h
-          const localDate = new Date(utcDate.getTime() - 3 * 60 * 60 * 1000);
-          const y = localDate.getUTCFullYear();
-          const mo = String(localDate.getUTCMonth() + 1).padStart(2, "0");
-          const d = String(localDate.getUTCDate()).padStart(2, "0");
-          const h = String(localDate.getUTCHours()).padStart(2, "0");
-          const m = String(localDate.getUTCMinutes()).padStart(2, "0");
-          date = `${y}-${mo}-${d}`;
-          time = `${h}:${m}`;
-        } else {
-          // Hora local já no fuso certo
-          time = `${rawH}:${rawM}`;
+          // Converte UTC (ex: 18:00Z) → Macapá UTC-3 (15:00)
+          hInt = (hInt - 3 + 24) % 24;
         }
+        time = `${String(hInt).padStart(2, "0")}:${rawM}`;
       }
 
       const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";
