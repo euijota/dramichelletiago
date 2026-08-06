@@ -171,6 +171,8 @@ export interface ICSEvent {
  */
 export function parseICSFeed(icsData: string): ICSEvent[] {
   const events: ICSEvent[] = [];
+  const seen = new Set<string>();
+
   // Unfold folded lines in iCal format
   const unfolded = icsData.replace(/\r\n\s/g, "").replace(/\n\s/g, "");
   const blocks = unfolded.split("BEGIN:VEVENT");
@@ -201,7 +203,12 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
       }
 
       const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";
-      events.push({ date, time, summary });
+      const key = `${date}|${time}|${summary}`;
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        events.push({ date, time, summary });
+      }
     }
   }
 
