@@ -164,6 +164,7 @@ export interface ICSEvent {
   date: string;
   time: string;
   summary: string;
+  description?: string;
 }
 
 /** Parser para extrair agendamentos de feeds iCal (.ics do Google Agenda).
@@ -183,6 +184,7 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
     // Match DTSTART with optional parameters like TZID or VALUE=DATE
     const dtstartMatch = block.match(/DTSTART(?:;[^:]*)?:(\d{8})(?:T(\d{2})(\d{2})(\d{2})(Z?))?/);
     const summaryMatch = block.match(/SUMMARY:(.*)/);
+    const descMatch = block.match(/DESCRIPTION:(.*?)(?=\r?\n[A-Z-]+:|$)/s);
 
     if (dtstartMatch) {
       const rawDate = dtstartMatch[1]; // ex: "20260804"
@@ -203,11 +205,12 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
       }
 
       const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";
+      const description = descMatch ? descMatch[1].replace(/\\n/g, "\n").replace(/\\,/g, ",").trim() : "";
       const key = `${date}|${time}|${summary}`;
 
       if (!seen.has(key)) {
         seen.add(key);
-        events.push({ date, time, summary });
+        events.push({ date, time, summary, description });
       }
     }
   }

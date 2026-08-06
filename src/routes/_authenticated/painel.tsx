@@ -20,6 +20,7 @@ import {
   weekdayOf,
   toISODate,
   trimSeconds,
+  type ICSEvent,
 } from "@/lib/clinic";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +75,7 @@ function Painel() {
   const { session, isAdmin, loading } = useSession();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selected, setSelected] = useState<Appointment | null>(null);
+  const [selectedGoogle, setSelectedGoogle] = useState<ICSEvent | null>(null);
   const [claimChecked, setClaimChecked] = useState(false);
 
   // Bootstrap: the first person to reach the panel becomes the administrator.
@@ -193,10 +195,14 @@ function Painel() {
   }
 
   const todayISO = toISODate(new Date());
-  const todayCount =
-    weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled")
-      .length ?? 0;
-  const confirmedCount = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
+  const supaToday = weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled").length ?? 0;
+  const googleToday = googleEvents.filter((g) => g.date === todayISO).length;
+  const todayCount = supaToday + googleToday;
+
+  const supaConfirmedWeek = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
+  const googleWeekCount = googleEvents.filter((g) => g.date >= rangeStart && g.date <= rangeEnd).length;
+  const confirmedCount = supaConfirmedWeek + googleWeekCount;
+
   const pendingCount = pending?.length ?? 0;
 
   if (loading) {
@@ -235,6 +241,14 @@ function Painel() {
             <Logo />
           </Link>
           <div className="flex items-center gap-3">
+            <a
+              href="https://calendar.google.com"
+              target="_blank"
+              rel="noreferrer"
+              className="hidden rounded-full border border-emerald-600/30 bg-emerald-500/10 px-5 py-2.5 text-kicker text-emerald-800 dark:text-emerald-300 transition-silk hover:bg-emerald-500/20 sm:inline-flex items-center gap-1.5"
+            >
+              📅 Google Agenda
+            </a>
             <Link
               to="/"
               className="hidden rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent sm:inline-flex"
@@ -319,7 +333,8 @@ function Painel() {
                   subtitle: a.service_name,
                   isGoogle: false,
                   status: a.status,
-                  raw: a,
+                  rawSupa: a,
+                  rawGoogle: null,
                 })),
                 ...gEvents.map((g, idx) => ({
                   id: `gcal-${g.date}-${g.time}-${idx}`,
@@ -328,7 +343,8 @@ function Painel() {
                   subtitle: "Google Agenda",
                   isGoogle: true,
                   status: "confirmed" as const,
-                  raw: null,
+                  rawSupa: null,
+                  rawGoogle: g,
                 })),
               ].sort((a, b) => a.time.localeCompare(b.time));
 
@@ -355,10 +371,12 @@ function Painel() {
                     {combined.map((item) => (
                       <button
                         key={item.id}
-                        disabled={item.isGoogle}
-                        onClick={() => item.raw && setSelected(item.raw)}
+                        onClick={() => {
+                          if (item.rawSupa) setSelected(item.rawSupa);
+                          else if (item.rawGoogle) setSelectedGoogle(item.rawGoogle);
+                        }}
                         className={cn(
-                          "w-full rounded-lg border-l-2 border-y border-r p-3 text-left transition-silk hover:shadow-petal",
+                          "w-full rounded-lg border-l-2 border-y border-r p-3 text-left transition-silk hover:shadow-petal hover:scale-[1.02] cursor-pointer",
                           item.isGoogle
                             ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200"
                             : statusTone[item.status],
@@ -506,6 +524,13 @@ function Painel() {
           onSave={updateAppointment}
         />
       )}
+
+      {selectedGoogle && (
+        <GoogleEventSheet
+          event={selectedGoogle}
+          onClose={() => setSelectedGoogle(null)}
+        />
+      )}
     </div>
   );
 }
@@ -651,6 +676,81 @@ function AppointmentSheet({
         >
           Fechar
         </button>
+      </div>
+    </div>
+  );
+}
+
+function GoogleEventSheet({
+  event,
+  onClose,
+}: {
+  event: ICSEvent;
+  onClose: () => void;
+}) {
+  const phoneMatch = (event.summary + " " + (event.description || "")).match(/(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}/);
+  const rawPhone = phoneMatch ? phoneMatch[0] : "";
+  const cleanPhone = rawPhone.replace(/\D/g, "");
+  const waUrl = cleanPhone && cleanPhone.length >= 8
+    ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá! Entrando em contato sobre o seu agendamento no consultório da Dra. Michelle Tiago marcado para ${formatLongDate(event.date)} às ${event.time}.`)}`
+    : null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-primary-deep/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-9 shadow-bloom sm:rounded-3xl"
+      >
+        <span className="inline-block rounded bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+          📅 Google Agenda
+        </span>
+        <h2 className="mt-4 font-display text-3xl text-foreground">{event.summary}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {formatLongDate(event.date)} às {event.time}
+        </p>
+
+        {event.description ? (
+          <div className="mt-6 border-y border-border py-6">
+            <p className="text-kicker text-muted-foreground">Detalhes do Agendamento</p>
+            <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground bg-muted/30 p-4 rounded-xl border border-border">
+              {event.description}
+            </pre>
+          </div>
+        ) : (
+          <p className="mt-6 border-y border-border py-6 text-sm text-muted-foreground italic">
+            Sem detalhes adicionais informados.
+          </p>
+        )}
+
+        <div className="mt-8 flex flex-wrap gap-2.5">
+          <a
+            href="https://calendar.google.com"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-full bg-emerald-600 px-6 py-3 text-kicker text-white transition-silk hover:bg-emerald-700"
+          >
+            Abrir no Google Agenda
+          </a>
+          {waUrl && (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
+            >
+              Falar no WhatsApp
+            </a>
+          )}
+          <button
+            onClick={onClose}
+            className="rounded-full border border-border px-6 py-3 text-kicker text-muted-foreground transition-silk hover:bg-accent"
+          >
+            Fechar
+          </button>
+        </div>
       </div>
     </div>
   );
