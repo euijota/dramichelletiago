@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 
 const ICAL_URL =
-  "https://calendar.google.com/calendar/ical/dramichellebarbosatiago%40gmail.com/private-01e577e4ac71421318a056fcd50dd223/basic.ics";
+  "https://calendar.google.com/calendar/ical/dramichellebarbosatiago%40gmail.com/public/basic.ics";
 
 /** Busca o feed iCal do Google Agenda no servidor (sem CORS). */
 export const fetchICalFeed = createServerFn({ method: "GET" }).handler(async () => {

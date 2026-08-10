@@ -206,7 +206,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
             map[evt.date].push(evt.time.slice(0, 5));
           });
         } catch (e) {
-          console.warn("iCal feed fetch notice:", e);
+          console.error("iCal feed fetch failed:", e);
         }
 
         if (!isMounted) return;
