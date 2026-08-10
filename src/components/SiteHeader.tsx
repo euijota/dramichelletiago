@@ -63,13 +63,13 @@ export function SiteHeader() {
             <Logo className="h-10 sm:h-14" />
           </Link>
 
-          {/* Desktop CTA */}
-          <div className="hidden md:flex flex-1 justify-end">
+          {/* CTA */}
+          <div className="flex flex-1 justify-end">
             <a
               href={BOOKING_URL}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full bg-primary px-6 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
+              className="rounded-full bg-primary px-4 sm:px-6 py-2 text-xs sm:text-sm text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
             >
               Agendar
             </a>

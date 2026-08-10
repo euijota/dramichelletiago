@@ -17,11 +17,7 @@ export const Route = createFileRoute("/privacidade")({
 });
 
 function Privacidade() {
-  const today = new Date().toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
+  const lastUpdated = "10 de agosto de 2026";
 
   return (
     <div className="min-h-screen bg-background">
@@ -34,13 +30,13 @@ function Privacidade() {
       <main className="mx-auto max-w-4xl px-6 py-16">
         <article className="prose prose-neutral dark:prose-invert max-w-none">
           <h1 className="font-display text-4xl text-foreground mb-2">Política de Privacidade</h1>
-          <p className="text-muted-foreground mb-8">Última atualização: {today}</p>
+          <p className="text-muted-foreground mb-8">Última atualização: {lastUpdated}</p>
 
           <section className="mb-8">
             <h2 className="font-display text-2xl text-foreground mb-4">1. Controladora</h2>
             <p>
-              <strong>Dra. Michelle Barbosa Tiago</strong>, CRO-AP 596, inscrita no CPF sob o nº
-              000.000.000-00, com consultório na Travessa Joaquim Pinheiro Borges, 964 — Alvorada,
+              <strong>Dra. Michelle Barbosa Tiago</strong>, Cirurgiã-Dentista inscrita sob o registro
+              profissional <strong>CRO-AP 596</strong>, com consultório na Travessa Joaquim Pinheiro Borges, 964 — Alvorada,
               Macapá/AP, e-mail:{" "}
               <a href="mailto:dramichellebarbosatiago@gmail.com" className="underline">
                 dramichellebarbosatiago@gmail.com

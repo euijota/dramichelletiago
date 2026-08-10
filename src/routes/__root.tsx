@@ -134,6 +134,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/favicon.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "canonical", href: "https://dramichelletiago.com.br" },
       { rel: "sitemap", href: "https://dramichelletiago.com.br/sitemap.xml" },
     ],

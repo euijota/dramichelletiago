@@ -64,6 +64,53 @@ export const STATUS_LABELS: Record<string, string> = {
   completed: "Concluído",
 };
 
+export interface ClinicService {
+  id: string;
+  name: string;
+  description: string;
+  duration_minutes: number;
+}
+
+/** Fallback estático de serviços para SSR e renderização imediata. */
+export const DEFAULT_SERVICES: ClinicService[] = [
+  {
+    id: "1",
+    name: "Esthetic Aligner (Alinhadores Invisíveis)",
+    description: "Ortodontia estética com alinhadores transparentes sob medida para alinhar os dentes com discrição.",
+    duration_minutes: 60,
+  },
+  {
+    id: "2",
+    name: "Clareamento Dental",
+    description: "Técnica combinada (consultório + caseiro) para dentes iluminados de forma segura e duradoura.",
+    duration_minutes: 60,
+  },
+  {
+    id: "3",
+    name: "Facetas em Resina / Restauração Estética",
+    description: "Esculpidas manualmente para harmonizar a forma, a cor e a textura dos dentes com naturalidade.",
+    duration_minutes: 90,
+  },
+  {
+    id: "4",
+    name: "Harmonização Orofacial (HOF / Fios PDO)",
+    description: "Procedimentos estéticos faciais e fios de sustentação PDO para rejuvenescimento e equilíbrio dos traços.",
+    duration_minutes: 60,
+  },
+  {
+    id: "5",
+    name: "Laserterapia",
+    description: "Aplicação de laser terapêutico para alívio de dor, cicatrização acelerada e bioestimulação tecidual.",
+    duration_minutes: 45,
+  },
+  {
+    id: "6",
+    name: "Avaliação Odontológica (Adultos e Crianças)",
+    description: "Consulta inicial completa com exame clínico minucioso e plano de tratamento personalizado.",
+    duration_minutes: 60,
+  },
+];
+
 /** 1-hour slots for a given weekday, following the clinic's opening hours. */
 export function buildTimeSlots(weekday?: number): string[] {
   const ranges =

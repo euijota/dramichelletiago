@@ -35,9 +35,10 @@ function Contato() {
       label: "Telefone e WhatsApp", 
       value: CLINIC.phone,
       href: `tel:${CLINIC.whatsapp}`,
+      isExternal: false,
     },
-    { label: "E-mail", value: CLINIC.email, href: `mailto:${CLINIC.email}` },
-    { label: "Endereço", value: CLINIC.address, href: `https://maps.google.com/?q=${encodeURIComponent(CLINIC.address)}` },
+    { label: "E-mail", value: CLINIC.email, href: `mailto:${CLINIC.email}`, isExternal: false },
+    { label: "Endereço", value: CLINIC.address, href: `https://maps.google.com/?q=${encodeURIComponent(CLINIC.address)}`, isExternal: true },
   ];
 
   return (
@@ -61,8 +62,7 @@ function Contato() {
               <dd className="mt-3 font-display text-2xl text-foreground">
                 <a
                   href={block.href}
-                  target="_blank"
-                  rel="noreferrer"
+                  {...(block.isExternal ? { target: "_blank", rel: "noreferrer" } : {})}
                   className="transition-silk hover:text-primary"
                 >
                   {block.value}

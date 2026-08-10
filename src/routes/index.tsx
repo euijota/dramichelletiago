@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { BOOKING_URL, CLINIC, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
+import { BOOKING_URL, CLINIC, DEFAULT_SERVICES, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import { BookingModal } from "@/components/BookingModal";
 import draMichelleImg from "@/assets/dra-michelle.jpg";
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago em Macapá/AP. Odontologia estética, alinhadores, clareamento, facetas, HOF e laserterapia.",
       },
       {
         property: "og:title",
@@ -28,11 +28,23 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content:
-          "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
+          "Agende sua consulta com a Dra. Michelle Barbosa Tiago em Macapá/AP. Odontologia estética, alinhadores, clareamento, facetas, HOF e laserterapia.",
       },
       {
         property: "og:image",
         content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:site_name",
+        content: "Dra. Michelle Barbosa Tiago",
+      },
+      {
+        property: "og:locale",
+        content: "pt_BR",
       },
     ],
     links: [
@@ -64,13 +76,14 @@ function Home() {
 
   const { data: services } = useQuery({
     queryKey: ["services"],
+    initialData: DEFAULT_SERVICES,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
         .select("id, name, description, duration_minutes")
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error || !data || data.length === 0) return DEFAULT_SERVICES;
       return data;
     },
   });
@@ -85,9 +98,9 @@ function Home() {
           <div className="animate-rise">
             <p className="text-kicker text-primary-soft">{CLINIC.role} · CRO-AP 596</p>
             <h1 className="mt-7 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl lg:text-7xl">
-              Especialista em
+              Excelência em
               <br />
-              <span className="font-script text-primary">transformar sorrisos</span>
+              <span className="font-script text-primary">odontologia estética</span>
             </h1>
             <p className="mt-8 max-w-[46ch] text-base leading-relaxed text-muted-foreground">
               Atendimento para adultos e crianças. Odontologia estética e reabilitadora em um

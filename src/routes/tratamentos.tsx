@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { supabase } from "@/integrations/supabase/client";
-import { BOOKING_URL, INSURANCE_PLANS } from "@/lib/clinic";
+import { BOOKING_URL, DEFAULT_SERVICES, INSURANCE_PLANS } from "@/lib/clinic";
 
 export const Route = createFileRoute("/tratamentos")({
   head: () => ({
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/tratamentos")({
       {
         name: "description",
         content:
-          "Esthetic Aligner, HOF (fios de sustentação PDO), clareamento dental, facetas em resina e laserterapia. Atendimento para adultos e crianças com a Dra. Michelle Barbosa Tiago.",
+          "Esthetic Aligner, HOF, clareamento dental, facetas em resina e laserterapia em Macapá/AP. Atendimento para adultos e crianças com a Dra. Michelle Barbosa Tiago.",
       },
       { property: "og:title", content: "Tratamentos — Dra. Michelle Tiago" },
       {
@@ -23,6 +23,18 @@ export const Route = createFileRoute("/tratamentos")({
       {
         property: "og:image",
         content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+      },
+      {
+        property: "og:type",
+        content: "website",
+      },
+      {
+        property: "og:site_name",
+        content: "Dra. Michelle Barbosa Tiago",
+      },
+      {
+        property: "og:locale",
+        content: "pt_BR",
       },
     ],
     links: [
@@ -35,13 +47,14 @@ export const Route = createFileRoute("/tratamentos")({
 function Tratamentos() {
   const { data: services, isLoading } = useQuery({
     queryKey: ["services"],
+    initialData: DEFAULT_SERVICES,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("services")
         .select("id, name, description, duration_minutes")
         .eq("is_active", true)
         .order("sort_order");
-      if (error) throw error;
+      if (error || !data || data.length === 0) return DEFAULT_SERVICES;
       return data;
     },
   });
@@ -52,8 +65,8 @@ function Tratamentos() {
 
       <section className="mx-auto max-w-6xl px-6 py-20 lg:py-28">
         <p className="text-kicker text-primary-soft">Tratamentos</p>
-        <h1 className="mt-6 max-w-[18ch] font-display text-5xl leading-tight text-foreground lg:text-6xl">
-          Especialista em transformar sorrisos
+        <h1 className="mt-6 max-w-[20ch] font-display text-5xl leading-tight text-foreground lg:text-6xl">
+          Tratamentos de Odontologia Estética em Macapá
         </h1>
         <p className="mt-7 max-w-[52ch] text-base leading-relaxed text-muted-foreground">
           Atendimento para adultos e crianças. A duração indicada é a reserva na agenda — sempre com

@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /auth
+Disallow: /painel
+Disallow: /confirmar/
+Disallow: /cancelar/
 
 Sitemap: https://dramichelletiago.com.br/sitemap.xml
