@@ -24,8 +24,16 @@ describe("booking protocol", () => {
     "AG-A1B2C3D4E",
     "AG-a1b2c3d4",
     "AG-G1B2C3D4",
+  ])("accepts valid protocol format: %s", (protocol) => {
+    expect(isBookingProtocol(protocol)).toBe(true);
+  });
+
+  it.each([
+    "AG-12345",
+    "AG-1234567890123",
     "BG-A1B2C3D4",
     "A1B2C3D4",
+    "AG-!!!@@@",
     "",
   ])("rejects invalid protocol format: %s", (protocol) => {
     expect(isBookingProtocol(protocol)).toBe(false);

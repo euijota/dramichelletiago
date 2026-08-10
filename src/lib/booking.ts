@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const BOOKING_PROTOCOL_PATTERN = /^AG-[0-9A-F]{8}$/;
+export const BOOKING_PROTOCOL_PATTERN = /^AG-[0-9A-Za-z]{6,12}$/;
 
 export const bookingProtocolSchema = z
   .string()
