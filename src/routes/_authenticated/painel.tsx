@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { claimAdminIfUnclaimed } from "@/lib/admin.functions";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
+import { ExportModal } from "@/components/ExportModal";
 import { fetchICalFeed } from "@/lib/ical-server";
 import {
   CLINIC,
@@ -22,7 +23,32 @@ import {
   trimSeconds,
   type ICSEvent,
 } from "@/lib/clinic";
+import { buildWhatsAppReminderUrl } from "@/lib/reminders";
 import { cn } from "@/lib/utils";
+import type { AppointmentExport } from "@/lib/export";
+import {
+  listMessageTemplates,
+  createMessageTemplate,
+  updateMessageTemplate,
+  deleteMessageTemplate,
+  initializeDefaultTemplates,
+} from "@/lib/message-templates-server";
+import type { MessageTemplate, TemplateType } from "@/lib/message-templates";
+import {
+  MessageSquare,
+  Plus,
+  Edit,
+  Trash2,
+  Check,
+  X,
+  Eye,
+  Copy,
+  Settings,
+  Send,
+  Bell,
+  MessageCircle,
+  RotateCcw,
+} from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
@@ -77,6 +103,7 @@ function Painel() {
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [selectedGoogle, setSelectedGoogle] = useState<ICSEvent | null>(null);
   const [claimChecked, setClaimChecked] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Bootstrap: the first person to reach the panel becomes the administrator.
   useEffect(() => {
@@ -163,6 +190,19 @@ function Painel() {
     },
   });
 
+  const { data: allAppointments } = useQuery({
+    queryKey: ["appointments", "all"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(`${APPOINTMENT_FIELDS}, created_at`)
+        .order("appointment_date", { ascending: false });
+      if (error) throw error;
+      return data as AppointmentExport[];
+    },
+  });
+
   async function markReminderSent(appointment: Appointment) {
     const { error } = await supabase
       .from("appointments")
@@ -241,6 +281,12 @@ function Painel() {
             <Logo />
           </Link>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="hidden rounded-full border border-primary/30 bg-primary/10 px-5 py-2.5 text-kicker text-primary transition-silk hover:bg-primary/20 sm:inline-flex items-center gap-1.5"
+            >
+              📊 Exportar
+            </button>
             <a
               href="https://calendar.google.com"
               target="_blank"
@@ -515,9 +561,325 @@ function Painel() {
             ))}
           </div>
         </section>
+
+        {/* Message Templates */}
+        <section className="mt-20">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-3xl text-foreground">Templates de Mensagens</h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Gerencie mensagens automáticas enviadas aos pacientes via WhatsApp.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                initializeDefaultTemplates({}).then(() => {
+                  toast.success("Templates padrão inicializados");
+                  queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+                });
+              }}
+              className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent flex items-center gap-2"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restaurar padrões
+            </button>
+          </div>
+
+          <MessageTemplates 
+            queryClient={queryClient}
+            toast={toast}
+          />
+        </section>
       </main>
 
-      {selected && (
+      function MessageTemplates({ queryClient, toast }: { queryClient: ReturnType<typeof useQueryClient>; toast: typeof toast }) {
+  const { data: templates, isLoading } = useQuery({
+    queryKey: ["message-templates"],
+    queryFn: async () => {
+      const res = await listMessageTemplates({});
+      return res as MessageTemplate[];
+    },
+  });
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<MessageTemplate> & { body: string }>({
+    name: "",
+    channel: "whatsapp",
+    subject: "",
+    body: "",
+    is_active: true,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: Omit<MessageTemplate, "id" | "created_at" | "updated_at">) => createMessageTemplate({ data }),
+    onSuccess: () => {
+      toast.success("Template criado");
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { id: string } & Partial<MessageTemplate>) => updateMessageTemplate({ data }),
+    onSuccess: () => {
+      toast.success("Template atualizado");
+      setEditingId(null);
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteMessageTemplate({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Template removido");
+      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const typeLabels: Record<TemplateType, string> = {
+    booking_confirmation: "Confirmação de agendamento",
+    booking_confirmed: "Agendamento confirmado",
+    booking_cancelled: "Agendamento cancelado",
+    reminder_24h: "Lembrete 24h",
+    reminder_1h: "Lembrete 1h",
+    post_appointment: "Pós-consulta",
+    custom: "Personalizado",
+  };
+
+  const typeIcons: Record<TemplateType, React.ReactNode> = {
+    booking_confirmation: <MessageSquare className="h-4 w-4" />,
+    booking_confirmed: <Check className="h-4 w-4" />,
+    booking_cancelled: <X className="h-4 w-4" />,
+    reminder_24h: <Bell className="h-4 w-4" />,
+    reminder_1h: <Bell className="h-4 w-4" />,
+    post_appointment: <MessageCircle className="h-4 w-4" />,
+    custom: <Send className="h-4 w-4" />,
+  };
+
+  if (isLoading) {
+    return (
+      <div className="mt-8 space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="animate-pulse rounded-xl border border-border bg-muted/50 h-24" />
+        ))}
+      </div>
+    );
+  }
+
+  const templatesByType = templates?.reduce((acc, t) => {
+    if (!acc[t.type]) acc[t.type] = [];
+    acc[t.type].push(t);
+    return acc;
+  }, {} as Record<TemplateType, MessageTemplate[]>);
+
+  return (
+    <div className="mt-8 space-y-6">
+      {Object.entries(typeLabels).map(([type, label]) => {
+        const typeTemplates = templatesByType?.[type as TemplateType] ?? [];
+        const hasActive = typeTemplates.some(t => t.is_active);
+        
+        return (
+          <div key={type} className="rounded-2xl border border-border bg-card shadow-petal overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  {typeIcons[type as TemplateType]}
+                </div>
+                <div>
+                  <h3 className="font-display text-xl text-foreground">{label}</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {typeTemplates.length} template{typeTemplates.length !== 1 ? "s" : ""} 
+                    {hasActive ? " · Ativo" : " · Inativo"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setEditForm({
+                    name: `Novo ${label}`,
+                    type: type as TemplateType,
+                    channel: "whatsapp",
+                    subject: "",
+                    body: "",
+                    is_active: true,
+                  });
+                  setEditingId("new");
+                }}
+                className="rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-kicker text-primary text-sm transition-silk hover:bg-primary/20 flex items-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar
+              </button>
+            </div>
+
+            <div className="divide-y divide-border p-4">
+              {typeTemplates.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                  Nenhum template. Clique em "Adicionar" para criar.
+                </p>
+              ) : (
+                typeTemplates.map((template) => (
+                  <div key={template.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          template.is_active
+                            ? "bg-success/10 text-success"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {template.is_default ? "Padrão" : "Custom"}
+                        </span>
+                        <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                          {template.channel}
+                        </span>
+                        {template.is_default && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                            DEFAULT
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{template.body}</p>
+                      {template.subject && (
+                        <p className="mt-1 text-xs text-muted-foreground">Assunto: {template.subject}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {editingId === template.id ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              updateMutation.mutate({ id: template.id, ...editForm });
+                            }}
+                            disabled={updateMutation.isPending}
+                            className="rounded-full bg-primary px-4 py-2 text-kicker text-primary-foreground text-sm transition-silk hover:bg-primary-deep"
+                          >
+                            {updateMutation.isPending ? "Salvando..." : "Salvar"}
+                          </button>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="rounded-full border border-border px-4 py-2 text-kicker text-muted-foreground text-sm transition-silk hover:bg-accent"
+                          >
+                            Cancelar
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditForm({
+                                name: template.name,
+                                channel: template.channel,
+                                subject: template.subject || "",
+                                body: template.body,
+                                is_active: template.is_active,
+                              });
+                              setEditingId(template.id);
+                            }}
+                            className="rounded-full border border-border px-3 py-2 text-muted-foreground hover:bg-accent transition-silk"
+                            aria-label="Editar"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          {!template.is_default && (
+                            <button
+                              onClick={() => {
+                                if (confirm("Remover este template?")) {
+                                  deleteMutation.mutate(template.id);
+                                }
+                              }}
+                              disabled={deleteMutation.isPending}
+                              className="rounded-full border border-border px-3 py-2 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 hover:border-rose-300 transition-silk"
+                              aria-label="Excluir"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {editingId && (
+                <div className="mt-6 p-4 rounded-xl bg-muted/50 border border-border space-y-4">
+                  <h4 className="font-display text-lg text-foreground">
+                    {editingId === "new" ? "Novo Template" : "Editando Template"}
+                  </h4>
+                  
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold">Nome</label>
+                      <input
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                        className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+                        placeholder="Nome do template"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold">Canal</label>
+                      <select
+                        value={editForm.channel}
+                        onChange={(e) => setEditForm({ ...editForm, channel: e.target.value as "whatsapp" | "email" | "both" })}
+                        className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+                      >
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="email">E-mail</option>
+                        <option value="both">Ambos</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold">Assunto (para e-mail)</label>
+                    <input
+                      value={editForm.subject || ""}
+                      onChange={(e) => setEditForm({ ...editForm, subject: e.target.value })}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
+                      placeholder="Assunto do e-mail"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold">Corpo da mensagem</label>
+                    <textarea
+                      value={editForm.body}
+                      onChange={(e) => setEditForm({ ...editForm, body: e.target.value })}
+                      rows={6}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary font-mono text-xs"
+                      placeholder="Use variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={editForm.is_active}
+                        onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
+                        className="rounded border-border text-primary focus:ring-primary"
+                      />
+                      Ativo
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+{selected && (
         <AppointmentSheet
           appointment={selected}
           onClose={() => setSelected(null)}
@@ -531,6 +893,13 @@ function Painel() {
           onClose={() => setSelectedGoogle(null)}
         />
       )}
+
+      {showExportModal && allAppointments && (
+        <ExportModal
+          appointments={allAppointments}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -541,8 +910,12 @@ function whatsappNumber(phone: string) {
 }
 
 function buildReminderLink(appointment: Appointment) {
-  const message = `Olá, ${appointment.patient_name}! Passando para lembrar da sua consulta de ${appointment.service_name} com a ${CLINIC.shortName} amanhã, ${formatLongDate(appointment.appointment_date)}, às ${trimSeconds(appointment.appointment_time)}. Endereço: ${CLINIC.address}. Se precisar remarcar, é só responder por aqui.`;
-  return `https://wa.me/${whatsappNumber(appointment.patient_phone)}?text=${encodeURIComponent(message)}`;
+  return buildWhatsAppReminderUrl(appointment.patient_phone, {
+    patientName: appointment.patient_name,
+    appointmentDate: appointment.appointment_date,
+    appointmentTime: trimSeconds(appointment.appointment_time),
+    serviceName: appointment.service_name,
+  });
 }
 
 function buildWhatsAppLink(appointment: Appointment) {

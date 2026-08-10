@@ -20,6 +20,13 @@ export const Route = createFileRoute("/tratamentos")({
         content:
           "Esthetic Aligner, HOF, clareamento, facetas em resina e laserterapia com cuidado delicado.",
       },
+      {
+        property: "og:image",
+        content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+      },
+    ],
+    links: [
+      { rel: "canonical", href: "https://dramichelletiago.com.br/tratamentos" },
     ],
   }),
   component: Tratamentos,

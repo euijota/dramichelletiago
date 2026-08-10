@@ -19,6 +19,13 @@ export const Route = createFileRoute("/sobre")({
         content:
           "Cirurgiã-dentista especializada em odontologia estética e reabilitadora em Macapá, Amapá.",
       },
+      {
+        property: "og:image",
+        content: "https://dramichelletiago.com.br/assets/hero-clinica.jpg",
+      },
+    ],
+    links: [
+      { rel: "canonical", href: "https://dramichelletiago.com.br/sobre" },
     ],
   }),
   component: Sobre,

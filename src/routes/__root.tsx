@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  useLocation,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -13,6 +14,8 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { SchemaOrgJsonLd } from "@/components/SchemaOrg";
+import { WhatsAppFloat } from "@/components/WhatsAppFloat";
 
 function NotFoundComponent() {
   return (
@@ -80,6 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: "Dra. Michelle Barbosa Tiago" },
       { property: "og:type", content: "website" },
+      { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "theme-color", content: "#8a4a52" },
       { title: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá" },
@@ -109,16 +113,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         property: "og:image",
         content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp",
+          "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
       },
       {
         name: "twitter:image",
         content:
-          "https://storage.googleapis.com/gpt-engineer-file-uploads/bPTXmVSfzyYRFnmx8L1AcfmDrU72/social-images/social-1785383258759-Captura_de_Tela_2026-07-29_às_21.28.23.webp",
+          "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
       },
     ],
     links: [
-      { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       {
         rel: "preconnect",
@@ -127,9 +130,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@200;300;400;500&family=Parisienne&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap",
       },
+      { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
+      { rel: "canonical", href: "https://dramichelletiago.com.br" },
+      { rel: "sitemap", href: "https://dramichelletiago.com.br/sitemap.xml" },
     ],
   }),
   shellComponent: RootShell,
@@ -143,6 +149,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="pt-BR">
       <head>
         <HeadContent />
+        <SchemaOrgJsonLd />
       </head>
       <body suppressHydrationWarning={true}>
         {children}
@@ -155,6 +162,8 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/auth") || location.pathname.startsWith("/painel");
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
@@ -172,6 +181,7 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-center" />
+      {!isAdminRoute && <WhatsAppFloat />}
     </QueryClientProvider>
   );
 }

@@ -1,4 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import { CLINIC } from "@/lib/clinic";
+import { buildWhatsAppUrl, renderTemplate } from "@/lib/message-templates";
+import { getMessageTemplate } from "@/lib/message-templates-server";
 
 export interface NotificationPayload {
   protocol: string;
@@ -41,13 +44,30 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
     // 1. Tenta salvar via supabaseAdmin (bypassa RLS) se a service key estiver configurada
     let dbSaved = false;
+    let appointmentId = "";
+    let cancellationToken = "";
+    let confirmationToken = "";
+
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { error } = await supabaseAdmin.from("appointments").insert(record);
-      if (!error) {
+      const { data: inserted, error } = await supabaseAdmin
+        .from("appointments")
+        .insert(record)
+        .select("id")
+        .single();
+
+      if (!error && inserted) {
         dbSaved = true;
+        appointmentId = inserted.id;
+
+        // Generate cancellation and confirmation tokens
+        const { generateAppointmentToken } = await import("@/lib/cancellation");
+        cancellationToken = generateAppointmentToken(appointmentId);
+        confirmationToken = generateAppointmentToken(appointmentId);
+
+        console.log("[saveAppointmentAndNotify] Appointment saved, ID:", appointmentId);
       } else {
-        console.warn("[saveAppointmentAndNotify] Admin insert warning:", error.message);
+        console.warn("[saveAppointmentAndNotify] Admin insert warning:", error?.message);
       }
     } catch (e) {
       console.warn("[saveAppointmentAndNotify] Admin client not available:", e);
@@ -71,6 +91,13 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     }
 
     // 3. SEMPRE envia notificação por e-mail via Formspree (independente do banco)
+    const cancellationLink = cancellationToken
+      ? `https://dramichelletiago.com.br/cancelar/${cancellationToken}`
+      : "";
+    const confirmationLink = confirmationToken
+      ? `https://dramichelletiago.com.br/confirmar/${confirmationToken}`
+      : "";
+
     const messageText =
       `📌 NOVO AGENDAMENTO RECEBIDO\n\n` +
       `Protocolo: ${data.protocol}\n` +
@@ -80,7 +107,9 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       `Data: ${data.appointmentDate} às ${data.appointmentTime}\n` +
       `Serviço: ${data.serviceName}\n` +
       `Observações: ${data.notes || "Nenhuma"}\n\n` +
-      `✅ Salvo no banco: ${dbSaved ? "Sim" : "Não (verifique permissões RLS)"}`;
+      `✅ Salvo no banco: ${dbSaved ? "Sim" : "Não (verifique permissões RLS)"}\n\n` +
+      (confirmationLink ? `✅ Link de confirmação: ${confirmationLink}\n` : "") +
+      (cancellationLink ? `🔗 Link de cancelamento: ${cancellationLink}` : "");
 
     try {
       await fetch("https://formspree.io/f/xbjnqpyz", {
@@ -93,6 +122,8 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
           protocol: data.protocol,
           patientName: data.patientName,
           patientPhone: data.patientPhone,
+          confirmationLink: confirmationLink,
+          cancellationLink: cancellationLink,
         }),
       });
       console.log("[saveAppointmentAndNotify] Email notification sent for", data.protocol);
@@ -124,6 +155,65 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       console.log("[saveAppointmentAndNotify] Google Calendar response:", text.substring(0, 200));
     } catch (e) {
       console.warn("[saveAppointmentAndNotify] Google Calendar event warning:", e);
+    }
+
+    // 5. Envia WhatsApp para o PACIENTE com link de confirmação/cancelamento
+    if (dbSaved && appointmentId) {
+      try {
+        // Busca template configurado (ou usa default)
+        const template = await getMessageTemplate({ data: "booking_confirmation" });
+        
+        const templateVars = {
+          patient_name: data.patientName,
+          patient_phone: data.patientPhone,
+          patient_email: data.patientEmail,
+          appointment_date: data.appointmentDate,
+          appointment_time: data.appointmentTime,
+          appointment_date_formatted: data.dateFormatted,
+          service_name: data.serviceName,
+          protocol: data.protocol,
+          confirmation_link: confirmationLink,
+          cancellation_link: cancellationLink,
+          clinic_name: CLINIC.name,
+          clinic_short_name: CLINIC.shortName,
+          clinic_phone: CLINIC.phone,
+          clinic_address: CLINIC.address,
+          clinic_whatsapp: CLINIC.whatsapp,
+          clinic_whatsapp_link: `https://wa.me/${CLINIC.whatsapp}`,
+          notes: data.notes || "Nenhuma",
+          dentist_name: CLINIC.shortName,
+        };
+
+        const message = template 
+          ? renderTemplate(template.body, templateVars)
+          : `Olá, ${data.patientName}! 😊
+
+Recebemos sua solicitação de agendamento:
+
+📅 ${data.dateFormatted} às ${data.appointmentTime}
+🩺 ${data.serviceName}
+📌 Protocolo: ${data.protocol}
+
+✅ Para CONFIRMAR sua consulta:
+${confirmationLink}
+
+❌ Para CANCELAR:
+${cancellationLink}
+
+Aguardamos você! 🦷
+
+— ${CLINIC.shortName}`;
+
+        const patientPhone = data.patientPhone.replace(/\D/g, "");
+        const fullPhone = patientPhone.length > 11 ? patientPhone : `55${patientPhone}`;
+        const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+        
+        // Fire and forget - don't await
+        fetch(waUrl).catch(() => {});
+        console.log("[saveAppointmentAndNotify] Patient WhatsApp sent for", data.protocol);
+      } catch (e) {
+        console.warn("[saveAppointmentAndNotify] Patient WhatsApp warning:", e);
+      }
     }
 
     return { success: true, dbSaved, protocol: data.protocol };

@@ -17,6 +17,13 @@ export const Route = createFileRoute("/contato")({
         property: "og:description",
         content: "Telefone, WhatsApp, endereço e horários do consultório em Macapá, Amapá.",
       },
+      {
+        property: "og:image",
+        content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+      },
+    ],
+    links: [
+      { rel: "canonical", href: "https://dramichelletiago.com.br/contato" },
     ],
   }),
   component: Contato,
@@ -24,9 +31,13 @@ export const Route = createFileRoute("/contato")({
 
 function Contato() {
   const blocks = [
-    { label: "Telefone e WhatsApp", value: CLINIC.phone },
-    { label: "E-mail", value: CLINIC.email },
-    { label: "Endereço", value: CLINIC.address },
+    { 
+      label: "Telefone e WhatsApp", 
+      value: CLINIC.phone,
+      href: `tel:${CLINIC.whatsapp}`,
+    },
+    { label: "E-mail", value: CLINIC.email, href: `mailto:${CLINIC.email}` },
+    { label: "Endereço", value: CLINIC.address, href: `https://maps.google.com/?q=${encodeURIComponent(CLINIC.address)}` },
   ];
 
   return (
@@ -47,7 +58,16 @@ function Contato() {
           {blocks.map((block) => (
             <div key={block.label}>
               <dt className="text-kicker text-primary-soft">{block.label}</dt>
-              <dd className="mt-3 font-display text-2xl text-foreground">{block.value}</dd>
+              <dd className="mt-3 font-display text-2xl text-foreground">
+                <a
+                  href={block.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="transition-silk hover:text-primary"
+                >
+                  {block.value}
+                </a>
+              </dd>
             </div>
           ))}
         </dl>
@@ -77,7 +97,7 @@ function Contato() {
             Agendar consulta
           </a>
           <a
-            href={`https://wa.me/${CLINIC.whatsapp}`}
+            href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent("Oi Dra. Michelle, vim pelo site e queria agendar uma consulta")}`}
             target="_blank"
             rel="noreferrer"
             className="rounded-full border border-border px-9 py-4 text-kicker text-foreground transition-silk hover:bg-accent"

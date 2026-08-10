@@ -30,6 +30,13 @@ export const Route = createFileRoute("/")({
         content:
           "Agende sua consulta com a Dra. Michelle Barbosa Tiago. Especialista em transformar sorrisos com Esthetic Aligner, Clareamento, Facetas em Resina, HOF e Laserterapia. Atendimento para adultos e crianças em Macapá, Amapá.",
       },
+      {
+        property: "og:image",
+        content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+      },
+    ],
+    links: [
+      { rel: "canonical", href: "https://dramichelletiago.com.br" },
     ],
   }),
   component: Home,

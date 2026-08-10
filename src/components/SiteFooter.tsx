@@ -17,7 +17,12 @@ export function SiteFooter() {
 
           <div className="space-y-4">
             <p className="text-kicker text-primary-foreground/50">Atendimento</p>
-            <p className="font-display text-2xl">{CLINIC.phone}</p>
+            <a
+              href={`tel:${CLINIC.whatsapp}`}
+              className="font-display text-2xl transition-silk hover:opacity-70"
+            >
+              {CLINIC.phone}
+            </a>
             <p className="text-sm text-primary-foreground/70">{CLINIC.hours}</p>
             <p className="text-sm text-primary-foreground/70">{CLINIC.address}</p>
           </div>
