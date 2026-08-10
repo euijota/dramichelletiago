@@ -7,6 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
 node_modules
 dist
 dist-ssr
@@ -33,3 +38,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+.env*

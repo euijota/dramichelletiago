@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { checkIsAdmin } from "@/lib/admin-check";
 
 export type SessionState = {
   session: Session | null;
@@ -10,8 +11,8 @@ export type SessionState = {
 
 /**
  * Reads the current Supabase session and whether the signed-in user holds the
- * `admin` role. Role state comes from the `user_roles` table, never from
- * client storage.
+ * `admin` role. Role state comes from the `user_roles` table via server function,
+ * never from client storage.
  */
 export function useSession(): SessionState {
   const [session, setSession] = useState<Session | null>(null);
@@ -23,16 +24,36 @@ export function useSession(): SessionState {
 
     supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
-      setSession(data.session);
-      setIsAdmin(Boolean(data.session?.user));
+      const sess = data.session;
+      setSession(sess);
       setLoading(false);
+
+      // Check admin role via server function if session exists
+      if (sess?.user) {
+        checkIsAdmin().then(({ data: adminData }) => {
+          if (active) setIsAdmin(adminData?.isAdmin ?? false);
+        }).catch(() => {
+          if (active) setIsAdmin(false);
+        });
+      } else {
+        setIsAdmin(false);
+      }
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!active) return;
       setSession(next);
-      setIsAdmin(Boolean(next?.user));
       setLoading(false);
+
+      if (next?.user) {
+        checkIsAdmin().then(({ data: adminData }) => {
+          if (active) setIsAdmin(adminData?.isAdmin ?? false);
+        }).catch(() => {
+          if (active) setIsAdmin(false);
+        });
+      } else {
+        setIsAdmin(false);
+      }
     });
 
     return () => {
