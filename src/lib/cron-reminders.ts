@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildWhatsAppReminderUrl, shouldSendReminder, formatBrazilianDate } from "@/lib/reminders";
-import { renderTemplate, getMessageTemplate } from "@/lib/message-templates-server";
+import { renderTemplate } from "@/lib/message-templates";
+import { getMessageTemplate } from "@/lib/message-templates-server";
 import { CLINIC } from "@/lib/clinic";
 
 interface AppointmentForReminder {
@@ -35,107 +36,107 @@ Este é um lembrete de que você tem consulta agendada para AMANHÃ:
 Nos vemos amanhã! 😊
 
 — {{clinic_short_name}}`,
-    vars
+    vars,
   );
 }
 
-export const send24hReminders = createServerFn({ method: "POST" })
-  .handler(async () => {
-    // Calculate tomorrow's date in UTC-3 (Macapá)
-    const now = new Date();
-    const macapaOffset = -3 * 60; // UTC-3 in minutes
-    const macapaNow = new Date(now.getTime() + (macapaOffset - now.getTimezoneOffset()) * 60000);
-    
-    const tomorrow = new Date(macapaNow);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+export const send24hReminders = createServerFn({ method: "POST" }).handler(async () => {
+  // Calculate tomorrow's date in UTC-3 (Macapá)
+  const now = new Date();
+  const macapaOffset = -3 * 60; // UTC-3 in minutes
+  const macapaNow = new Date(now.getTime() + (macapaOffset - now.getTimezoneOffset()) * 60000);
 
-    console.log(`[cron-24h] Checking reminders for ${tomorrowStr} (Macapá time)`);
+  const tomorrow = new Date(macapaNow);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
-    // Fetch appointments for tomorrow that are pending/confirmed and haven't had reminder sent
-    const { data: appointments, error } = await supabaseAdmin
-      .from("appointments")
-      .select("id, patient_name, patient_phone, appointment_date, appointment_time, service_name, status, reminder_sent_at")
-      .eq("appointment_date", tomorrowStr)
-      .in("status", ["pending", "confirmed"])
-      .is("reminder_sent_at", null);
+  console.log(`[cron-24h] Checking reminders for ${tomorrowStr} (Macapá time)`);
 
-    if (error) {
-      console.error("[cron-24h] Error fetching appointments:", error);
-      throw new Error(error.message);
-    }
+  // Fetch appointments for tomorrow that are pending/confirmed and haven't had reminder sent
+  const { data: appointments, error } = await supabaseAdmin
+    .from("appointments")
+    .select(
+      "id, patient_name, patient_phone, appointment_date, appointment_time, service_name, status, reminder_sent_at",
+    )
+    .eq("appointment_date", tomorrowStr)
+    .in("status", ["pending", "confirmed"])
+    .is("reminder_sent_at", null);
 
-    if (!appointments || appointments.length === 0) {
-      console.log("[cron-24h] No appointments need reminders");
-      return { success: true, sent: 0, message: "No appointments to remind" };
-    }
+  if (error) {
+    console.error("[cron-24h] Error fetching appointments:", error);
+    throw new Error(error.message);
+  }
 
-    // Try to get custom template
-    const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
+  if (!appointments || appointments.length === 0) {
+    console.log("[cron-24h] No appointments need reminders");
+    return { success: true, sent: 0, message: "No appointments to remind" };
+  }
 
-    let sent = 0;
-    let failed = 0;
+  // Try to get custom template
+  const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
 
-    for (const apt of appointments as AppointmentForReminder[]) {
-      try {
-        const vars = {
-          patient_name: apt.patient_name,
-          patient_phone: apt.patient_phone,
-          appointment_date: apt.appointment_date,
-          appointment_time: apt.appointment_time,
-          appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
-          service_name: apt.service_name,
-          clinic_name: CLINIC.name,
-          clinic_short_name: CLINIC.shortName,
-          clinic_address: CLINIC.address,
-          clinic_phone: CLINIC.phone,
-          clinic_whatsapp: CLINIC.whatsapp,
-        };
+  let sent = 0;
+  let failed = 0;
 
-        const message = customTemplate 
-          ? renderTemplate(customTemplate.body, vars)
-          : buildReminderMessage(vars);
+  for (const apt of appointments as AppointmentForReminder[]) {
+    try {
+      const vars = {
+        patient_name: apt.patient_name,
+        patient_phone: apt.patient_phone,
+        appointment_date: apt.appointment_date,
+        appointment_time: apt.appointment_time,
+        appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
+        service_name: apt.service_name,
+        clinic_name: CLINIC.name,
+        clinic_short_name: CLINIC.shortName,
+        clinic_address: CLINIC.address,
+        clinic_phone: CLINIC.phone,
+        clinic_whatsapp: CLINIC.whatsapp,
+      };
 
-        const cleanPhone = apt.patient_phone.replace(/\D/g, "");
-        const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
-        const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+      const message = customTemplate
+        ? renderTemplate(customTemplate.body, vars)
+        : buildReminderMessage(vars);
 
-        // Fire and forget
-        await fetch(waUrl).catch(() => {});
+      const cleanPhone = apt.patient_phone.replace(/\D/g, "");
+      const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
+      const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
-        // Mark reminder as sent
-        const { error: updateError } = await supabaseAdmin
-          .from("appointments")
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq("id", apt.id);
+      // Fire and forget
+      await fetch(waUrl).catch(() => {});
 
-        if (updateError) {
-          console.warn(`[cron-24h] Failed to mark reminder sent for ${apt.id}:`, updateError);
-        } else {
-          sent++;
-          console.log(`[cron-24h] Reminder sent for ${apt.patient_name} (${apt.id})`);
-        }
-      } catch (e) {
-        failed++;
-        console.error(`[cron-24h] Failed to send reminder for ${apt.id}:`, e);
+      // Mark reminder as sent
+      const { error: updateError } = await supabaseAdmin
+        .from("appointments")
+        .update({ reminder_sent_at: new Date().toISOString() })
+        .eq("id", apt.id);
+
+      if (updateError) {
+        console.warn(`[cron-24h] Failed to mark reminder sent for ${apt.id}:`, updateError);
+      } else {
+        sent++;
+        console.log(`[cron-24h] Reminder sent for ${apt.patient_name} (${apt.id})`);
       }
+    } catch (e) {
+      failed++;
+      console.error(`[cron-24h] Failed to send reminder for ${apt.id}:`, e);
     }
+  }
 
-    return { 
-      success: true, 
-      sent, 
-      failed, 
-      total: appointments.length,
-      date: tomorrowStr 
-    };
-  });
+  return {
+    success: true,
+    sent,
+    failed,
+    total: appointments.length,
+    date: tomorrowStr,
+  };
+});
 
-export const send1hReminders = createServerFn({ method: "POST" })
-  .handler(async () => {
-    // Similar logic for 1h before - would need more precise timing
-    // For now, return not implemented
-    return { success: true, sent: 0, message: "1h reminders not yet implemented" };
-  });
+export const send1hReminders = createServerFn({ method: "POST" }).handler(async () => {
+  // Similar logic for 1h before - would need more precise timing
+  // For now, return not implemented
+  return { success: true, sent: 0, message: "1h reminders not yet implemented" };
+});
 
 // Manual trigger for testing
 export const testReminder = createServerFn({ method: "POST" })
@@ -164,7 +165,7 @@ export const testReminder = createServerFn({ method: "POST" })
     };
 
     const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
-    const message = customTemplate 
+    const message = customTemplate
       ? renderTemplate(customTemplate.body, vars)
       : buildReminderMessage(vars);
 

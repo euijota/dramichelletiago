@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
-import { z } from "zod";
 import { CLINIC } from "@/lib/clinic";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
+import { bookingSchema, type BookingPayload } from "@/lib/booking";
 
 const APPS_SCRIPT_SECRET = process.env.GOOGLE_APPS_SCRIPT_SECRET;
 
@@ -32,28 +32,7 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs?: number }
   return { allowed: true };
 }
 
-export interface BookingPayload {
-  appointmentDate: string;
-  appointmentTime: string;
-  patientName: string;
-  patientPhone: string;
-  patientEmail: string;
-  serviceName: string;
-  notes: string;
-  protocol: string;
-}
-
-// Zod schema for validation
-const bookingSchema = z.object({
-  appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
-  appointmentTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, "Horário inválido (HH:MM)"),
-  patientName: z.string().min(2, "Nome muito curto").max(120),
-  patientPhone: z.string().min(8, "Telefone inválido").max(20),
-  patientEmail: z.string().email("E-mail inválido").optional().or(z.literal("")),
-  serviceName: z.string().min(2).max(120),
-  notes: z.string().max(1000).optional().default(""),
-  protocol: z.string().regex(/^AG-\d{6}$/, "Protocolo inválido"),
-});
+export type { BookingPayload };
 
 /** Salva o agendamento e envia notificação para a Dra. Michelle. */
 export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
@@ -250,7 +229,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
         const templateVars = {
           patient_name: data.patientName,
           patient_phone: data.patientPhone,
-          patient_email: data.patientEmail,
+          patient_email: data.patientEmail ?? "",
           appointment_date: data.appointmentDate,
           appointment_time: data.appointmentTime,
           appointment_date_formatted: dateFormatted,

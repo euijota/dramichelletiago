@@ -27,7 +27,15 @@ export function ToothMark({ className, onWine = false }: { className?: string; o
 }
 
 /** SVG Logo - inline signature + tooth mark, ~2KB vs 34KB PNG */
-export function Logo({ className, onWine = false, showName = true }: { className?: string; onWine?: boolean; showName?: boolean }) {
+export function Logo({
+  className,
+  onWine = false,
+  showName = true,
+}: {
+  className?: string;
+  onWine?: boolean;
+  showName?: boolean;
+}) {
   const textColor = onWine ? "#fff" : "#8a4a52";
   const accentColor = onWine ? "#fff" : "#8a4a52";
 
@@ -68,9 +76,9 @@ export function Logo({ className, onWine = false, showName = true }: { className
         fontSize="11"
         fontWeight="500"
         letterSpacing="0.15em"
-        textTransform="uppercase"
         fill={textColor}
         opacity="0.8"
+        style={{ textTransform: "uppercase" }}
       >
         Dra. Barbosa Tiago
       </text>

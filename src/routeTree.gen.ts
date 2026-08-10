@@ -17,6 +17,8 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as TratamentosRouteImport } from './routes/tratamentos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as CancelarTokenRouteImport } from './routes/cancelar/$token'
+import { Route as ConfirmarTokenRouteImport } from './routes/confirmar/$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -57,6 +59,16 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const CancelarTokenRoute = CancelarTokenRouteImport.update({
+  id: '/cancelar/$token',
+  path: '/cancelar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfirmarTokenRoute = ConfirmarTokenRouteImport.update({
+  id: '/confirmar/$token',
+  path: '/confirmar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -66,6 +78,8 @@ export interface FileRoutesByFullPath {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/cancelar/$token': typeof CancelarTokenRoute
+  '/confirmar/$token': typeof ConfirmarTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -75,6 +89,8 @@ export interface FileRoutesByTo {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/cancelar/$token': typeof CancelarTokenRoute
+  '/confirmar/$token': typeof ConfirmarTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,6 +102,8 @@ export interface FileRoutesById {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/cancelar/$token': typeof CancelarTokenRoute
+  '/confirmar/$token': typeof ConfirmarTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,6 +115,8 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/cancelar/$token'
+    | '/confirmar/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -106,6 +126,8 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/cancelar/$token'
+    | '/confirmar/$token'
   id:
     | '__root__'
     | '/'
@@ -116,6 +138,8 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/_authenticated/painel'
+    | '/cancelar/$token'
+    | '/confirmar/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -126,6 +150,8 @@ export interface RootRouteChildren {
   PrivacidadeRoute: typeof PrivacidadeRoute
   SobreRoute: typeof SobreRoute
   TratamentosRoute: typeof TratamentosRoute
+  CancelarTokenRoute: typeof CancelarTokenRoute
+  ConfirmarTokenRoute: typeof ConfirmarTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -186,6 +212,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/cancelar/$token': {
+      id: '/cancelar/$token'
+      path: '/cancelar/$token'
+      fullPath: '/cancelar/$token'
+      preLoaderRoute: typeof CancelarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confirmar/$token': {
+      id: '/confirmar/$token'
+      path: '/confirmar/$token'
+      fullPath: '/confirmar/$token'
+      preLoaderRoute: typeof ConfirmarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -208,7 +248,19 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   SobreRoute: SobreRoute,
   TratamentosRoute: TratamentosRoute,
+  CancelarTokenRoute: CancelarTokenRoute,
+  ConfirmarTokenRoute: ConfirmarTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

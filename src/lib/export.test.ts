@@ -126,6 +126,14 @@ describe("Export Filters", () => {
     expect(result[0].patient_email).toBe("pedro@email.com");
   });
 
+  it("should safely search appointments without an email", () => {
+    const appointmentsWithoutEmail: AppointmentExport[] = [
+      { ...mockAppointments[0], patient_email: null },
+    ];
+
+    expect(filterAppointments(appointmentsWithoutEmail, { searchTerm: "missing" })).toEqual([]);
+  });
+
   it("should filter by service name", () => {
     const filters: ExportFilters = { searchTerm: "clareamento" };
     const result = filterAppointments(mockAppointments, filters);

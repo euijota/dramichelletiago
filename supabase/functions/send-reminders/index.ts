@@ -11,7 +11,7 @@ interface Appointment {
   appointment_time: string;
   patient_name: string;
   patient_phone: string;
-  patient_email: string;
+  patient_email: string | null;
   service_name: string;
   status: string;
 }
@@ -47,10 +47,10 @@ serve(async (req) => {
 
     if (!appointments || appointments.length === 0) {
       console.log("[send-reminders] No appointments found for tomorrow");
-      return new Response(
-        JSON.stringify({ message: "No reminders to send", count: 0 }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ message: "No reminders to send", count: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     console.log(`[send-reminders] Found ${appointments.length} appointments`);
@@ -65,14 +65,20 @@ serve(async (req) => {
         // Send Email reminder
         const emailSent = await sendEmailReminder(apt);
 
-        // Update reminder_sent_at timestamp
-        const { error: updateError } = await supabase
-          .from("appointments")
-          .update({ reminder_sent_at: new Date().toISOString() })
-          .eq("id", apt.id);
+        // Only mark the reminder when at least one delivery channel succeeded.
+        const { error: updateError } =
+          whatsappSent || emailSent
+            ? await supabase
+                .from("appointments")
+                .update({ reminder_sent_at: new Date().toISOString() })
+                .eq("id", apt.id)
+            : { error: null };
 
         if (updateError) {
-          console.error(`[send-reminders] Failed to update reminder_sent_at for ${apt.id}:`, updateError);
+          console.error(
+            `[send-reminders] Failed to update reminder_sent_at for ${apt.id}:`,
+            updateError,
+          );
         }
 
         results.push({
@@ -80,10 +86,12 @@ serve(async (req) => {
           patient_name: apt.patient_name,
           whatsapp_sent: whatsappSent,
           email_sent: emailSent,
-          updated: !updateError,
+          updated: (whatsappSent || emailSent) && !updateError,
         });
 
-        console.log(`[send-reminders] Processed ${apt.patient_name} - WhatsApp: ${whatsappSent}, Email: ${emailSent}`);
+        console.log(
+          `[send-reminders] Processed ${apt.patient_name} - WhatsApp: ${whatsappSent}, Email: ${emailSent}`,
+        );
       } catch (err) {
         console.error(`[send-reminders] Error processing appointment ${apt.id}:`, err);
         results.push({
@@ -100,14 +108,14 @@ serve(async (req) => {
         count: appointments.length,
         results,
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("[send-reminders] Fatal error:", error);
-    return new Response(
-      JSON.stringify({ error: String(error) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: String(error) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });
 
@@ -133,6 +141,11 @@ async function sendWhatsAppReminder(apt: Appointment): Promise<boolean> {
 }
 
 async function sendEmailReminder(apt: Appointment): Promise<boolean> {
+  if (!apt.patient_email) {
+    console.log(`[Email] Skipped for appointment ${apt.id}: patient has no email`);
+    return false;
+  }
+
   try {
     const subject = `🦷 Lembrete: Consulta amanhã às ${apt.appointment_time}`;
     const messageText = buildEmailMessage(apt);

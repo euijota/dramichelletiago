@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildWhatsAppReminderMessage,
   buildEmailReminderMessage,
@@ -47,12 +47,7 @@ describe("Reminder Templates", () => {
   });
 
   it("should handle different phone formats", () => {
-    const formats = [
-      "(96) 98765-4321",
-      "96 98765-4321",
-      "96987654321",
-      "+55 96 98765-4321",
-    ];
+    const formats = ["(96) 98765-4321", "96 98765-4321", "96987654321", "+55 96 98765-4321"];
 
     formats.forEach((phone) => {
       const url = buildWhatsAppReminderUrl(phone, mockData);
@@ -70,6 +65,15 @@ describe("Date Formatting", () => {
 });
 
 describe("Reminder Logic", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-06T17:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("should send reminder for tomorrow's pending appointment", () => {
     const now = new Date("2026-08-06T17:00:00.000Z");
     const tomorrow = new Date(now);
@@ -98,11 +102,7 @@ describe("Reminder Logic", () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
-    const result = shouldSendReminder(
-      tomorrowStr,
-      "2026-08-06T10:00:00Z",
-      "pending"
-    );
+    const result = shouldSendReminder(tomorrowStr, "2026-08-06T10:00:00Z", "pending");
 
     expect(result).toBe(false);
   });

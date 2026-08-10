@@ -30,11 +30,13 @@ export function useSession(): SessionState {
 
       // Check admin role via server function if session exists
       if (sess?.user) {
-        checkIsAdmin().then(({ data: adminData }) => {
-          if (active) setIsAdmin(adminData?.isAdmin ?? false);
-        }).catch(() => {
-          if (active) setIsAdmin(false);
-        });
+        checkIsAdmin()
+          .then((adminData) => {
+            if (active) setIsAdmin(adminData.isAdmin);
+          })
+          .catch(() => {
+            if (active) setIsAdmin(false);
+          });
       } else {
         setIsAdmin(false);
       }
@@ -46,11 +48,13 @@ export function useSession(): SessionState {
       setLoading(false);
 
       if (next?.user) {
-        checkIsAdmin().then(({ data: adminData }) => {
-          if (active) setIsAdmin(adminData?.isAdmin ?? false);
-        }).catch(() => {
-          if (active) setIsAdmin(false);
-        });
+        checkIsAdmin()
+          .then((adminData) => {
+            if (active) setIsAdmin(adminData.isAdmin);
+          })
+          .catch(() => {
+            if (active) setIsAdmin(false);
+          });
       } else {
         setIsAdmin(false);
       }

@@ -63,5 +63,5 @@ export const fetchICalFeed = createServerFn({ method: "GET" })
       throw new Error(`iCal fetch failed: ${res.status}`);
     }
 
-    return res.text();
+    return parseICSFeed(await res.text());
   });

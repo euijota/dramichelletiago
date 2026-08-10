@@ -42,13 +42,13 @@ import {
 } from "@/lib/clinic";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
+import { generateBookingProtocol, normalizePatientEmail } from "@/lib/booking";
 
 interface BookingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultService?: string;
 }
-
 interface DayItem {
   dateString: string;
   dayName: string;
@@ -342,8 +342,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     }
 
     setIsSubmitting(true);
-    // Use crypto.randomUUID for unique protocol
-    const protocol = "AG-" + crypto.randomUUID().slice(0, 8).toUpperCase();
+    const protocol = generateBookingProtocol();
     const serviceName =
       defaultService ||
       (attendanceType === "convenio"
@@ -362,7 +361,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           appointmentTime: formattedTime,
           patientName: patientName.trim(),
           patientPhone: patientPhone.trim(),
-          patientEmail: patientEmail.trim() || "",
+          patientEmail: normalizePatientEmail(patientEmail),
           serviceName,
           notes: notesText,
         },

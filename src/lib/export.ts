@@ -9,7 +9,7 @@ export interface AppointmentExport {
   appointment_time: string;
   patient_name: string;
   patient_phone: string;
-  patient_email: string;
+  patient_email: string | null;
   service_name: string;
   status: string;
   notes: string | null;
@@ -35,7 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
  */
 export function filterAppointments(
   appointments: AppointmentExport[],
-  filters: ExportFilters
+  filters: ExportFilters,
 ): AppointmentExport[] {
   let filtered = [...appointments];
 
@@ -57,8 +57,8 @@ export function filterAppointments(
       (apt) =>
         apt.patient_name.toLowerCase().includes(term) ||
         apt.patient_phone.includes(term) ||
-        apt.patient_email.toLowerCase().includes(term) ||
-        apt.service_name.toLowerCase().includes(term)
+        (apt.patient_email ?? "").toLowerCase().includes(term) ||
+        apt.service_name.toLowerCase().includes(term),
     );
   }
 
@@ -68,10 +68,7 @@ export function filterAppointments(
 /**
  * Exports appointments to PDF
  */
-export function exportToPDF(
-  appointments: AppointmentExport[],
-  filters: ExportFilters = {}
-): void {
+export function exportToPDF(appointments: AppointmentExport[], filters: ExportFilters = {}): void {
   const filtered = filterAppointments(appointments, filters);
 
   const doc = new jsPDF();
@@ -103,7 +100,11 @@ export function exportToPDF(
   // Summary stats
   const stats = calculateStats(filtered);
   doc.setFontSize(9);
-  doc.text(`Total: ${stats.total} | Confirmados: ${stats.confirmed} | Pendentes: ${stats.pending} | Cancelados: ${stats.cancelled}`, 14, 42);
+  doc.text(
+    `Total: ${stats.total} | Confirmados: ${stats.confirmed} | Pendentes: ${stats.pending} | Cancelados: ${stats.cancelled}`,
+    14,
+    42,
+  );
 
   // Table
   const tableData = filtered.map((apt) => [
@@ -152,7 +153,7 @@ export function exportToPDF(
     doc.text(
       `Gerado em ${new Date().toLocaleString("pt-BR")} - Página ${i} de ${pageCount}`,
       14,
-      doc.internal.pageSize.height - 10
+      doc.internal.pageSize.height - 10,
     );
   }
 
@@ -166,7 +167,7 @@ export function exportToPDF(
  */
 export function exportToExcel(
   appointments: AppointmentExport[],
-  filters: ExportFilters = {}
+  filters: ExportFilters = {},
 ): void {
   const filtered = filterAppointments(appointments, filters);
 
@@ -176,7 +177,7 @@ export function exportToExcel(
     Hora: apt.appointment_time.slice(0, 5),
     Paciente: apt.patient_name,
     Telefone: apt.patient_phone,
-    Email: apt.patient_email,
+    Email: apt.patient_email ?? "",
     Serviço: apt.service_name,
     Status: STATUS_LABELS[apt.status] || apt.status,
     Observações: apt.notes || "",
@@ -192,7 +193,7 @@ export function exportToExcel(
   // Set column widths
   ws["!cols"] = [
     { wch: 12 }, // Data
-    { wch: 8 },  // Hora
+    { wch: 8 }, // Hora
     { wch: 25 }, // Paciente
     { wch: 15 }, // Telefone
     { wch: 30 }, // Email
@@ -206,7 +207,7 @@ export function exportToExcel(
 
   // Summary sheet
   const stats = calculateStats(filtered);
-  const summaryData = [
+  const summaryData: Array<{ Métrica: string; Valor: string | number }> = [
     { Métrica: "Total de agendamentos", Valor: stats.total },
     { Métrica: "Confirmados", Valor: stats.confirmed },
     { Métrica: "Pendentes", Valor: stats.pending },
@@ -240,10 +241,7 @@ export function exportToExcel(
 /**
  * Exports appointments to CSV
  */
-export function exportToCSV(
-  appointments: AppointmentExport[],
-  filters: ExportFilters = {}
-): void {
+export function exportToCSV(appointments: AppointmentExport[], filters: ExportFilters = {}): void {
   const filtered = filterAppointments(appointments, filters);
 
   const data = filtered.map((apt) => ({
@@ -251,7 +249,7 @@ export function exportToCSV(
     Hora: apt.appointment_time.slice(0, 5),
     Paciente: apt.patient_name,
     Telefone: apt.patient_phone,
-    Email: apt.patient_email,
+    Email: apt.patient_email ?? "",
     Serviço: apt.service_name,
     Status: STATUS_LABELS[apt.status] || apt.status,
     Observações: apt.notes || "",

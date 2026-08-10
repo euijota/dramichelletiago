@@ -3,24 +3,24 @@
  * Configurable WhatsApp/Email templates for patient communications
  */
 
-export type TemplateType = 
-  | "booking_confirmation"      // Sent to patient when booking created (with confirm/cancel links)
-  | "booking_confirmed"         // Sent when dentist confirms appointment
-  | "booking_cancelled"         // Sent when appointment cancelled
-  | "reminder_24h"              // 24h before appointment
-  | "reminder_1h"               // 1h before appointment
-  | "post_appointment"          // After appointment (feedback/request review)
-  | "custom";                   // Custom/manual send
+export type TemplateType =
+  | "booking_confirmation" // Sent to patient when booking created (with confirm/cancel links)
+  | "booking_confirmed" // Sent when dentist confirms appointment
+  | "booking_cancelled" // Sent when appointment cancelled
+  | "reminder_24h" // 24h before appointment
+  | "reminder_1h" // 1h before appointment
+  | "post_appointment" // After appointment (feedback/request review)
+  | "custom"; // Custom/manual send
 
 export interface MessageTemplate {
   id: string;
   type: TemplateType;
-  name: string;                 // Display name in admin
+  name: string; // Display name in admin
   channel: "whatsapp" | "email" | "both";
-  subject?: string;             // For email
-  body: string;                 // Template with placeholders
+  subject?: string; // For email
+  body: string; // Template with placeholders
   is_active: boolean;
-  is_default: boolean;          // System default (only one per type)
+  is_default: boolean; // System default (only one per type)
   created_at: string;
   updated_at: string;
 }
@@ -31,8 +31,8 @@ export interface TemplateVariables {
   patient_phone: string;
   patient_email: string;
   // Appointment info
-  appointment_date: string;      // YYYY-MM-DD
-  appointment_time: string;      // HH:MM
+  appointment_date: string; // YYYY-MM-DD
+  appointment_time: string; // HH:MM
   appointment_date_formatted: string; // DD/MM/YYYY
   service_name: string;
   protocol: string;
@@ -186,20 +186,23 @@ Obrigada pela confiança!
 ];
 
 /** Render template with variables */
-export function renderTemplate(template: string, vars: TemplateVariables): string {
+export function renderTemplate(
+  template: string,
+  vars: TemplateVariables | Record<string, string>,
+): string {
   let result = template;
-  
+
   // Simple {{variable}} replacement
   Object.entries(vars).forEach(([key, value]) => {
     const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, "g");
     result = result.replace(placeholder, value ?? "");
   });
-  
+
   // Handle {{#if variable}}...{{/if}} blocks
   result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, key, content) => {
-    return vars[key as keyof TemplateVariables] ? content : "";
+    return (vars as Record<string, string | undefined>)[key] ? content : "";
   });
-  
+
   return result;
 }
 

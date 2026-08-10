@@ -72,7 +72,7 @@ export const Route = createFileRoute("/_authenticated/painel")({
 type Appointment = {
   id: string;
   patient_name: string;
-  patient_email: string;
+  patient_email: string | null;
   patient_phone: string;
   service_name: string;
   appointment_date: string;
@@ -146,8 +146,7 @@ function Painel() {
     enabled: !!session,
     queryFn: async () => {
       try {
-        const events = await fetchICalFeed();
-        return events as ICSEvent[];
+        return await fetchICalFeed();
       } catch (e) {
         console.error("Google Agenda iCal fetch failed:", e);
         return [];
@@ -530,7 +529,7 @@ function Painel() {
                     {trimSeconds(appointment.appointment_time)}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground/80">
-                    {appointment.patient_phone} · {appointment.patient_email}
+                    {appointment.patient_phone} · {appointment.patient_email ?? "E-mail não informado"}
                   </p>
                 </div>
 
@@ -584,14 +583,36 @@ function Painel() {
             </button>
           </div>
 
-          <MessageTemplates 
-            queryClient={queryClient}
-            toast={toast}
-          />
+          <MessageTemplates queryClient={queryClient} />
         </section>
-      </main>
 
-      function MessageTemplates({ queryClient, toast }: { queryClient: ReturnType<typeof useQueryClient>; toast: typeof toast }) {
+        {selected && (
+          <AppointmentSheet
+            appointment={selected}
+            onClose={() => setSelected(null)}
+            onSave={updateAppointment}
+          />
+        )}
+
+        {selectedGoogle && (
+          <GoogleEventSheet
+            event={selectedGoogle}
+            onClose={() => setSelectedGoogle(null)}
+          />
+        )}
+
+        {showExportModal && allAppointments && (
+          <ExportModal
+            appointments={allAppointments}
+            onClose={() => setShowExportModal(false)}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQueryClient> }) {
   const { data: templates, isLoading } = useQuery({
     queryKey: ["message-templates"],
     queryFn: async () => {
@@ -853,7 +874,7 @@ function Painel() {
                       placeholder="Use variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}
+                      {"Variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"}
                     </p>
                   </div>
 
@@ -874,31 +895,6 @@ function Painel() {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-{selected && (
-        <AppointmentSheet
-          appointment={selected}
-          onClose={() => setSelected(null)}
-          onSave={updateAppointment}
-        />
-      )}
-
-      {selectedGoogle && (
-        <GoogleEventSheet
-          event={selectedGoogle}
-          onClose={() => setSelectedGoogle(null)}
-        />
-      )}
-
-      {showExportModal && allAppointments && (
-        <ExportModal
-          appointments={allAppointments}
-          onClose={() => setShowExportModal(false)}
-        />
-      )}
     </div>
   );
 }
@@ -955,7 +951,9 @@ function AppointmentSheet({
           </div>
           <div className="flex justify-between gap-6">
             <dt className="text-muted-foreground">E-mail</dt>
-            <dd className="truncate text-foreground">{appointment.patient_email}</dd>
+            <dd className="truncate text-foreground">
+              {appointment.patient_email ?? "Não informado"}
+            </dd>
           </div>
           {appointment.notes && (
             <div className="pt-2">
