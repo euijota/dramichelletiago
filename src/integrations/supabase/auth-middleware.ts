@@ -103,3 +103,27 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
     });
   },
 );
+
+export const requireAdmin = createMiddleware({ type: "function" })
+  .middleware([requireSupabaseAuth])
+  .server(async ({ context, next }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new Error("Forbidden: Admin access required");
+    }
+
+    return next({
+      context: {
+        ...context,
+        isAdmin: true,
+      },
+    });
+  });
+

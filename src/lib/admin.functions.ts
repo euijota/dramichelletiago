@@ -7,21 +7,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  */
 export const claimAdminIfUnclaimed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const { count, error: countError } = await supabaseAdmin
-      .from("user_roles")
-      .select("id", { count: "exact", head: true })
-      .eq("role", "admin");
-
-    if (countError) throw countError;
-    if ((count ?? 0) > 0) return { granted: false as const };
-
-    const { error } = await supabaseAdmin
-      .from("user_roles")
-      .insert({ user_id: context.userId, role: "admin" });
-
-    if (error) throw error;
-    return { granted: true as const };
+  .handler(async () => {
+    return { granted: false as const };
   });

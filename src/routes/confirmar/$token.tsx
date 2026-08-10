@@ -27,6 +27,10 @@ export const Route = createFileRoute("/confirmar/$token")({
         name: "description",
         content: "Confirmar agendamento de consulta odontológica",
       },
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
     ],
   }),
   component: ConfirmAppointment,

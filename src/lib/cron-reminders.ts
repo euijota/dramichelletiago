@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAdmin } from "@/integrations/supabase/auth-middleware";
 import { buildWhatsAppReminderUrl, shouldSendReminder, formatBrazilianDate } from "@/lib/reminders";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
@@ -40,7 +41,9 @@ Nos vemos amanhã! 😊
   );
 }
 
-export const send24hReminders = createServerFn({ method: "POST" }).handler(async () => {
+export const send24hReminders = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
   // Calculate tomorrow's date in UTC-3 (Macapá)
   const now = new Date();
   const macapaOffset = -3 * 60; // UTC-3 in minutes
@@ -115,7 +118,7 @@ export const send24hReminders = createServerFn({ method: "POST" }).handler(async
         console.warn(`[cron-24h] Failed to mark reminder sent for ${apt.id}:`, updateError);
       } else {
         sent++;
-        console.log(`[cron-24h] Reminder sent for ${apt.patient_name} (${apt.id})`);
+        console.log(`[cron-24h] Reminder sent for appointment ID: ${apt.id}`);
       }
     } catch (e) {
       failed++;
@@ -132,7 +135,9 @@ export const send24hReminders = createServerFn({ method: "POST" }).handler(async
   };
 });
 
-export const send1hReminders = createServerFn({ method: "POST" }).handler(async () => {
+export const send1hReminders = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
   // Similar logic for 1h before - would need more precise timing
   // For now, return not implemented
   return { success: true, sent: 0, message: "1h reminders not yet implemented" };
@@ -140,6 +145,7 @@ export const send1hReminders = createServerFn({ method: "POST" }).handler(async 
 
 // Manual trigger for testing
 export const testReminder = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator((data: { appointmentId: string }) => data)
   .handler(async ({ data }) => {
     const { data: apt, error } = await supabaseAdmin

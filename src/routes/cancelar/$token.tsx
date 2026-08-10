@@ -28,6 +28,10 @@ export const Route = createFileRoute("/cancelar/$token")({
         name: "description",
         content: "Cancelar agendamento de consulta odontológica",
       },
+      {
+        name: "robots",
+        content: "noindex, nofollow",
+      },
     ],
   }),
   component: CancelAppointment,

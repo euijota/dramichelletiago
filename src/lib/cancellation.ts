@@ -5,11 +5,16 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 /**
  * Generates a secure token for an appointment (cancellation or confirmation).
- * Token format: base64url(appointmentId:randomSecret)
+ * Token format: base64url(appointmentId:purpose:randomSecret)
  */
-export function generateAppointmentToken(appointmentId: string): string {
-  const secret = Math.random().toString(36).substring(2, 15);
-  const payload = `${appointmentId}:${secret}`;
+export function generateAppointmentToken(
+  appointmentId: string,
+  purpose: "confirm" | "cancel" = "confirm",
+): string {
+  const secretBytes = new Uint8Array(24);
+  crypto.getRandomValues(secretBytes);
+  const secret = Array.from(secretBytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  const payload = `${appointmentId}:${purpose}:${secret}`;
   return Buffer.from(payload).toString("base64url");
 }
 
@@ -17,27 +22,34 @@ export function generateAppointmentToken(appointmentId: string): string {
  * @deprecated Use generateAppointmentToken instead
  */
 export function generateCancellationToken(appointmentId: string): string {
-  return generateAppointmentToken(appointmentId);
+  return generateAppointmentToken(appointmentId, "cancel");
 }
 
 /**
  * Decodes and validates an appointment token.
  * Returns appointmentId if valid, null otherwise.
  */
-export function validateAppointmentToken(token: string): string | null {
+export function validateAppointmentToken(
+  token: string,
+  expectedPurpose?: "confirm" | "cancel",
+): string | null {
   try {
     const payload = Buffer.from(token, "base64url").toString("utf-8");
     const parts = payload.split(":");
 
-    // Must have exactly 2 parts: appointmentId:secret
-    if (parts.length !== 2) return null;
+    if (parts.length === 3) {
+      const [appointmentId, purpose, secret] = parts;
+      if (!appointmentId || !secret) return null;
+      if (expectedPurpose && purpose !== expectedPurpose) return null;
+      return appointmentId;
+    } else if (parts.length === 2) {
+      // Legacy backwards compatibility (appointmentId:secret)
+      const [appointmentId, secret] = parts;
+      if (!appointmentId || !secret) return null;
+      return appointmentId;
+    }
 
-    const [appointmentId, secret] = parts;
-
-    // Both parts must be non-empty
-    if (!appointmentId || !secret) return null;
-
-    return appointmentId;
+    return null;
   } catch {
     return null;
   }
@@ -47,7 +59,7 @@ export function validateAppointmentToken(token: string): string | null {
  * @deprecated Use validateAppointmentToken instead
  */
 export function validateCancellationToken(token: string): string | null {
-  return validateAppointmentToken(token);
+  return validateAppointmentToken(token, "cancel");
 }
 
 const cancelAppointmentSchema = z.object({
@@ -66,7 +78,7 @@ const confirmAppointmentSchema = z.object({
 export const confirmAppointmentByToken = createServerFn({ method: "POST" })
   .inputValidator((input) => confirmAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
-    const appointmentId = validateAppointmentToken(data.token);
+    const appointmentId = validateAppointmentToken(data.token, "confirm");
 
     if (!appointmentId) {
       throw new Error("Token de confirmação inválido ou expirado.");
@@ -138,7 +150,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
 export const cancelAppointmentByToken = createServerFn({ method: "POST" })
   .inputValidator((input) => cancelAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
-    const appointmentId = validateAppointmentToken(data.token);
+    const appointmentId = validateAppointmentToken(data.token, "cancel");
 
     if (!appointmentId) {
       throw new Error("Token de cancelamento inválido ou expirado.");

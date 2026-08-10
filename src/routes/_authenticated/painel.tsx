@@ -3,7 +3,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { claimAdminIfUnclaimed } from "@/lib/admin.functions";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
 import { ExportModal } from "@/components/ExportModal";
@@ -101,23 +100,7 @@ function Painel() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [selectedGoogle, setSelectedGoogle] = useState<ICSEvent | null>(null);
-  const [claimChecked, setClaimChecked] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
-
-  // Bootstrap: the first person to reach the panel becomes the administrator.
-  useEffect(() => {
-    if (loading || isAdmin || claimChecked || !session) return;
-    setClaimChecked(true);
-    claimAdminIfUnclaimed()
-      .then((res) => {
-        if (res.granted) {
-          toast.success("Acesso de administradora concedido.");
-          queryClient.invalidateQueries();
-          window.location.reload();
-        }
-      })
-      .catch(() => undefined);
-  }, [loading, isAdmin, claimChecked, session, queryClient]);
 
   const weekDays = useMemo(
     () => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)),

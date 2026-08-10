@@ -103,8 +103,8 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
         // Generate cancellation and confirmation tokens
         const { generateAppointmentToken } = await import("@/lib/cancellation");
-        cancellationToken = generateAppointmentToken(appointmentId);
-        confirmationToken = generateAppointmentToken(appointmentId);
+        cancellationToken = generateAppointmentToken(appointmentId, "cancel");
+        confirmationToken = generateAppointmentToken(appointmentId, "confirm");
 
         console.log("[saveAppointmentAndNotify] Appointment saved, ID:", appointmentId);
       } else if (error.code === "23505") {

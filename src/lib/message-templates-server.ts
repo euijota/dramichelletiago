@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAdmin } from "@/integrations/supabase/auth-middleware";
 import type { MessageTemplate, TemplateType } from "@/lib/message-templates";
 
 const templateTypeSchema = z.enum([
@@ -22,16 +23,18 @@ const messageTemplateSchema = z.object({
   is_active: z.boolean().default(true),
 });
 
-export const listMessageTemplates = createServerFn({ method: "GET" }).handler(async () => {
-  const { data, error } = await supabaseAdmin
-    .from("message_templates")
-    .select("*")
-    .order("type")
-    .order("is_default", { ascending: false });
+export const listMessageTemplates = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { data, error } = await supabaseAdmin
+      .from("message_templates")
+      .select("*")
+      .order("type")
+      .order("is_default", { ascending: false });
 
-  if (error) throw new Error(error.message);
-  return data as MessageTemplate[];
-});
+    if (error) throw new Error(error.message);
+    return data as MessageTemplate[];
+  });
 
 export const getMessageTemplate = createServerFn({ method: "GET" })
   .validator((type: TemplateType) => templateTypeSchema.parse(type))
@@ -50,6 +53,7 @@ export const getMessageTemplate = createServerFn({ method: "GET" })
   });
 
 export const createMessageTemplate = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator(messageTemplateSchema)
   .handler(async ({ data }) => {
     // If setting as default, unset other defaults for this type
@@ -74,6 +78,7 @@ export const createMessageTemplate = createServerFn({ method: "POST" })
   });
 
 export const updateMessageTemplate = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator(
     z.object({
       id: z.string().uuid(),
@@ -141,6 +146,7 @@ export const updateMessageTemplate = createServerFn({ method: "POST" })
   });
 
 export const deleteMessageTemplate = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator(z.object({ id: z.string().uuid() }))
   .handler(async ({ data }) => {
     const { data: current } = await supabaseAdmin
@@ -167,24 +173,26 @@ export const deleteMessageTemplate = createServerFn({ method: "POST" })
     return { success: true };
   });
 
-export const initializeDefaultTemplates = createServerFn({ method: "POST" }).handler(async () => {
-  const { DEFAULT_TEMPLATES } = await import("@/lib/message-templates");
+export const initializeDefaultTemplates = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    const { DEFAULT_TEMPLATES } = await import("@/lib/message-templates");
 
-  for (const tmpl of DEFAULT_TEMPLATES) {
-    const { data: existing } = await supabaseAdmin
-      .from("message_templates")
-      .select("id")
-      .eq("type", tmpl.type)
-      .eq("is_default", true)
-      .maybeSingle();
+    for (const tmpl of DEFAULT_TEMPLATES) {
+      const { data: existing } = await supabaseAdmin
+        .from("message_templates")
+        .select("id")
+        .eq("type", tmpl.type)
+        .eq("is_default", true)
+        .maybeSingle();
 
-    if (!existing) {
-      await supabaseAdmin.from("message_templates").insert({
-        ...tmpl,
-        is_default: true,
-      });
+      if (!existing) {
+        await supabaseAdmin.from("message_templates").insert({
+          ...tmpl,
+          is_default: true,
+        });
+      }
     }
-  }
 
-  return { success: true, count: DEFAULT_TEMPLATES.length };
-});
+    return { success: true, count: DEFAULT_TEMPLATES.length };
+  });
