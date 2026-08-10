@@ -40,3 +40,23 @@ export function generateBookingProtocol(
 export function normalizePatientEmail(value: string): string | null {
   return patientEmailSchema.parse(value);
 }
+
+export function timeToMinutes(timeHHMM: string): number {
+  const [hh, mm] = timeHHMM.split(":").map(Number);
+  return (hh || 0) * 60 + (mm || 0);
+}
+
+export function doAppointmentsOverlap(
+  startA: string,
+  durationA: number = 60,
+  startB: string,
+  durationB: number = 60,
+): boolean {
+  const minStartA = timeToMinutes(startA);
+  const minEndA = minStartA + durationA;
+
+  const minStartB = timeToMinutes(startB);
+  const minEndB = minStartB + durationB;
+
+  return minStartA < minEndB && minEndA > minStartB;
+}

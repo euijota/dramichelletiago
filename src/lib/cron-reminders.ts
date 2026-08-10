@@ -41,9 +41,7 @@ Nos vemos amanhã! 😊
   );
 }
 
-export const send24hReminders = createServerFn({ method: "POST" })
-  .middleware([requireAdmin])
-  .handler(async () => {
+export async function execute24hReminders() {
   // Calculate tomorrow's date in UTC-3 (Macapá)
   const now = new Date();
   const macapaOffset = -3 * 60; // UTC-3 in minutes
@@ -133,7 +131,13 @@ export const send24hReminders = createServerFn({ method: "POST" })
     total: appointments.length,
     date: tomorrowStr,
   };
-});
+}
+
+export const send24hReminders = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .handler(async () => {
+    return execute24hReminders();
+  });
 
 export const send1hReminders = createServerFn({ method: "POST" })
   .middleware([requireAdmin])

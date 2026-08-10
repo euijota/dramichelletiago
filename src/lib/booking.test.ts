@@ -4,6 +4,7 @@ import {
   generateBookingProtocol,
   isBookingProtocol,
   normalizePatientEmail,
+  doAppointmentsOverlap,
 } from "./booking";
 
 describe("booking protocol", () => {
@@ -70,4 +71,19 @@ describe("patient email normalization", () => {
       expect(() => normalizePatientEmail(email)).toThrow("E-mail inválido");
     },
   );
+});
+
+describe("overlap detection", () => {
+  it("detects exact matching time slot overlap", () => {
+    expect(doAppointmentsOverlap("09:00", 60, "09:00", 60)).toBe(true);
+  });
+
+  it("detects partial overlap when second appointment starts before first ends", () => {
+    expect(doAppointmentsOverlap("09:00", 60, "09:30", 30)).toBe(true);
+  });
+
+  it("returns false for adjacent non-overlapping appointments", () => {
+    expect(doAppointmentsOverlap("09:00", 60, "10:00", 60)).toBe(false);
+    expect(doAppointmentsOverlap("10:00", 60, "09:00", 60)).toBe(false);
+  });
 });
