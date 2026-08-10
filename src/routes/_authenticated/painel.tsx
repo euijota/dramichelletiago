@@ -123,7 +123,7 @@ function Painel() {
         const text = await fetchICalFeed();
         return parseICSFeed(text);
       } catch (e) {
-        console.warn("Google Agenda iCal fetch notice:", e);
+        console.error("Google Agenda iCal fetch failed:", e);
         return [];
       }
     },
