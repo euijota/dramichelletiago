@@ -15,7 +15,6 @@ import {
   buildGoogleCalendarUrl,
   formatLongDate,
   formatShortDate,
-  parseICSFeed,
   startOfWeek,
   weekdayOf,
   toISODate,
@@ -120,8 +119,8 @@ function Painel() {
     enabled: !!session,
     queryFn: async () => {
       try {
-        const text = await fetchICalFeed();
-        return parseICSFeed(text);
+        const events = await fetchICalFeed();
+        return events as ICSEvent[];
       } catch (e) {
         console.error("Google Agenda iCal fetch failed:", e);
         return [];

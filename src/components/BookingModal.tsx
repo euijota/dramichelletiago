@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { fetchICalFeed } from "@/lib/ical-server";
+import { getOccupiedSlots } from "@/lib/ical-server";
 import { saveAppointmentAndNotify } from "@/lib/notify-server";
 import {
   Dialog,
@@ -31,6 +31,7 @@ import {
   ExternalLink,
   ShieldCheck,
   CalendarCheck,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -38,7 +39,6 @@ import {
   INSURANCE_PLANS,
   buildTimeSlots,
   buildGoogleCalendarUrl,
-  parseICSFeed,
 } from "@/lib/clinic";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
@@ -79,6 +79,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
   const [attendanceType, setAttendanceType] = useState<"particular" | "convenio">("particular");
   const [healthPlan, setHealthPlan] = useState<string>(INSURANCE_PLANS[0]);
   const [notes, setNotes] = useState("");
+  const [lgpdConsent, setLgpdConsent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<{
     protocol: string;
@@ -199,9 +200,8 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
 
         // 2. Fetch iCal Feed
         try {
-          const text = await fetchICalFeed();
-          const events = parseICSFeed(text);
-          events.forEach((evt) => {
+          const slots = await getOccupiedSlots();
+          slots.forEach((evt) => {
             if (!map[evt.date]) map[evt.date] = [];
             map[evt.date].push(evt.time.slice(0, 5));
           });
@@ -336,9 +336,14 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       toast.error("Por favor, preencha seu nome e telefone de contato.");
       return;
     }
+    if (!lgpdConsent) {
+      toast.error("Você precisa aceitar a Política de Privacidade para continuar.");
+      return;
+    }
 
     setIsSubmitting(true);
-    const protocol = "AG-" + Math.floor(100000 + Math.random() * 900000);
+    // Use crypto.randomUUID for unique protocol
+    const protocol = "AG-" + crypto.randomUUID().slice(0, 8).toUpperCase();
     const serviceName =
       defaultService ||
       (attendanceType === "convenio"
@@ -350,7 +355,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
 
     try {
       // Server function: tenta salvar no banco e envia e-mail de notificação
-      await saveAppointmentAndNotify({
+      const result = await saveAppointmentAndNotify({
         data: {
           protocol,
           appointmentDate: selectedDay.dateString,
@@ -362,9 +367,11 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           notes: notesText,
         },
       });
-    } catch (err: unknown) {
-      console.warn("Booking server fn warning:", err);
-    } finally {
+
+      if (!result.success) {
+        throw new Error("Falha ao processar agendamento");
+      }
+
       const confirmed = {
         protocol,
         dateFormatted: selectedDay.fullFormatted,
@@ -387,6 +394,11 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         `📝 Obs: ${notes.trim() || "Nenhuma"}`
       );
       window.open(`https://wa.me/${CLINIC.whatsapp}?text=${dentistMsg}`, "_blank");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      console.error("Booking error:", msg);
+      toast.error(msg.includes("horário") ? msg : "Erro ao agendar. Tente novamente ou use o WhatsApp.");
+      setIsSubmitting(false);
     }
   }
 
@@ -397,6 +409,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     setPatientPhone("");
     setPatientEmail("");
     setNotes("");
+    setLgpdConsent(false);
     onOpenChange(false);
   }
 
@@ -731,6 +744,31 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
                       className="rounded-xl resize-none"
                       rows={2}
                     />
+                  </div>
+
+                  {/* LGPD Consent */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        id="lgpdConsent"
+                        checked={lgpdConsent}
+                        onChange={(e) => setLgpdConsent(e.target.checked)}
+                        required
+                        className="mt-1 h-4 w-4 rounded border-[#90464f] text-[#90464f] focus:ring-[#90464f] focus:ring-2"
+                      />
+                      <Label htmlFor="lgpdConsent" className="text-xs text-foreground/80 leading-relaxed cursor-pointer">
+                        Concordo com o tratamento dos meus dados pessoais (nome, telefone, e-mail) para fins de agendamento,
+                        envio de lembretes e comunicação via WhatsApp/e-mail, conforme a
+                        <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#90464f]">
+                          Política de Privacidade
+                        </a>
+                        .*
+                      </Label>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/60">
+                      * Obrigatório. Seus dados não serão compartilhados com terceiros além dos necessários para o agendamento.
+                    </p>
                   </div>
                 </div>
 
