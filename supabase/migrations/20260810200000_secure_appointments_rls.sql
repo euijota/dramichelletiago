@@ -6,6 +6,7 @@ ALTER TABLE public.appointments ENABLE ROW LEVEL SECURITY;
 
 -- Revoke dangerous privileges from anon role
 REVOKE SELECT, UPDATE, DELETE ON TABLE public.appointments FROM anon;
+REVOKE SELECT ON TABLE public.profiles FROM anon;
 GRANT INSERT ON TABLE public.appointments TO anon;
 
 -- Policy 1: Allow public booking creation (INSERT only)
