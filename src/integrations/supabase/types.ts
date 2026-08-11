@@ -73,6 +73,45 @@ export type Database = {
           },
         ]
       }
+      message_templates: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          name: string
+          subject: string | null
+          type: Database["public"]["Enums"]["template_type"]
+          updated_at: string | null
+        }
+        Insert: {
+          body: string
+          channel: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name: string
+          subject?: string | null
+          type: Database["public"]["Enums"]["template_type"]
+          updated_at?: string | null
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          name?: string
+          subject?: string | null
+          type?: Database["public"]["Enums"]["template_type"]
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -179,6 +218,14 @@ export type Database = {
     Enums: {
       app_role: "admin" | "patient"
       appointment_status: "pending" | "confirmed" | "cancelled" | "completed"
+      template_type:
+        | "booking_confirmation"
+        | "booking_confirmed"
+        | "booking_cancelled"
+        | "reminder_24h"
+        | "reminder_1h"
+        | "post_appointment"
+        | "custom"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -308,6 +355,15 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "patient"],
       appointment_status: ["pending", "confirmed", "cancelled", "completed"],
+      template_type: [
+        "booking_confirmation",
+        "booking_confirmed",
+        "booking_cancelled",
+        "reminder_24h",
+        "reminder_1h",
+        "post_appointment",
+        "custom",
+      ],
     },
   },
 } as const
