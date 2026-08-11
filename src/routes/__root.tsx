@@ -82,6 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { name: "author", content: "Dra. Michelle Barbosa Tiago" },
+      { name: "google-site-verification", content: "w_nz5anSp2Wxq1zPKnmNGUe8SJaDDA57RxPcSJ3SZnU" },
       { property: "og:type", content: "website" },
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary_large_image" },
