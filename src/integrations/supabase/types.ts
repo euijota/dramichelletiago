@@ -1,4 +1,10 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
@@ -73,60 +79,39 @@ export type Database = {
       message_templates: {
         Row: {
           body: string
-          channel: "whatsapp" | "email" | "both"
-          created_at: string
+          channel: string
+          created_at: string | null
           id: string
-          is_active: boolean
-          is_default: boolean
+          is_active: boolean | null
+          is_default: boolean | null
           name: string
           subject: string | null
-          type:
-            | "booking_confirmation"
-            | "booking_confirmed"
-            | "booking_cancelled"
-            | "reminder_24h"
-            | "reminder_1h"
-            | "post_appointment"
-            | "custom"
-          updated_at: string
+          type: Database["public"]["Enums"]["template_type"]
+          updated_at: string | null
         }
         Insert: {
           body: string
-          channel: "whatsapp" | "email" | "both"
-          created_at?: string
+          channel: string
+          created_at?: string | null
           id?: string
-          is_active?: boolean
-          is_default?: boolean
+          is_active?: boolean | null
+          is_default?: boolean | null
           name: string
           subject?: string | null
-          type:
-            | "booking_confirmation"
-            | "booking_confirmed"
-            | "booking_cancelled"
-            | "reminder_24h"
-            | "reminder_1h"
-            | "post_appointment"
-            | "custom"
-          updated_at?: string
+          type: Database["public"]["Enums"]["template_type"]
+          updated_at?: string | null
         }
         Update: {
           body?: string
-          channel?: "whatsapp" | "email" | "both"
-          created_at?: string
+          channel?: string
+          created_at?: string | null
           id?: string
-          is_active?: boolean
-          is_default?: boolean
+          is_active?: boolean | null
+          is_default?: boolean | null
           name?: string
           subject?: string | null
-          type?:
-            | "booking_confirmation"
-            | "booking_confirmed"
-            | "booking_cancelled"
-            | "reminder_24h"
-            | "reminder_1h"
-            | "post_appointment"
-            | "custom"
-          updated_at?: string
+          type?: Database["public"]["Enums"]["template_type"]
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -236,6 +221,14 @@ export type Database = {
     Enums: {
       app_role: "admin" | "patient"
       appointment_status: "pending" | "confirmed" | "cancelled" | "completed"
+      template_type:
+        | "booking_confirmation"
+        | "booking_confirmed"
+        | "booking_cancelled"
+        | "reminder_24h"
+        | "reminder_1h"
+        | "post_appointment"
+        | "custom"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -251,12 +244,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -266,8 +259,10 @@ export type Tables<
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] & DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -276,12 +271,13 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -300,12 +296,13 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
-  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -324,12 +321,13 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never) = never,
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -340,12 +338,13 @@ export type Enums<
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    keyof DefaultSchema["CompositeTypes"] | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never) = never,
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -359,6 +358,15 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "patient"],
       appointment_status: ["pending", "confirmed", "cancelled", "completed"],
+      template_type: [
+        "booking_confirmation",
+        "booking_confirmed",
+        "booking_cancelled",
+        "reminder_24h",
+        "reminder_1h",
+        "post_appointment",
+        "custom",
+      ],
     },
   },
 } as const
