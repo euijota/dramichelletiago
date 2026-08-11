@@ -158,13 +158,6 @@ function Auth() {
               {busy ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar acesso"}
             </button>
           </form>
-
-          <button
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="mt-7 w-full text-center text-sm text-muted-foreground transition-silk hover:text-primary"
-          >
-            {mode === "signin" ? "Ainda não tem acesso? Criar conta" : "Já tenho acesso. Entrar"}
-          </button>
         </div>
       </div>
     </div>
