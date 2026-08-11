@@ -31,10 +31,8 @@ const fieldClass =
 
 function Auth() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -46,24 +44,6 @@ function Auth() {
   async function handleEmailAuth(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-
-    if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: window.location.origin,
-          data: { full_name: fullName },
-        },
-      });
-      setBusy(false);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      toast.success("Conta criada. Verifique seu e-mail para confirmar.");
-      return;
-    }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
@@ -98,7 +78,7 @@ function Auth() {
         <div className="w-full max-w-md rounded-3xl bg-card p-10 shadow-bloom">
           <p className="text-kicker text-primary-soft">Acesso restrito</p>
           <h1 className="mt-5 font-display text-4xl text-foreground">
-            {mode === "signin" ? "Entrar no painel" : "Criar acesso"}
+            Entrar no painel
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             Área exclusiva para gestão da agenda do consultório.
@@ -106,7 +86,7 @@ function Auth() {
 
           <button
             onClick={handleGoogle}
-            className="mt-9 w-full rounded-full border border-border bg-background px-6 py-3.5 text-kicker text-foreground transition-silk hover:bg-accent"
+            className="mt-9 w-full rounded-full border border-border bg-background px-6 py-3.5 text-kicker text-foreground transition-silk hover:bg-accent cursor-pointer"
           >
             Continuar com Google
           </button>
@@ -118,16 +98,6 @@ function Auth() {
           </div>
 
           <form onSubmit={handleEmailAuth} className="space-y-4">
-            {mode === "signup" && (
-              <input
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Nome completo"
-                aria-label="Nome completo"
-                className={fieldClass}
-              />
-            )}
             <input
               required
               type="email"
@@ -151,11 +121,11 @@ function Auth() {
               type="submit"
               disabled={busy}
               className={cn(
-                "w-full rounded-full bg-primary px-6 py-3.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep",
+                "w-full rounded-full bg-primary px-6 py-3.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep cursor-pointer",
                 busy && "opacity-60",
               )}
             >
-              {busy ? "Aguarde…" : mode === "signin" ? "Entrar" : "Criar acesso"}
+              {busy ? "Aguarde…" : "Entrar"}
             </button>
           </form>
         </div>
