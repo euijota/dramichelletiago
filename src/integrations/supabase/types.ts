@@ -18,11 +18,12 @@ export type Database = {
         Row: {
           appointment_date: string
           appointment_time: string
+          confirmed_at: string | null
           created_at: string
           duration_minutes: number
           id: string
           notes: string | null
-          patient_email: string
+          patient_email: string | null
           patient_name: string
           patient_phone: string
           reminder_sent_at: string | null
@@ -34,11 +35,12 @@ export type Database = {
         Insert: {
           appointment_date: string
           appointment_time: string
+          confirmed_at?: string | null
           created_at?: string
           duration_minutes?: number
           id?: string
           notes?: string | null
-          patient_email: string
+          patient_email?: string | null
           patient_name: string
           patient_phone: string
           reminder_sent_at?: string | null
@@ -50,11 +52,12 @@ export type Database = {
         Update: {
           appointment_date?: string
           appointment_time?: string
+          confirmed_at?: string | null
           created_at?: string
           duration_minutes?: number
           id?: string
           notes?: string | null
-          patient_email?: string
+          patient_email?: string | null
           patient_name?: string
           patient_phone?: string
           reminder_sent_at?: string | null
