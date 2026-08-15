@@ -3,11 +3,16 @@ import { CLINIC } from "@/lib/clinic";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
 import { bookingSchema, type BookingPayload } from "@/lib/booking";
+import {
+  buildGoogleCalendarRequest,
+  parseGoogleCalendarResponse,
+} from "@/lib/google-calendar-request";
 
 const APPS_SCRIPT_SECRET = process.env.GOOGLE_APPS_SCRIPT_SECRET;
+const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
 
-if (!APPS_SCRIPT_SECRET) {
-  console.warn("[notify-server] GOOGLE_APPS_SCRIPT_SECRET not set — Calendar sync will fail");
+if (!APPS_SCRIPT_SECRET || !APPS_SCRIPT_URL) {
+  console.warn("[notify-server] Google Calendar integration is not fully configured");
 }
 
 // Rate limiting: simple in-memory store by IP
@@ -180,10 +185,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     }
 
     // 4. Google Calendar via Apps Script (with secret token)
-    if (APPS_SCRIPT_SECRET) {
-      const appsScriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL ||
-        "https://script.google.com/macros/s/AKfycbxCcfshrC-pTc_53ON17oKeWDNTeQkEtPoP4a1_xeT5XxEFxZo5VPEcMgjMkjkNUbJODw/exec";
-
+    if (APPS_SCRIPT_SECRET && APPS_SCRIPT_URL) {
       try {
         const [hh, mm] = data.appointmentTime.split(":").map(Number);
         const pad = (n: number) => String(n).padStart(2, "0");
@@ -195,25 +197,28 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
         const desc = `Protocolo: ${data.protocol}\nTelefone: ${data.patientPhone}\nServiço: ${data.serviceName}\nDuração: ${durationMinutes} min\nObs: ${data.notes || "Nenhuma"}`;
 
-        const params = new URLSearchParams({
+        const calendarRequest = buildGoogleCalendarRequest(APPS_SCRIPT_URL, APPS_SCRIPT_SECRET, {
           title: `🦷 ${data.patientName}`,
           description: desc,
           start: startStr,
           end: endStr,
-          token: APPS_SCRIPT_SECRET,
+          protocol: data.protocol,
         });
 
-        const res = await fetch(`${appsScriptUrl}?${params.toString()}`, {
-          method: "GET",
-          redirect: "follow",
-        });
+        const res = await fetch(calendarRequest.url, calendarRequest.init);
         const text = await res.text();
-        console.log("[saveAppointmentAndNotify] Google Calendar response:", text.substring(0, 200));
+        if (!res.ok) {
+          throw new Error(`Google Calendar request failed: ${res.status}`);
+        }
+        const calendarResult = parseGoogleCalendarResponse(text);
+        console.log("[saveAppointmentAndNotify] Google Calendar synced", {
+          duplicate: calendarResult.duplicate === true,
+        });
       } catch (e) {
         console.warn("[saveAppointmentAndNotify] Google Calendar warning:", e);
       }
     } else {
-      console.warn("[saveAppointmentAndNotify] GOOGLE_APPS_SCRIPT_SECRET not set, skipping Calendar sync");
+      console.warn("[saveAppointmentAndNotify] Google Calendar is not configured, skipping sync");
     }
 
     // 5. Envia WhatsApp para o PACIENTE com link de confirmação/cancelamento

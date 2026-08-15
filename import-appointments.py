@@ -6,6 +6,7 @@ Lê a planilha de backup (.xlsx) exportada pelo consultorio.me, cruza dados
 de pacientes e insere agendamentos na tabela `appointments` do Supabase.
 
 Uso:
+    export SUPABASE_URL="https://SEU_PROJECT_REF.supabase.co"
     export SUPABASE_SERVICE_ROLE_KEY="eyJhbGci..."
     python3 import-appointments.py caminho/para/backup.xlsx [--dry-run]
 """
@@ -13,6 +14,7 @@ Uso:
 from __future__ import annotations
 
 import json
+import os
 import sys
 import urllib.request
 import urllib.error
@@ -28,7 +30,6 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-SUPABASE_URL = "https://whhzthplrygtpmmtwsuz.supabase.co"
 CLINIC_PHONE = "(96) 98111-1157"
 DEFAULT_EMAIL = "nao_informado@paciente.com"
 DEFAULT_SERVICE = "Consulta (Migrada do Consultório.me)"
@@ -58,6 +59,18 @@ PATIENT_COLS = ["PatientId", "Name", "Tel1", "Email"]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+def get_supabase_url() -> str:
+    url = os.environ.get("SUPABASE_URL", "").strip().rstrip("/")
+    if not url:
+        print(
+            "❌ SUPABASE_URL não encontrada.\n"
+            "   Defina explicitamente o projeto de destino:\n"
+            '     export SUPABASE_URL="https://SEU_PROJECT_REF.supabase.co"'
+        )
+        sys.exit(1)
+    return url
+
+
 def get_service_role_key() -> str:
     key = (
         # .env local (somente para conveniência, nunca commitado)
@@ -70,8 +83,6 @@ def get_service_role_key() -> str:
             return line.split("=", 1)[1].strip().strip('"').strip("'")
 
     # variável de ambiente
-    import os
-
     key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not key:
         print(
@@ -91,7 +102,7 @@ def supabase_request(
     service_role_key: str = "",
 ) -> dict:
     """Faz uma requisição à API REST do Supabase."""
-    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    url = f"{get_supabase_url()}/rest/v1/{path}"
     headers = {
         "apikey": service_role_key,
         "Authorization": f"Bearer {service_role_key}",
@@ -313,7 +324,7 @@ def main():
 
         # GET com return=minimal não retorna body; usar return=representation
         # Refazendo com Prefer adequado para GET
-        url = f"{SUPABASE_URL}/rest/v1/appointments?{query}"
+        url = f"{get_supabase_url()}/rest/v1/appointments?{query}"
         headers = {
             "apikey": service_role_key,
             "Authorization": f"Bearer {service_role_key}",

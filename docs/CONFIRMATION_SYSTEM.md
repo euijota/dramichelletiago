@@ -88,6 +88,20 @@ const messageText =
   `🔗 Link de cancelamento: ${cancellationLink}`;
 ```
 
+### Google Agenda
+
+O código do webhook está versionado em `google-apps-script/Code.gs`. O app da Web deve:
+
+- executar como a proprietária da agenda;
+- permitir acesso a qualquer pessoa, mantendo a operação protegida pelo segredo compartilhado;
+- armazenar `GOOGLE_APPS_SCRIPT_SECRET` nas propriedades do script;
+- receber somente `POST` JSON para criação de eventos;
+- usar o protocolo do agendamento para impedir eventos duplicados.
+
+O Vercel precisa das variáveis sensíveis `GOOGLE_APPS_SCRIPT_URL` e
+`GOOGLE_APPS_SCRIPT_SECRET`. Ao rotacionar o segredo, atualize a propriedade do Apps Script e
+o Vercel antes de reimplantar o site. Nunca coloque o segredo na URL ou no repositório.
+
 ### WhatsApp
 
 Para mensagens WhatsApp, adicione o link de confirmação:
