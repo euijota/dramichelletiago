@@ -37,7 +37,7 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs?: number }
   return { allowed: true };
 }
 
-export type { BookingPayload };
+;
 
 /** Salva o agendamento e envia notificação para a Dra. Michelle. */
 export const saveAppointmentAndNotify = createServerFn({ method: "POST" })

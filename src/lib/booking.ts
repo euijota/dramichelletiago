@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-export const BOOKING_PROTOCOL_PATTERN = /^AG-[0-9A-Za-z]{6,12}$/;
+const BOOKING_PROTOCOL_PATTERN = /^AG-[0-9A-Za-z]{6,12}$/;
 
-export const bookingProtocolSchema = z
+const bookingProtocolSchema = z
   .string()
   .regex(BOOKING_PROTOCOL_PATTERN, "Protocolo inválido");
 
-export const patientEmailSchema = z.preprocess(
+const patientEmailSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim() || null : value),
   z.string().email("E-mail inválido").nullable(),
 );
@@ -41,7 +41,7 @@ export function normalizePatientEmail(value: string): string | null {
   return patientEmailSchema.parse(value);
 }
 
-export function timeToMinutes(timeHHMM: string): number {
+function timeToMinutes(timeHHMM: string): number {
   const [hh, mm] = timeHHMM.split(":").map(Number);
   return (hh || 0) * 60 + (mm || 0);
 }

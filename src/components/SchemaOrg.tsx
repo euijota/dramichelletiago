@@ -2,7 +2,7 @@ import { CLINIC } from "@/lib/clinic";
 
 const BASE_URL = "https://dramichelletiago.com.br";
 
-export function generateDentistSchema(baseUrl: string = BASE_URL) {
+function generateDentistSchema(baseUrl: string = BASE_URL) {
   return {
     "@context": "https://schema.org",
     "@type": "Dentist",

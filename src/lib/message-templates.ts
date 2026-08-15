@@ -207,7 +207,7 @@ export function renderTemplate(
 }
 
 /** Get WhatsApp URL for template */
-export function buildWhatsAppUrl(phone: string, template: string, vars: TemplateVariables): string {
+function buildWhatsAppUrl(phone: string, template: string, vars: TemplateVariables): string {
   const message = renderTemplate(template, vars);
   const cleanPhone = phone.replace(/\D/g, "");
   const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;

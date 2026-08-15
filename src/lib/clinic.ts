@@ -15,7 +15,7 @@ export const CLINIC = {
   hours: "Seg, ter e qui das 15h às 18h · Qua, sex e sáb das 9h às 12h",
 } as const;
 
-export const WEEKDAY_LABELS = [
+const WEEKDAY_LABELS = [
   "Domingo",
   "Segunda",
   "Terça",
@@ -26,7 +26,7 @@ export const WEEKDAY_LABELS = [
 ] as const;
 
 /** Opening hours per weekday index (0 = domingo). Empty array = fechado. */
-export const OPENING_HOURS: Record<number, Array<[number, number]>> = {
+const OPENING_HOURS: Record<number, Array<[number, number]>> = {
   0: [],
   1: [[15, 18]],
   2: [[15, 18]],
