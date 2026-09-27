@@ -88,7 +88,8 @@ function Tratamentos() {
           {services?.map((service, index) => (
             <article
               key={service.id}
-              className="group relative flex min-h-64 flex-col overflow-hidden rounded-3xl border border-border bg-card p-7 shadow-petal transition-silk hover:-translate-y-1 hover:border-primary/35 hover:shadow-bloom"
+              tabIndex={0}
+              className="interactive-treatment group relative flex min-h-64 flex-col overflow-hidden rounded-3xl border border-border bg-card p-7 shadow-petal transition-silk hover:-translate-y-1 hover:border-primary/35 hover:shadow-bloom focus-visible:-translate-y-1 focus-visible:border-primary/50 focus-visible:outline-none"
             >
               <div className="flex items-start justify-between gap-4">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-kicker text-primary-soft">
