@@ -37,9 +37,7 @@ export const Route = createFileRoute("/tratamentos")({
         content: "pt_BR",
       },
     ],
-    links: [
-      { rel: "canonical", href: "https://dramichelletiago.com.br/tratamentos" },
-    ],
+    links: [{ rel: "canonical", href: "https://dramichelletiago.com.br/tratamentos" }],
   }),
   component: Tratamentos,
 });
@@ -73,30 +71,41 @@ function Tratamentos() {
           folga, para que a consulta nunca seja apressada.
         </p>
 
-        <div className="mt-16 divide-y divide-border border-y border-border">
+        <div className="mt-16 grid gap-5 md:grid-cols-2 lg:grid-cols-3" aria-live="polite">
           {isLoading &&
-            [0, 1, 2, 3].map((i) => (
-              <div key={i} className="py-9">
-                <div className="h-6 w-56 animate-pulse rounded bg-muted" />
-                <div className="mt-4 h-4 w-96 max-w-full animate-pulse rounded bg-muted" />
+            [0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="rounded-3xl border border-border bg-card p-7"
+                aria-label="Carregando tratamento"
+              >
+                <div className="h-10 w-10 animate-pulse rounded-full bg-muted" />
+                <div className="mt-8 h-7 w-4/5 animate-pulse rounded bg-muted" />
+                <div className="mt-4 h-12 w-full animate-pulse rounded bg-muted" />
               </div>
             ))}
 
-          {services?.map((service) => (
+          {services?.map((service, index) => (
             <article
               key={service.id}
-              className="group flex flex-col gap-4 py-9 sm:flex-row sm:items-baseline sm:justify-between"
+              className="group relative flex min-h-64 flex-col overflow-hidden rounded-3xl border border-border bg-card p-7 shadow-petal transition-silk hover:-translate-y-1 hover:border-primary/35 hover:shadow-bloom"
             >
-              <div className="max-w-[46ch]">
-                <h2 className="font-display text-3xl text-foreground transition-silk group-hover:text-primary">
-                  {service.name}
-                </h2>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {service.description}
-                </p>
+              <div className="flex items-start justify-between gap-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-kicker text-primary-soft">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="rounded-full border border-border px-3 py-1 text-kicker text-primary-soft">
+                  {service.duration_minutes} min
+                </span>
               </div>
-              <span className="shrink-0 text-kicker text-primary-soft">
-                {service.duration_minutes} min
+              <h2 className="mt-8 max-w-[16ch] font-display text-2xl leading-tight text-foreground transition-silk group-hover:text-primary">
+                {service.name}
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                {service.description}
+              </p>
+              <span className="mt-auto pt-7 text-kicker text-primary-soft opacity-0 transition-silk group-hover:opacity-100">
+                Conheça este cuidado
               </span>
             </article>
           ))}

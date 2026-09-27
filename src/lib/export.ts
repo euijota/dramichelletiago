@@ -1,7 +1,17 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
 import { formatLongDate } from "./clinic";
+
+/** Carrega ferramentas pesadas somente quando uma exportação é solicitada. */
+async function loadPdfTools() {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  return { jsPDF, autoTable };
+}
+
+async function loadSpreadsheetTools() {
+  return import("xlsx");
+}
 
 export interface AppointmentExport {
   id: string;
@@ -68,8 +78,12 @@ export function filterAppointments(
 /**
  * Exports appointments to PDF
  */
-export function exportToPDF(appointments: AppointmentExport[], filters: ExportFilters = {}): void {
+export async function exportToPDF(
+  appointments: AppointmentExport[],
+  filters: ExportFilters = {},
+): Promise<void> {
   const filtered = filterAppointments(appointments, filters);
+  const { jsPDF, autoTable } = await loadPdfTools();
 
   const doc = new jsPDF();
 
@@ -165,11 +179,12 @@ export function exportToPDF(appointments: AppointmentExport[], filters: ExportFi
 /**
  * Exports appointments to Excel
  */
-export function exportToExcel(
+export async function exportToExcel(
   appointments: AppointmentExport[],
   filters: ExportFilters = {},
-): void {
+): Promise<void> {
   const filtered = filterAppointments(appointments, filters);
+  const XLSX = await loadSpreadsheetTools();
 
   // Prepare data
   const data = filtered.map((apt) => ({
@@ -241,8 +256,12 @@ export function exportToExcel(
 /**
  * Exports appointments to CSV
  */
-export function exportToCSV(appointments: AppointmentExport[], filters: ExportFilters = {}): void {
+export async function exportToCSV(
+  appointments: AppointmentExport[],
+  filters: ExportFilters = {},
+): Promise<void> {
   const filtered = filterAppointments(appointments, filters);
+  const XLSX = await loadSpreadsheetTools();
 
   const data = filtered.map((apt) => ({
     Data: formatBrazilianDate(apt.appointment_date),

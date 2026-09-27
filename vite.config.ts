@@ -16,4 +16,10 @@ export default defineConfig({
     // Target Vercel instead of the default Cloudflare Workers preset
     preset: "vercel",
   },
+  vite: {
+    build: {
+      // Keep the initial public bundle lean; admin-only tools are loaded on demand.
+      chunkSizeWarningLimit: 700,
+    },
+  },
 });

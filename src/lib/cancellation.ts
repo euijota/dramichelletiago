@@ -76,7 +76,7 @@ const confirmAppointmentSchema = z.object({
  * Updates status to 'confirmed' and stores confirmation timestamp.
  */
 export const confirmAppointmentByToken = createServerFn({ method: "POST" })
-  .inputValidator((input) => confirmAppointmentSchema.parse(input))
+  .validator((input) => confirmAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
     const appointmentId = validateAppointmentToken(data.token, "confirm");
 
@@ -110,7 +110,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
     // Check if appointment is in the past
     const now = new Date();
     const appointmentDateTime = new Date(
-      `${appointment.appointment_date}T${appointment.appointment_time}`
+      `${appointment.appointment_date}T${appointment.appointment_time}`,
     );
 
     if (appointmentDateTime < now) {
@@ -148,7 +148,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
  * Updates status to 'cancelled' and stores cancellation reason.
  */
 export const cancelAppointmentByToken = createServerFn({ method: "POST" })
-  .inputValidator((input) => cancelAppointmentSchema.parse(input))
+  .validator((input) => cancelAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
     const appointmentId = validateAppointmentToken(data.token, "cancel");
 
@@ -174,7 +174,7 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
     // Check if appointment is in the past
     const now = new Date();
     const appointmentDateTime = new Date(
-      `${appointment.appointment_date}T${appointment.appointment_time}`
+      `${appointment.appointment_date}T${appointment.appointment_time}`,
     );
 
     if (appointmentDateTime < now) {
@@ -216,7 +216,7 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
  * Gets appointment details by cancellation token (for preview before cancellation).
  */
 export const getAppointmentByToken = createServerFn({ method: "GET" })
-  .inputValidator((token: string) => z.string().min(10).parse(token))
+  .validator((token: string) => z.string().min(10).parse(token))
   .handler(async ({ data: token }) => {
     const appointmentId = validateCancellationToken(token);
 

@@ -7,7 +7,13 @@ function generateDentistSchema(baseUrl: string = BASE_URL) {
     "@context": "https://schema.org",
     "@type": "Dentist",
     name: CLINIC.name,
+    description: "Odontologia estética e reabilitadora para adultos e crianças em Macapá, Amapá.",
     image: `${baseUrl}/assets/dra-michelle.jpg`,
+    telephone: CLINIC.phone,
+    areaServed: {
+      "@type": "City",
+      name: "Macapá",
+    },
     address: {
       "@type": "PostalAddress",
       streetAddress: "Travessa Joaquim Pinheiro Borges, 964",
@@ -21,7 +27,7 @@ function generateDentistSchema(baseUrl: string = BASE_URL) {
       latitude: -0.037,
       longitude: -51.07,
     },
-    telephone: "+5596981111157",
+
     url: baseUrl,
     priceRange: "$$",
     openingHours: [
@@ -38,7 +44,7 @@ function generateDentistSchema(baseUrl: string = BASE_URL) {
 
 export function SchemaOrgJsonLd({ baseUrl = BASE_URL }: { baseUrl?: string }) {
   const schema = generateDentistSchema(baseUrl);
-  
+
   return (
     <script
       type="application/ld+json"
