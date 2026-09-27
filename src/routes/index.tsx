@@ -12,6 +12,7 @@ import {
 } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import { BookingModal } from "@/components/BookingModal";
+import { Reveal } from "@/components/Reveal";
 import draMichelleImg from "@/assets/dra-michelle.jpg";
 import signatureWine from "@/assets/signature-wine.png";
 
@@ -200,8 +201,8 @@ function Home() {
             </div>
           </div>
 
-          <div className="animate-veil">
-            <div className="relative overflow-hidden rounded-t-[14rem] rounded-b-3xl shadow-bloom">
+          <Reveal className="animate-veil" delay={120}>
+            <div className="interactive-portrait relative overflow-hidden rounded-t-[14rem] rounded-b-3xl shadow-bloom">
               <img
                 src={draMichelleImg}
                 alt="Dra. Michelle Barbosa Tiago, cirurgiã-dentista em Macapá"
@@ -210,7 +211,7 @@ function Home() {
                 className="h-full w-full object-cover"
               />
             </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -222,11 +223,13 @@ function Home() {
             ["Macapá, AP", "Consultório no bairro Alvorada"],
             ["Adultos e crianças", "Atendimento acolhedor para toda a família"],
             ["Avaliações", "Mais confiança para escolher seu cuidado"],
-          ].map(([title, body]) => (
-            <div key={title} className="border-l border-primary/25 pl-5">
-              <p className="font-display text-2xl text-foreground">{title}</p>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
-            </div>
+          ].map(([title, body], index) => (
+            <Reveal key={title} delay={index * 80}>
+              <div className="interactive-trust border-l border-primary/25 pl-5">
+                <p className="font-display text-2xl text-foreground">{title}</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+              </div>
+            </Reveal>
           ))}
         </div>
       </section>
@@ -236,14 +239,16 @@ function Home() {
         <div className="mx-auto max-w-6xl px-6 py-24">
           <p className="text-kicker text-primary-soft">Como atendemos</p>
           <div className="mt-14 grid gap-12 md:grid-cols-3">
-            {pillars.map((pillar) => (
-              <div key={pillar.title} className="space-y-4">
-                <span className="block h-px w-12 bg-primary/40" />
-                <h2 className="font-display text-2xl text-foreground">{pillar.title}</h2>
-                <p className="max-w-[38ch] text-sm leading-relaxed text-muted-foreground">
-                  {pillar.body}
-                </p>
-              </div>
+            {pillars.map((pillar, index) => (
+              <Reveal key={pillar.title} delay={index * 90}>
+                <div className="interactive-pillar space-y-4">
+                  <span className="block h-px w-12 bg-primary/40 transition-all duration-500 hover:w-20" />
+                  <h2 className="font-display text-2xl text-foreground">{pillar.title}</h2>
+                  <p className="max-w-[38ch] text-sm leading-relaxed text-muted-foreground">
+                    {pillar.body}
+                  </p>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>

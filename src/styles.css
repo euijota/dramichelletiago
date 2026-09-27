@@ -319,6 +319,94 @@
   animation: petal-rise 1s var(--ease-silk) both;
 }
 
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 700ms var(--ease-silk),
+    transform 700ms var(--ease-silk);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.interactive-portrait {
+  isolation: isolate;
+  transition:
+    transform 900ms var(--ease-silk),
+    box-shadow 900ms var(--ease-silk);
+}
+
+.interactive-portrait::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(135deg, transparent 35%, oklch(1 0 0 / 0.18), transparent 65%);
+  content: "";
+  pointer-events: none;
+  transform: translateX(-120%);
+  transition: transform 1200ms var(--ease-silk);
+}
+
+.interactive-portrait:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: var(--shadow-glass);
+}
+
+.interactive-portrait:hover::after {
+  transform: translateX(120%);
+}
+
+.interactive-portrait img {
+  transition:
+    transform 1200ms var(--ease-silk),
+    filter 700ms var(--ease-silk);
+}
+
+.interactive-portrait:hover img {
+  filter: saturate(1.04);
+  transform: scale(1.035);
+}
+
+.interactive-trust,
+.interactive-pillar,
+.interactive-treatment {
+  transition:
+    transform 450ms var(--ease-silk),
+    border-color 450ms var(--ease-silk),
+    box-shadow 450ms var(--ease-silk);
+}
+
+.interactive-trust:hover,
+.interactive-pillar:hover {
+  transform: translateY(-4px);
+}
+
+.interactive-treatment:focus-visible {
+  box-shadow:
+    0 0 0 4px oklch(0.62 0.062 12 / 0.18),
+    var(--shadow-bloom);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .interactive-portrait,
+  .interactive-portrait img,
+  .interactive-trust,
+  .interactive-pillar,
+  .interactive-treatment {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  .reveal-on-scroll {
+    opacity: 1;
+  }
+}
+
 @utility animate-veil {
   animation: veil-in 1.4s var(--ease-silk) both;
 }
