@@ -9,8 +9,9 @@ export function WhatsAppFloat() {
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 3000);
-    const onScroll = () => setVisible(window.scrollY > 200);
+    const timer = setTimeout(() => setVisible(true), 1800);
+    const onScroll = () => setVisible(window.scrollY > 120);
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       clearTimeout(timer);
@@ -21,12 +22,21 @@ export function WhatsAppFloat() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50" role="region" aria-label="Contato rápido">
+    <div
+      className="fixed bottom-24 right-4 z-50 sm:bottom-6 sm:right-6"
+      role="region"
+      aria-label="Contato rápido"
+    >
       {/* Expanded options */}
       <div
         className={`absolute bottom-16 right-0 flex flex-col-reverse gap-3 transition-all duration-300 ease-out ${
-          expanded ? "opacity-100 pointer-events-auto translate-y-0" : "opacity-0 pointer-events-none translate-y-2"
+          expanded
+            ? "opacity-100 pointer-events-auto translate-y-0"
+            : "opacity-0 pointer-events-none translate-y-2"
         }`}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setExpanded(false);
+        }}
         role="menu"
       >
         <a

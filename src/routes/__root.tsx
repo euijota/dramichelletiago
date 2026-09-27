@@ -210,7 +210,7 @@ function RootComponent() {
             href="https://consultorio.me/pro/dramichellebarbosatiago"
             target="_blank"
             rel="noreferrer"
-            className="fixed inset-x-4 bottom-4 z-40 inline-flex items-center justify-center rounded-full bg-primary px-6 py-4 text-kicker text-primary-foreground shadow-bloom transition-silk hover:bg-primary-deep md:hidden"
+            className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex items-center justify-center rounded-full bg-primary px-6 py-4 text-kicker text-primary-foreground shadow-bloom transition-silk hover:bg-primary-deep md:hidden"
           >
             Agendar consulta
           </a>
