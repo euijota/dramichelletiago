@@ -17,7 +17,7 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const handleExport = () => {
+  const handleExport = async () => {
     const filters: ExportFilters = {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
@@ -25,19 +25,22 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
       searchTerm: searchTerm || undefined,
     };
 
-    switch (format) {
-      case "pdf":
-        exportToPDF(appointments, filters);
-        break;
-      case "excel":
-        exportToExcel(appointments, filters);
-        break;
-      case "csv":
-        exportToCSV(appointments, filters);
-        break;
+    try {
+      switch (format) {
+        case "pdf":
+          await exportToPDF(appointments, filters);
+          break;
+        case "excel":
+          await exportToExcel(appointments, filters);
+          break;
+        case "csv":
+          await exportToCSV(appointments, filters);
+          break;
+      }
+      onClose();
+    } catch (error) {
+      console.error("Falha ao exportar agenda:", error);
     }
-
-    onClose();
   };
 
   const toggleStatus = (status: string) => {
@@ -85,7 +88,9 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <FileText className={`h-8 w-8 ${format === "pdf" ? "text-primary" : "text-muted-foreground"}`} />
+                <FileText
+                  className={`h-8 w-8 ${format === "pdf" ? "text-primary" : "text-muted-foreground"}`}
+                />
                 <span className="text-sm font-medium">PDF</span>
               </button>
               <button
@@ -96,7 +101,9 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <FileSpreadsheet className={`h-8 w-8 ${format === "excel" ? "text-primary" : "text-muted-foreground"}`} />
+                <FileSpreadsheet
+                  className={`h-8 w-8 ${format === "excel" ? "text-primary" : "text-muted-foreground"}`}
+                />
                 <span className="text-sm font-medium">Excel</span>
               </button>
               <button
@@ -107,7 +114,9 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
                     : "border-border hover:border-primary/50"
                 }`}
               >
-                <FileSpreadsheet className={`h-8 w-8 ${format === "csv" ? "text-primary" : "text-muted-foreground"}`} />
+                <FileSpreadsheet
+                  className={`h-8 w-8 ${format === "csv" ? "text-primary" : "text-muted-foreground"}`}
+                />
                 <span className="text-sm font-medium">CSV</span>
               </button>
             </div>
@@ -149,10 +158,26 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
             <Label className="mb-3 block text-sm font-semibold">Status (opcional)</Label>
             <div className="flex flex-wrap gap-2">
               {[
-                { value: "pending", label: "Pendente", color: "bg-warning/10 text-warning border-warning/40" },
-                { value: "confirmed", label: "Confirmado", color: "bg-success/10 text-success border-success/40" },
-                { value: "cancelled", label: "Cancelado", color: "bg-muted text-muted-foreground border-border" },
-                { value: "completed", label: "Concluído", color: "bg-primary/10 text-primary border-primary/40" },
+                {
+                  value: "pending",
+                  label: "Pendente",
+                  color: "bg-warning/10 text-warning border-warning/40",
+                },
+                {
+                  value: "confirmed",
+                  label: "Confirmado",
+                  color: "bg-success/10 text-success border-success/40",
+                },
+                {
+                  value: "cancelled",
+                  label: "Cancelado",
+                  color: "bg-muted text-muted-foreground border-border",
+                },
+                {
+                  value: "completed",
+                  label: "Concluído",
+                  color: "bg-primary/10 text-primary border-primary/40",
+                },
               ].map((status) => (
                 <button
                   key={status.value}
@@ -187,11 +212,7 @@ export function ExportModal({ appointments, onClose }: ExportModalProps) {
         </div>
 
         <div className="mt-8 flex gap-3">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="flex-1 rounded-full"
-          >
+          <Button variant="outline" onClick={onClose} className="flex-1 rounded-full">
             Cancelar
           </Button>
           <Button

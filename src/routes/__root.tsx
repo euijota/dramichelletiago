@@ -15,7 +15,8 @@ if (typeof window !== "undefined") {
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
   });
-}import {
+}
+import {
   Outlet,
   Link,
   createRootRouteWithContext,
@@ -103,6 +104,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "theme-color", content: "#8a4a52" },
+      { name: "geo.region", content: "BR-AP" },
+      { name: "geo.placename", content: "Macapá" },
+      { name: "ICBM", content: "0.037, -51.07" },
       { title: "Dra. Michelle Barbosa Tiago — Odontologia estética em Macapá" },
       {
         property: "og:title",
@@ -129,13 +133,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         property: "og:image",
-        content:
-          "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+        content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
       },
       {
         name: "twitter:image",
-        content:
-          "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
+        content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
       },
     ],
     links: [
@@ -147,7 +149,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Jost:wght@200;300;400;500&family=Montserrat:wght@300;400;500;600;700&family=Parisienne&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&family=Montserrat:wght@300;400;500;600;700&family=Parisienne&family=Playfair+Display:ital,wght@0,500;0,600;1,400&display=swap",
       },
       { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
@@ -182,7 +184,8 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith("/auth") || location.pathname.startsWith("/painel");
+  const isAdminRoute =
+    location.pathname.startsWith("/auth") || location.pathname.startsWith("/painel");
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange((event) => {
@@ -200,7 +203,19 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-center" />
-      {!isAdminRoute && <WhatsAppFloat />}
+      {!isAdminRoute && (
+        <>
+          <WhatsAppFloat />
+          <a
+            href="https://consultorio.me/pro/dramichellebarbosatiago"
+            target="_blank"
+            rel="noreferrer"
+            className="fixed inset-x-4 bottom-4 z-40 inline-flex items-center justify-center rounded-full bg-primary px-6 py-4 text-kicker text-primary-foreground shadow-bloom transition-silk hover:bg-primary-deep md:hidden"
+          >
+            Agendar consulta
+          </a>
+        </>
+      )}
     </QueryClientProvider>
   );
 }

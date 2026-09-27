@@ -4,7 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ToothMark } from "@/components/Logo";
-import { BOOKING_URL, CLINIC, DEFAULT_SERVICES, INSURANCE_PLANS as CLINIC_INSURANCE_PLANS } from "@/lib/clinic";
+import {
+  BOOKING_URL,
+  CLINIC,
+  DEFAULT_SERVICES,
+  INSURANCE_PLANS as CLINIC_INSURANCE_PLANS,
+} from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import { BookingModal } from "@/components/BookingModal";
 import draMichelleImg from "@/assets/dra-michelle.jpg";
@@ -47,9 +52,7 @@ export const Route = createFileRoute("/")({
         content: "pt_BR",
       },
     ],
-    links: [
-      { rel: "canonical", href: "https://dramichelletiago.com.br" },
-    ],
+    links: [{ rel: "canonical", href: "https://dramichelletiago.com.br" }],
   }),
   component: Home,
 });
@@ -70,6 +73,29 @@ const pillars = [
 ];
 
 const homeInsurancePlans = [...CLINIC_INSURANCE_PLANS];
+
+const faqs = [
+  {
+    question: "Como funciona a primeira consulta?",
+    answer:
+      "A primeira consulta começa com uma conversa tranquila, exame clínico e espaço para entender suas prioridades. Ao final, você recebe uma orientação clara sobre os próximos passos, sem pressa e sem obrigação de iniciar um tratamento.",
+  },
+  {
+    question: "A clínica atende convênios?",
+    answer:
+      "Sim. Atendemos BB Dental, Bradesco Dental, Amil Dental, Odonto Santander, Odontoprev, HapVida e SulAmérica. Também recebemos pacientes particulares. A cobertura pode variar conforme o plano, então confirme os detalhes antes da consulta.",
+  },
+  {
+    question: "Quais tratamentos estão disponíveis?",
+    answer:
+      "Oferecemos avaliação odontológica para adultos e crianças, clareamento, facetas em resina, alinhadores estéticos, harmonização orofacial e laserterapia. O tratamento ideal é definido depois de uma avaliação individual.",
+  },
+  {
+    question: "Como posso agendar?",
+    answer:
+      "Você pode escolher um horário pelo botão Agendar consulta ou falar diretamente pelo WhatsApp. A confirmação é enviada após o preenchimento dos dados necessários.",
+  },
+];
 
 function Home() {
   const [bookingOpen, setBookingOpen] = useState(false);
@@ -94,7 +120,11 @@ function Home() {
 
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-28">
+        <div
+          className="pointer-events-none absolute -right-40 top-12 h-96 w-96 rounded-full bg-accent/60 blur-3xl"
+          aria-hidden="true"
+        />
+        <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-32">
           <div className="animate-rise">
             <p className="text-kicker text-primary-soft">{CLINIC.role} · CRO-AP 596</p>
             <h1 className="mt-7 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl lg:text-7xl">
@@ -103,10 +133,17 @@ function Home() {
               <span className="font-script text-primary">odontologia estética</span>
             </h1>
             <p className="mt-8 max-w-[46ch] text-base leading-relaxed text-muted-foreground">
-              Atendimento para adultos e crianças. Odontologia estética e reabilitadora em um
-              consultório pensado para acalmar. Escolha o horário que combina com a sua rotina e
-              receba a confirmação da própria Dra. Michelle.
+              Um cuidado odontológico que combina técnica, escuta e naturalidade para você sorrir
+              com mais segurança — no seu tempo, em um consultório pensado para acolher.
             </p>
+            <div className="mt-8 flex flex-wrap gap-3 text-sm text-foreground">
+              <span className="rounded-full border border-border bg-card/70 px-4 py-2">
+                Adultos e crianças
+              </span>
+              <span className="rounded-full border border-border bg-card/70 px-4 py-2">
+                Macapá · AP
+              </span>
+            </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
               <button
@@ -116,6 +153,27 @@ function Home() {
               >
                 Agendar consulta
               </button>
+              <a
+                href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent("Olá, vim pelo site e gostaria de agendar uma consulta")}`}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-full border border-primary/30 px-7 py-4 text-kicker text-primary transition-silk hover:bg-accent"
+              >
+                Falar no WhatsApp
+              </a>
+            </div>
+
+            <div className="mt-12 grid max-w-xl grid-cols-3 gap-4 border-y border-border py-6">
+              {[
+                ["CRO-AP", "596"],
+                ["Atendimento", "com hora marcada"],
+                ["Localização", "Macapá · AP"],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-kicker text-primary-soft">{label}</p>
+                  <p className="mt-2 text-sm leading-snug text-foreground">{value}</p>
+                </div>
+              ))}
             </div>
 
             <div className="mt-10">
@@ -153,6 +211,23 @@ function Home() {
               />
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Trust */}
+      <section className="border-y border-border bg-card/45">
+        <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["CRO-AP 596", "Responsabilidade e registro profissional"],
+            ["Macapá, AP", "Consultório no bairro Alvorada"],
+            ["Adultos e crianças", "Atendimento acolhedor para toda a família"],
+            ["Avaliações", "Mais confiança para escolher seu cuidado"],
+          ].map(([title, body]) => (
+            <div key={title} className="border-l border-primary/25 pl-5">
+              <p className="font-display text-2xl text-foreground">{title}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -199,6 +274,39 @@ function Home() {
         >
           Ver todos os tratamentos
         </Link>
+      </section>
+
+      {/* FAQ */}
+      <section className="bg-gradient-blush">
+        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-24 lg:grid-cols-[0.75fr_1.25fr]">
+          <div>
+            <p className="text-kicker text-primary-soft">Dúvidas frequentes</p>
+            <h2 className="mt-6 max-w-[12ch] font-display text-4xl leading-tight text-foreground lg:text-5xl">
+              Tudo para você chegar tranquilo
+            </h2>
+            <p className="mt-6 max-w-[34ch] text-sm leading-relaxed text-muted-foreground">
+              Se ainda ficou alguma dúvida, nossa equipe também pode orientar você pelo WhatsApp.
+            </p>
+          </div>
+          <div className="divide-y divide-border rounded-3xl border border-border bg-background/60 px-6">
+            {faqs.map((faq) => (
+              <details key={faq.question} className="group py-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-6 font-display text-xl text-foreground [&::-webkit-details-marker]:hidden">
+                  {faq.question}
+                  <span
+                    className="text-2xl text-primary transition-transform group-open:rotate-45"
+                    aria-hidden="true"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="max-w-[65ch] pt-4 text-sm leading-relaxed text-muted-foreground">
+                  {faq.answer}
+                </p>
+              </details>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Invitation */}
