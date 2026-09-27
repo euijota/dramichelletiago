@@ -124,10 +124,10 @@ function Home() {
           className="pointer-events-none absolute -right-40 top-12 h-96 w-96 rounded-full bg-accent/60 blur-3xl"
           aria-hidden="true"
         />
-        <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-32">
+        <div className="mx-auto grid max-w-6xl items-center gap-16 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:py-36">
           <div className="animate-rise">
             <p className="text-kicker text-primary-soft">{CLINIC.role} · CRO-AP 596</p>
-            <h1 className="mt-7 font-display text-5xl leading-[1.05] text-foreground sm:text-6xl lg:text-7xl">
+            <h1 className="text-balance mt-7 max-w-[11ch] font-display text-5xl leading-[1.05] text-foreground sm:text-6xl lg:text-7xl">
               Excelência em
               <br />
               <span className="font-script text-primary">odontologia estética</span>
@@ -216,7 +216,7 @@ function Home() {
 
       {/* Trust */}
       <section className="border-y border-border bg-card/45">
-        <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl gap-8 px-6 py-16 sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["CRO-AP 596", "Responsabilidade e registro profissional"],
             ["Macapá, AP", "Consultório no bairro Alvorada"],

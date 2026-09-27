@@ -31,8 +31,11 @@ export function SiteHeader() {
               <li>
                 <Link
                   to="/sobre"
-                  className="text-kicker text-muted-foreground transition-silk hover:text-primary"
-                  activeProps={{ className: "text-primary" }}
+                  className="apple-nav-link text-kicker text-muted-foreground transition-silk hover:text-primary"
+                  activeProps={{
+                    className: "apple-nav-link text-kicker text-primary",
+                    "data-active": "true",
+                  }}
                 >
                   Sobre
                 </Link>
@@ -40,8 +43,11 @@ export function SiteHeader() {
               <li>
                 <Link
                   to="/tratamentos"
-                  className="text-kicker text-muted-foreground transition-silk hover:text-primary"
-                  activeProps={{ className: "text-primary" }}
+                  className="apple-nav-link text-kicker text-muted-foreground transition-silk hover:text-primary"
+                  activeProps={{
+                    className: "apple-nav-link text-kicker text-primary",
+                    "data-active": "true",
+                  }}
                 >
                   Tratamentos
                 </Link>
@@ -49,8 +55,11 @@ export function SiteHeader() {
               <li>
                 <Link
                   to="/contato"
-                  className="text-kicker text-muted-foreground transition-silk hover:text-primary"
-                  activeProps={{ className: "text-primary" }}
+                  className="apple-nav-link text-kicker text-muted-foreground transition-silk hover:text-primary"
+                  activeProps={{
+                    className: "apple-nav-link text-kicker text-primary",
+                    "data-active": "true",
+                  }}
                 >
                   Contato
                 </Link>
