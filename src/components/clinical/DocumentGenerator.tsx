@@ -1,6 +1,4 @@
 import { useState } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
 import { CLINIC } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,6 +112,10 @@ export function DocumentGenerator({ patientId, patientName, patientCpf }: Docume
 
   const generatePDF = async () => {
     try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
       const doc = new jsPDF();
       const today = new Date().toLocaleDateString("pt-BR", {
         day: "2-digit",
