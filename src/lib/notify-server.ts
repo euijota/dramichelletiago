@@ -120,7 +120,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
         if (matchedPatient) {
           patientId = matchedPatient.id;
-          const updates: Record<string, string> = {};
+          const updates: { email?: string; phone?: string } = {};
           if (!matchedPatient.email && data.patientEmail) {
             updates.email = data.patientEmail.trim();
           }

@@ -792,7 +792,7 @@ export function BookingModal({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => onOpenChange?.(false)}
                 className="rounded-full"
               >
                 Cancelar
