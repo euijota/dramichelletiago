@@ -45,3 +45,4 @@ dist-ssr
 *.sw?
 .vercel
 .env*
+scripts/

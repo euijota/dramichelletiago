@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
 import { ExportModal } from "@/components/ExportModal";
+import { NewAppointmentModal } from "@/components/clinical/NewAppointmentModal";
 import { fetchICalFeed } from "@/lib/ical-server";
 import {
   CLINIC,
@@ -46,7 +47,22 @@ import {
   Bell,
   MessageCircle,
   RotateCcw,
+  Calendar,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Download,
+  Globe,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Users,
+  FileText,
+  Ban,
+  Link2,
 } from "lucide-react";
+import { PatientsManager } from "@/components/clinical/PatientsManager";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
@@ -70,6 +86,7 @@ export const Route = createFileRoute("/_authenticated/painel")({
 
 type Appointment = {
   id: string;
+  patient_id: string | null;
   patient_name: string;
   patient_email: string | null;
   patient_phone: string;
@@ -82,15 +99,18 @@ type Appointment = {
 };
 
 const APPOINTMENT_FIELDS =
-  "id, patient_name, patient_email, patient_phone, service_name, appointment_date, appointment_time, status, notes, reminder_sent_at";
+  "id, patient_id, patient_name, patient_email, patient_phone, service_name, appointment_date, appointment_time, status, notes, reminder_sent_at";
 
 const DAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
 const statusTone: Record<Appointment["status"], string> = {
-  pending: "border-warning/40 bg-warning/10 text-warning-foreground",
-  confirmed: "border-success/40 bg-success/10 text-success",
-  cancelled: "border-border bg-muted text-muted-foreground",
-  completed: "border-primary/30 bg-accent text-accent-foreground",
+  pending:
+    "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 hover:border-amber-500/70 hover:bg-amber-500/15 shadow-sm",
+  confirmed:
+    "border-emerald-600/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 hover:border-emerald-600/70 hover:bg-emerald-500/15 shadow-sm",
+  cancelled: "border-border/60 bg-muted/40 text-muted-foreground opacity-75 hover:opacity-100",
+  completed:
+    "border-primary/35 bg-primary/10 text-primary dark:text-primary-soft hover:border-primary/60 hover:bg-primary/15 shadow-sm",
 };
 
 function Painel() {
@@ -101,6 +121,13 @@ function Painel() {
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [selectedGoogle, setSelectedGoogle] = useState<ICSEvent | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+  const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
+  const [newAppointmentMode, setNewAppointmentMode] = useState<"existing" | "new" | "block">(
+    "existing",
+  );
+  const [mainTab, setMainTab] = useState<"agenda" | "pacientes">("agenda");
+  const [selectedPatientIdForChart, setSelectedPatientIdForChart] = useState<string | null>(null);
 
   const weekDays = useMemo(
     () => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)),
@@ -200,10 +227,25 @@ function Painel() {
   async function updateAppointment(id: string, patch: Partial<Appointment>) {
     const { error } = await supabase.from("appointments").update(patch).eq("id", id);
     if (error) {
+      if (error.code === "23505") {
+        toast.error("Este horário já está ocupado por outro paciente na agenda!");
+        return;
+      }
       toast.error("Não foi possível salvar a alteração.");
       return;
     }
     toast.success("Agenda atualizada.");
+    setSelected(null);
+    queryClient.invalidateQueries({ queryKey: ["appointments"] });
+  }
+
+  async function deleteAppointment(id: string) {
+    const { error } = await supabase.from("appointments").delete().eq("id", id);
+    if (error) {
+      toast.error("Não foi possível excluir o agendamento.");
+      return;
+    }
+    toast.success("Agendamento excluído permanentemente da agenda.");
     setSelected(null);
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
   }
@@ -216,12 +258,16 @@ function Painel() {
   }
 
   const todayISO = toISODate(new Date());
-  const supaToday = weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled").length ?? 0;
+  const supaToday =
+    weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled")
+      .length ?? 0;
   const googleToday = googleEvents.filter((g) => g.date === todayISO).length;
   const todayCount = supaToday + googleToday;
 
   const supaConfirmedWeek = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
-  const googleWeekCount = googleEvents.filter((g) => g.date >= rangeStart && g.date <= rangeEnd).length;
+  const googleWeekCount = googleEvents.filter(
+    (g) => g.date >= rangeStart && g.date <= rangeEnd,
+  ).length;
   const confirmedCount = supaConfirmedWeek + googleWeekCount;
 
   const pendingCount = pending?.length ?? 0;
@@ -256,340 +302,588 @@ function Painel() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-2xl transition-all duration-300">
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-          <Link to="/">
+          <Link
+            to="/"
+            className="transition-transform duration-300 hover:scale-105 active:scale-95"
+          >
             <Logo />
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <button
+              onClick={() => {
+                setNewAppointmentDate(undefined);
+                setNewAppointmentMode("existing");
+                setShowNewAppointmentModal(true);
+              }}
+              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-primary px-4 sm:px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95 cursor-pointer"
+            >
+              <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
+              <span>Novo Agendamento</span>
+            </button>
+            <button
+              onClick={() => {
+                setNewAppointmentDate(undefined);
+                setNewAppointmentMode("block");
+                setShowNewAppointmentModal(true);
+              }}
+              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 shadow-sm transition-all duration-300 hover:border-amber-500/60 hover:bg-amber-500/20 active:scale-95 md:inline-flex cursor-pointer"
+            >
+              <Ban className="h-3.5 w-3.5" />
+              <span>Bloquear Horário</span>
+            </button>
+            <button
+              onClick={() => {
+                const publicUrl = `${window.location.origin}/agendar`;
+                navigator.clipboard.writeText(publicUrl);
+                toast.success(`Link de agendamento copiado: ${publicUrl}`);
+              }}
+              title="Copiar link público de agendamento online para enviar aos pacientes"
+              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-emerald-600/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 shadow-sm transition-all duration-300 hover:border-emerald-600/50 hover:bg-emerald-500/20 active:scale-95 lg:inline-flex cursor-pointer"
+            >
+              <Link2 className="h-4 w-4 transition-transform duration-300 group-hover:rotate-6" />
+              <span>Link Online</span>
+            </button>
             <button
               onClick={() => setShowExportModal(true)}
-              className="hidden rounded-full border border-primary/30 bg-primary/10 px-5 py-2.5 text-kicker text-primary transition-silk hover:bg-primary/20 sm:inline-flex items-center gap-1.5"
+              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-primary/25 bg-primary/8 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary shadow-sm transition-all duration-300 hover:border-primary/50 hover:bg-primary/15 hover:shadow-md hover:shadow-primary/10 active:scale-95 sm:inline-flex cursor-pointer"
             >
-              📊 Exportar
+              <Download className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5" />
+              <span>Exportar</span>
             </button>
-            <a
-              href="https://calendar.google.com"
-              target="_blank"
-              rel="noreferrer"
-              className="hidden rounded-full border border-emerald-600/30 bg-emerald-500/10 px-5 py-2.5 text-kicker text-emerald-800 dark:text-emerald-300 transition-silk hover:bg-emerald-500/20 sm:inline-flex items-center gap-1.5"
-            >
-              📅 Google Agenda
-            </a>
             <Link
               to="/"
-              className="hidden rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent sm:inline-flex"
+              className="group hidden items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95 sm:inline-flex"
             >
-              Ver site
+              <Globe className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:scale-110 group-hover:text-foreground" />
+              <span>Ver site</span>
             </Link>
             <button
               onClick={handleSignOut}
-              className="rounded-full bg-primary px-5 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
+              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
             >
-              Sair
+              <span>Sair</span>
+              <LogOut className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
             </button>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-12">
-        <p className="text-kicker text-primary-soft">Painel da agenda</p>
-        <h1 className="mt-5 font-display text-4xl text-foreground lg:text-5xl">
-          Bem-vinda, <span className="font-script text-primary">Dra. Michelle</span>
-        </h1>
-
-        {/* Stats */}
-        <div className="mt-12 grid gap-5 sm:grid-cols-3">
-          {[
-            { label: "Consultas hoje", value: todayCount },
-            { label: "Confirmadas na semana", value: confirmedCount },
-            { label: "Aguardando confirmação", value: pendingCount },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="rounded-2xl border border-border bg-card p-7 shadow-petal"
-            >
-              <p className="text-kicker text-muted-foreground">{stat.label}</p>
-              <p className="mt-4 font-display text-5xl text-primary">{stat.value}</p>
-            </div>
-          ))}
+        <div className="flex flex-col gap-2">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-primary">
+            <Sparkles className="h-3.5 w-3.5" />
+            Painel Clínico Integrado
+          </span>
+          <h1 className="mt-2 font-display text-4xl text-foreground lg:text-5xl">
+            Bem-vinda, <span className="font-script text-primary">Dra. Michelle</span>
+          </h1>
         </div>
 
-        {/* Week navigation */}
-        <div className="mt-16 flex flex-wrap items-center justify-between gap-4">
-          <h2 className="font-display text-3xl text-foreground">
-            {formatShortDate(rangeStart)} – {formatShortDate(rangeEnd)}
-          </h2>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setWeekStart(addDays(weekStart, -7))}
-              className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent"
-            >
-              Semana anterior
-            </button>
-            <button
-              onClick={() => setWeekStart(startOfWeek(new Date()))}
-              className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent"
-            >
-              Hoje
-            </button>
-            <button
-              onClick={() => setWeekStart(addDays(weekStart, 7))}
-              className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent"
-            >
-              Próxima semana
-            </button>
+        {/* Navigation Tabs (Estilo Clinicorp Solo) */}
+        <div className="mt-8 flex flex-wrap items-center gap-3 border-b border-border pb-4">
+          <button
+            onClick={() => setMainTab("agenda")}
+            className={cn(
+              "px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
+              mainTab === "agenda"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
+            )}
+          >
+            <Calendar className="h-4 w-4" />
+            Agenda & Consultas
+          </button>
+          <button
+            onClick={() => setMainTab("pacientes")}
+            className={cn(
+              "px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
+              mainTab === "pacientes"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
+            )}
+          >
+            <Users className="h-4 w-4" />
+            Pacientes & Prontuários
+          </button>
+        </div>
+
+        {mainTab === "pacientes" ? (
+          <div className="mt-8">
+            <PatientsManager
+              initialPatientId={selectedPatientIdForChart}
+              onPatientLoaded={() => setSelectedPatientIdForChart(null)}
+            />
           </div>
-        </div>
+        ) : (
+          <>
+            {/* Stats with Uiverse-inspired glassmorphic cards */}
+            <div className="mt-10 grid gap-6 sm:grid-cols-3">
+              {/* Card 1: Hoje */}
+              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-primary/40 hover:shadow-raised">
+                <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-primary/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
+                <div className="flex items-center justify-between">
+                  <span className="text-kicker text-muted-foreground">Consultas hoje</span>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner transition-transform duration-300 group-hover:scale-110">
+                    <CalendarDays className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-5 flex items-baseline gap-3">
+                  <span className="font-display text-5xl font-light tracking-tight text-foreground transition-colors duration-300 group-hover:text-primary">
+                    {todayCount}
+                  </span>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {todayCount === 1 ? "agendamento" : "agendamentos"}
+                  </span>
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  <span>{formatLongDate(todayISO)}</span>
+                </div>
+              </div>
 
-        {/* Weekly calendar */}
-        <div className="mt-8 overflow-x-auto rounded-2xl border border-border bg-card shadow-petal">
-          <div className="grid min-w-[880px] grid-cols-6 divide-x divide-border">
-            {weekDays.map((day, index) => {
-              const iso = toISODate(day);
-              const isToday = iso === todayISO;
-              const supaAppointments =
-                weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
-              const gEvents = googleEvents.filter((g) => g.date === iso);
+              {/* Card 2: Confirmadas */}
+              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-emerald-500/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-raised">
+                <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-emerald-500/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
+                <div className="flex items-center justify-between">
+                  <span className="text-kicker text-muted-foreground">Confirmadas na semana</span>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-inner transition-transform duration-300 group-hover:scale-110">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                </div>
+                <div className="mt-5 flex items-baseline gap-3">
+                  <span className="font-display text-5xl font-light tracking-tight text-foreground transition-colors duration-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400">
+                    {confirmedCount}
+                  </span>
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    consultas ativas
+                  </span>
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  <span>
+                    {formatShortDate(rangeStart)} a {formatShortDate(rangeEnd)}
+                  </span>
+                </div>
+              </div>
 
-              const combined = [
-                ...supaAppointments.map((a) => ({
-                  id: a.id,
-                  time: trimSeconds(a.appointment_time),
-                  title: a.patient_name,
-                  subtitle: a.service_name,
-                  isGoogle: false,
-                  status: a.status,
-                  rawSupa: a,
-                  rawGoogle: null,
-                })),
-                ...gEvents.map((g, idx) => ({
-                  id: `gcal-${g.date}-${g.time}-${idx}`,
-                  time: g.time,
-                  title: g.summary,
-                  subtitle: "Google Agenda",
-                  isGoogle: true,
-                  status: "confirmed" as const,
-                  rawSupa: null,
-                  rawGoogle: g,
-                })),
-              ].sort((a, b) => a.time.localeCompare(b.time));
-
-              return (
-                <div key={iso} className="min-h-[420px] p-4">
+              {/* Card 3: Pendentes */}
+              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-amber-500/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-amber-500/40 hover:shadow-raised">
+                <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-amber-500/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
+                <div className="flex items-center justify-between">
+                  <span className="text-kicker text-muted-foreground">Aguardando confirmação</span>
                   <div
                     className={cn(
-                      "flex items-baseline justify-between pb-4",
-                      isToday && "text-primary",
+                      "flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner transition-transform duration-300 group-hover:scale-110",
+                      pendingCount > 0
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        : "bg-muted text-muted-foreground",
                     )}
                   >
-                    <span className="text-kicker">{DAY_NAMES[index]}</span>
-                    <span className="font-display text-2xl">
-                      {String(day.getDate()).padStart(2, "0")}
-                    </span>
+                    <Clock className="h-5 w-5" />
                   </div>
-
-                  <div className="space-y-2.5">
-                    {combined.length === 0 && (
-                      <p className="pt-8 text-center text-xs text-muted-foreground/60">
-                        Sem consultas
-                      </p>
+                </div>
+                <div className="mt-5 flex items-baseline gap-3">
+                  <span className="font-display text-5xl font-light tracking-tight text-foreground transition-colors duration-300 group-hover:text-amber-600 dark:group-hover:text-amber-400">
+                    {pendingCount}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs font-medium",
+                      pendingCount > 0
+                        ? "font-semibold text-amber-700 dark:text-amber-400"
+                        : "text-muted-foreground",
                     )}
-                    {combined.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          if (item.rawSupa) setSelected(item.rawSupa);
-                          else if (item.rawGoogle) setSelectedGoogle(item.rawGoogle);
-                        }}
+                  >
+                    {pendingCount === 0 ? "fila em dia" : "requer atenção"}
+                  </span>
+                </div>
+                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <span
+                    className={cn(
+                      "inline-block h-2 w-2 rounded-full",
+                      pendingCount > 0 ? "bg-amber-500 animate-pulse" : "bg-muted-foreground/40",
+                    )}
+                  />
+                  <span>
+                    {pendingCount > 0 ? `${pendingCount} aguardando resposta` : "Todas confirmadas"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Week navigation with Segmented Controls */}
+            <div className="mt-16 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-kicker text-muted-foreground">Período selecionado</span>
+                <h2 className="mt-1 font-display text-3xl text-foreground">
+                  {formatShortDate(rangeStart)} – {formatShortDate(rangeEnd)}
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    setNewAppointmentDate(todayISO);
+                    setShowNewAppointmentModal(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-200 hover:bg-primary-deep active:scale-95 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Agendar Consulta</span>
+                </button>
+                <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-card/80 p-1.5 shadow-sm backdrop-blur-md">
+                  <button
+                    onClick={() => setWeekStart(addDays(weekStart, -7))}
+                    className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-foreground transition-all duration-200 hover:bg-accent active:scale-95"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <span>Anterior</span>
+                  </button>
+                  <button
+                    onClick={() => setWeekStart(startOfWeek(new Date()))}
+                    className="inline-flex items-center rounded-full bg-primary/10 px-4 py-2 text-xs font-semibold text-primary transition-all duration-200 hover:bg-primary/20 active:scale-95"
+                  >
+                    Hoje
+                  </button>
+                  <button
+                    onClick={() => setWeekStart(addDays(weekStart, 7))}
+                    className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-foreground transition-all duration-200 hover:bg-accent active:scale-95"
+                  >
+                    <span>Próxima</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Weekly calendar with tactile cards */}
+            <div className="mt-8 overflow-x-auto rounded-3xl border border-border/80 bg-card/90 shadow-petal backdrop-blur-md">
+              <div className="grid min-w-[880px] grid-cols-6 divide-x divide-border/60">
+                {weekDays.map((day, index) => {
+                  const iso = toISODate(day);
+                  const isToday = iso === todayISO;
+                  const supaAppointments =
+                    weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
+                  const gEvents = googleEvents.filter((g) => g.date === iso);
+
+                  const combined = [
+                    ...supaAppointments.map((a) => ({
+                      id: a.id,
+                      time: trimSeconds(a.appointment_time),
+                      title: a.patient_name,
+                      subtitle: a.service_name,
+                      isGoogle: false,
+                      status: a.status,
+                      rawSupa: a,
+                      rawGoogle: null,
+                    })),
+                    ...gEvents.map((g, idx) => ({
+                      id: `gcal-${g.date}-${g.time}-${idx}`,
+                      time: g.time,
+                      title: g.summary,
+                      subtitle: "Google Agenda",
+                      isGoogle: true,
+                      status: "confirmed" as const,
+                      rawSupa: null,
+                      rawGoogle: g,
+                    })),
+                  ].sort((a, b) => a.time.localeCompare(b.time));
+
+                  return (
+                    <div
+                      key={iso}
+                      className={cn(
+                        "min-h-[420px] p-4 transition-colors",
+                        isToday && "bg-primary/[0.02]",
+                      )}
+                    >
+                      <div
                         className={cn(
-                          "w-full rounded-lg border-l-2 border-y border-r p-3 text-left transition-silk hover:shadow-petal hover:scale-[1.02] cursor-pointer",
-                          item.isGoogle
-                            ? "border-emerald-600/40 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200"
-                            : statusTone[item.status],
+                          "flex items-baseline justify-between border-b border-border/50 pb-3 mb-3",
+                          isToday && "text-primary font-semibold",
                         )}
                       >
-                        <span className="block text-xs font-medium flex items-center justify-between">
-                          <span>{item.time}</span>
-                          {item.isGoogle && (
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded">
-                              Google
-                            </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-kicker">{DAY_NAMES[index]}</span>
+                          {isToday && (
+                            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                           )}
                         </span>
-                        <span className="mt-1 block truncate text-sm font-semibold text-foreground">
-                          {item.title}
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                          {item.subtitle}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setNewAppointmentDate(iso);
+                              setShowNewAppointmentModal(true);
+                            }}
+                            title={`Agendar consulta para ${DAY_NAMES[index]}`}
+                            className="p-1 rounded-full text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                          <span
+                            className={cn(
+                              "font-display text-2xl transition-all",
+                              isToday
+                                ? "flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm"
+                                : "text-foreground",
+                            )}
+                          >
+                            {String(day.getDate()).padStart(2, "0")}
+                          </span>
+                        </div>
+                      </div>
 
-        {/* Reminders for tomorrow */}
-        <section className="mt-20">
-          <h2 className="font-display text-3xl text-foreground">Lembretes de amanhã</h2>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {formatLongDate(tomorrowISO)} · a mensagem já vai pronta pelo WhatsApp e o envio fica
-            registrado aqui.
-          </p>
-
-          <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
-            {(reminders?.length ?? 0) === 0 && (
-              <p className="p-10 text-center text-sm text-muted-foreground">
-                Nenhuma consulta marcada para amanhã.
-              </p>
-            )}
-            {reminders?.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-display text-2xl text-foreground">
-                    {appointment.patient_name}
-                  </p>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {appointment.service_name} às {trimSeconds(appointment.appointment_time)} ·{" "}
-                    {STATUS_LABELS[appointment.status]}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground/80">
-                    {appointment.reminder_sent_at ? "Lembrete já enviado" : "Lembrete pendente"} ·{" "}
-                    {appointment.patient_phone}
-                  </p>
-                </div>
-
-                <a
-                  href={buildReminderLink(appointment)}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => markReminderSent(appointment)}
-                  className={cn(
-                    "rounded-full px-5 py-2.5 text-kicker transition-silk",
-                    appointment.reminder_sent_at
-                      ? "border border-border text-foreground hover:bg-accent"
-                      : "bg-primary text-primary-foreground hover:bg-primary-deep",
-                  )}
-                >
-                  {appointment.reminder_sent_at ? "Enviar novamente" : "Enviar lembrete"}
-                </a>
+                      <div className="space-y-2.5">
+                        {combined.length === 0 && (
+                          <div className="flex h-40 flex-col items-center justify-center text-center">
+                            <span className="text-xs text-muted-foreground/50">Sem consultas</span>
+                          </div>
+                        )}
+                        {combined.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              if (item.rawSupa) setSelected(item.rawSupa);
+                              else if (item.rawGoogle) setSelectedGoogle(item.rawGoogle);
+                            }}
+                            className={cn(
+                              "group relative w-full rounded-2xl border p-3.5 text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer backdrop-blur-sm",
+                              item.isGoogle
+                                ? "border-emerald-600/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 hover:border-emerald-600/70 hover:bg-emerald-500/15"
+                                : statusTone[item.status],
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold tracking-tight flex items-center gap-1.5 text-foreground">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                <span>{item.time}</span>
+                              </span>
+                              {item.isGoogle ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-600/20">
+                                  Google
+                                </span>
+                              ) : (
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
+                                    item.status === "pending"
+                                      ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
+                                      : item.status === "confirmed"
+                                        ? "text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border-emerald-600/30"
+                                        : item.status === "completed"
+                                          ? "text-primary bg-primary/10 border-primary/25"
+                                          : "text-muted-foreground bg-muted border-border",
+                                  )}
+                                >
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 rounded-full",
+                                      item.status === "pending"
+                                        ? "bg-amber-500 animate-pulse"
+                                        : item.status === "confirmed"
+                                          ? "bg-emerald-500"
+                                          : item.status === "completed"
+                                            ? "bg-primary"
+                                            : "bg-muted-foreground",
+                                    )}
+                                  />
+                                  {STATUS_LABELS[item.status]}
+                                </span>
+                              )}
+                            </div>
+                            <span className="mt-2 block truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                              {item.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {item.subtitle}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Pending queue */}
-
-        <section className="mt-20">
-          <h2 className="font-display text-3xl text-foreground">Aguardando confirmação</h2>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Confirme o horário e avise o paciente pelo WhatsApp em um clique.
-          </p>
-
-          <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
-            {pendingCount === 0 && (
-              <p className="p-10 text-center text-sm text-muted-foreground">
-                Nenhum pedido pendente. Tudo em dia.
-              </p>
-            )}
-            {pending?.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-display text-2xl text-foreground">
-                    {appointment.patient_name}
-                  </p>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    {appointment.service_name} · {formatLongDate(appointment.appointment_date)} às{" "}
-                    {trimSeconds(appointment.appointment_time)}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground/80">
-                    {appointment.patient_phone} · {appointment.patient_email ?? "E-mail não informado"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
-                    className="rounded-full bg-primary px-5 py-2.5 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
-                  >
-                    Confirmar
-                  </button>
-                  <a
-                    href={buildWhatsAppLink(appointment)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent"
-                  >
-                    Avisar
-                  </a>
-                  <button
-                    onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
-                    className="rounded-full border border-border px-5 py-2.5 text-kicker text-muted-foreground transition-silk hover:text-destructive"
-                  >
-                    Recusar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Message Templates */}
-        <section className="mt-20">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-display text-3xl text-foreground">Templates de Mensagens</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Gerencie mensagens automáticas enviadas aos pacientes via WhatsApp.
-              </p>
             </div>
-            <button
-              onClick={() => {
-                initializeDefaultTemplates({}).then(() => {
-                  toast.success("Templates padrão inicializados");
-                  queryClient.invalidateQueries({ queryKey: ["message-templates"] });
-                });
-              }}
-              className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent flex items-center gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Restaurar padrões
-            </button>
-          </div>
 
-          <MessageTemplates queryClient={queryClient} />
-        </section>
+            {/* Reminders for tomorrow */}
+            <section className="mt-20">
+              <h2 className="font-display text-3xl text-foreground">Lembretes de amanhã</h2>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {formatLongDate(tomorrowISO)} · a mensagem já vai pronta pelo WhatsApp e o envio
+                fica registrado aqui.
+              </p>
+
+              <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
+                {(reminders?.length ?? 0) === 0 && (
+                  <p className="p-10 text-center text-sm text-muted-foreground">
+                    Nenhuma consulta marcada para amanhã.
+                  </p>
+                )}
+                {reminders?.map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-display text-2xl text-foreground">
+                        {appointment.patient_name}
+                      </p>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        {appointment.service_name} às {trimSeconds(appointment.appointment_time)} ·{" "}
+                        {STATUS_LABELS[appointment.status]}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground/80">
+                        {appointment.reminder_sent_at ? "Lembrete já enviado" : "Lembrete pendente"}{" "}
+                        · {appointment.patient_phone}
+                      </p>
+                    </div>
+
+                    <a
+                      href={buildReminderLink(appointment)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => markReminderSent(appointment)}
+                      className={cn(
+                        "group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm",
+                        appointment.reminder_sent_at
+                          ? "border border-border bg-card text-foreground hover:bg-accent hover:border-foreground/30"
+                          : "bg-primary text-primary-foreground hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20",
+                      )}
+                    >
+                      <MessageCircle className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+                      <span>
+                        {appointment.reminder_sent_at ? "Enviar novamente" : "Enviar lembrete"}
+                      </span>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Pending queue */}
+
+            <section className="mt-20">
+              <h2 className="font-display text-3xl text-foreground">Aguardando confirmação</h2>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Confirme o horário e avise o paciente pelo WhatsApp em um clique.
+              </p>
+
+              <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
+                {pendingCount === 0 && (
+                  <p className="p-10 text-center text-sm text-muted-foreground">
+                    Nenhum pedido pendente. Tudo em dia.
+                  </p>
+                )}
+                {pending?.map((appointment) => (
+                  <div
+                    key={appointment.id}
+                    className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="font-display text-2xl text-foreground">
+                        {appointment.patient_name}
+                      </p>
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        {appointment.service_name} · {formatLongDate(appointment.appointment_date)}{" "}
+                        às {trimSeconds(appointment.appointment_time)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground/80">
+                        {appointment.patient_phone} ·{" "}
+                        {appointment.patient_email ?? "E-mail não informado"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                        className="group inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
+                      >
+                        <Check className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-125" />
+                        <span>Confirmar</span>
+                      </button>
+                      <a
+                        href={buildWhatsAppLink(appointment)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
+                        <span>Avisar</span>
+                      </a>
+                      <button
+                        onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
+                        className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-all duration-300 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
+                      >
+                        <X className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-90" />
+                        <span>Recusar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Message Templates */}
+            <section className="mt-20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="font-display text-3xl text-foreground">Templates de Mensagens</h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Gerencie mensagens automáticas enviadas aos pacientes via WhatsApp.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    initializeDefaultTemplates({}).then(() => {
+                      toast.success("Templates padrão inicializados");
+                      queryClient.invalidateQueries({ queryKey: ["message-templates"] });
+                    });
+                  }}
+                  className="rounded-full border border-border px-5 py-2.5 text-kicker text-foreground transition-silk hover:bg-accent flex items-center gap-2"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Restaurar padrões
+                </button>
+              </div>
+
+              <MessageTemplates queryClient={queryClient} />
+            </section>
+          </>
+        )}
 
         {selected && (
           <AppointmentSheet
             appointment={selected}
             onClose={() => setSelected(null)}
             onSave={updateAppointment}
+            onDelete={deleteAppointment}
+            onOpenChart={(patientId) => {
+              setSelected(null);
+              setSelectedPatientIdForChart(patientId);
+              setMainTab("pacientes");
+            }}
           />
         )}
 
         {selectedGoogle && (
-          <GoogleEventSheet
-            event={selectedGoogle}
-            onClose={() => setSelectedGoogle(null)}
-          />
+          <GoogleEventSheet event={selectedGoogle} onClose={() => setSelectedGoogle(null)} />
         )}
 
         {showExportModal && allAppointments && (
-          <ExportModal
-            appointments={allAppointments}
-            onClose={() => setShowExportModal(false)}
-          />
+          <ExportModal appointments={allAppointments} onClose={() => setShowExportModal(false)} />
         )}
+
+        <NewAppointmentModal
+          open={showNewAppointmentModal}
+          onOpenChange={setShowNewAppointmentModal}
+          defaultDate={newAppointmentDate}
+          defaultMode={newAppointmentMode}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["appointments"] });
+          }}
+        />
       </main>
     </div>
   );
@@ -614,7 +908,8 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Omit<MessageTemplate, "id" | "created_at" | "updated_at">) => createMessageTemplate({ data }),
+    mutationFn: (data: Omit<MessageTemplate, "id" | "created_at" | "updated_at">) =>
+      createMessageTemplate({ data }),
     onSuccess: () => {
       toast.success("Template criado");
       queryClient.invalidateQueries({ queryKey: ["message-templates"] });
@@ -623,7 +918,8 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: string } & Partial<MessageTemplate>) => updateMessageTemplate({ data }),
+    mutationFn: (data: { id: string } & Partial<MessageTemplate>) =>
+      updateMessageTemplate({ data }),
     onSuccess: () => {
       toast.success("Template atualizado");
       setEditingId(null);
@@ -671,20 +967,26 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
     );
   }
 
-  const templatesByType = templates?.reduce((acc, t) => {
-    if (!acc[t.type]) acc[t.type] = [];
-    acc[t.type].push(t);
-    return acc;
-  }, {} as Record<TemplateType, MessageTemplate[]>);
+  const templatesByType = templates?.reduce(
+    (acc, t) => {
+      if (!acc[t.type]) acc[t.type] = [];
+      acc[t.type].push(t);
+      return acc;
+    },
+    {} as Record<TemplateType, MessageTemplate[]>,
+  );
 
   return (
     <div className="mt-8 space-y-6">
       {Object.entries(typeLabels).map(([type, label]) => {
         const typeTemplates = templatesByType?.[type as TemplateType] ?? [];
-        const hasActive = typeTemplates.some(t => t.is_active);
-        
+        const hasActive = typeTemplates.some((t) => t.is_active);
+
         return (
-          <div key={type} className="rounded-2xl border border-border bg-card shadow-petal overflow-hidden">
+          <div
+            key={type}
+            className="rounded-2xl border border-border bg-card shadow-petal overflow-hidden"
+          >
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10 text-primary">
@@ -693,7 +995,7 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                 <div>
                   <h3 className="font-display text-xl text-foreground">{label}</h3>
                   <p className="text-xs text-muted-foreground">
-                    {typeTemplates.length} template{typeTemplates.length !== 1 ? "s" : ""} 
+                    {typeTemplates.length} template{typeTemplates.length !== 1 ? "s" : ""}
                     {hasActive ? " · Ativo" : " · Inativo"}
                   </p>
                 </div>
@@ -724,14 +1026,19 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                 </p>
               ) : (
                 typeTemplates.map((template) => (
-                  <div key={template.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div
+                    key={template.id}
+                    className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3">
-                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          template.is_active
-                            ? "bg-success/10 text-success"
-                            : "bg-muted text-muted-foreground"
-                        }`}>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            template.is_active
+                              ? "bg-success/10 text-success"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
                           {template.is_default ? "Padrão" : "Custom"}
                         </span>
                         <span className="text-xs text-muted-foreground uppercase tracking-wide">
@@ -743,9 +1050,13 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                           </span>
                         )}
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">{template.body}</p>
+                      <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
+                        {template.body}
+                      </p>
                       {template.subject && (
-                        <p className="mt-1 text-xs text-muted-foreground">Assunto: {template.subject}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Assunto: {template.subject}
+                        </p>
                       )}
                     </div>
 
@@ -812,7 +1123,7 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                   <h4 className="font-display text-lg text-foreground">
                     {editingId === "new" ? "Novo Template" : "Editando Template"}
                   </h4>
-                  
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold">Nome</label>
@@ -827,7 +1138,12 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                       <label className="text-xs font-semibold">Canal</label>
                       <select
                         value={editForm.channel}
-                        onChange={(e) => setEditForm({ ...editForm, channel: e.target.value as "whatsapp" | "email" | "both" })}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            channel: e.target.value as "whatsapp" | "email" | "both",
+                          })
+                        }
                         className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground outline-none focus:border-primary"
                       >
                         <option value="whatsapp">WhatsApp</option>
@@ -857,7 +1173,9 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                       placeholder="Use variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"
                     />
                     <p className="text-xs text-muted-foreground">
-                      {"Variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"}
+                      {
+                        "Variáveis: {{patient_name}}, {{appointment_date_formatted}}, {{appointment_time}}, {{service_name}}, {{protocol}}, {{confirmation_link}}, {{cancellation_link}}, {{clinic_name}}, {{clinic_short_name}}, {{clinic_address}}, {{clinic_phone}}, {{clinic_whatsapp}}, {{notes}}"
+                      }
                     </p>
                   </div>
 
@@ -905,14 +1223,20 @@ function AppointmentSheet({
   appointment,
   onClose,
   onSave,
+  onDelete,
+  onOpenChart,
 }: {
   appointment: Appointment;
   onClose: () => void;
   onSave: (id: string, patch: Partial<Appointment>) => void;
+  onDelete: (id: string) => void;
+  onOpenChart: (patientId: string) => void;
 }) {
   const [date, setDate] = useState(appointment.appointment_date);
   const [time, setTime] = useState(trimSeconds(appointment.appointment_time));
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const slots = buildTimeSlots(weekdayOf(date));
+  const isBlock = appointment.service_name === "Bloqueio de Agenda";
 
   return (
     <div
@@ -923,21 +1247,38 @@ function AppointmentSheet({
         onClick={(e) => e.stopPropagation()}
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-9 shadow-bloom sm:rounded-3xl"
       >
-        <p className="text-kicker text-primary-soft">{STATUS_LABELS[appointment.status]}</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-kicker text-primary-soft">
+            {isBlock ? "Horário Bloqueado" : STATUS_LABELS[appointment.status]}
+          </p>
+          {appointment.patient_id && !isBlock && (
+            <button
+              onClick={() => onOpenChart(appointment.patient_id!)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-4 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Abrir Prontuário</span>
+            </button>
+          )}
+        </div>
         <h2 className="mt-4 font-display text-3xl text-foreground">{appointment.patient_name}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{appointment.service_name}</p>
 
         <dl className="mt-8 space-y-3 border-y border-border py-7 text-sm">
-          <div className="flex justify-between gap-6">
-            <dt className="text-muted-foreground">Telefone</dt>
-            <dd className="text-foreground">{appointment.patient_phone}</dd>
-          </div>
-          <div className="flex justify-between gap-6">
-            <dt className="text-muted-foreground">E-mail</dt>
-            <dd className="truncate text-foreground">
-              {appointment.patient_email ?? "Não informado"}
-            </dd>
-          </div>
+          {!isBlock && (
+            <>
+              <div className="flex justify-between gap-6">
+                <dt className="text-muted-foreground">Telefone</dt>
+                <dd className="text-foreground">{appointment.patient_phone}</dd>
+              </div>
+              <div className="flex justify-between gap-6">
+                <dt className="text-muted-foreground">E-mail</dt>
+                <dd className="truncate text-foreground">
+                  {appointment.patient_email ?? "Não informado"}
+                </dd>
+              </div>
+            </>
+          )}
           {appointment.notes && (
             <div className="pt-2">
               <dt className="text-muted-foreground">Observações</dt>
@@ -947,7 +1288,7 @@ function AppointmentSheet({
         </dl>
 
         <div className="mt-8 space-y-4">
-          <p className="text-kicker text-primary-soft">Remarcar</p>
+          <p className="text-kicker text-primary-soft">Remarcar Data / Horário</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <input
               type="date"
@@ -980,52 +1321,78 @@ function AppointmentSheet({
                 status: "confirmed",
               })
             }
-            className="rounded-full bg-primary px-6 py-3 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
+            className="rounded-full bg-primary px-6 py-3 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep cursor-pointer"
           >
             Salvar e confirmar
           </button>
-          <a
-            href={buildWhatsAppLink({
-              ...appointment,
-              appointment_date: date,
-              appointment_time: time,
-            })}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
-          >
-            WhatsApp
-          </a>
-          <a
-            href={buildGoogleCalendarUrl(
-              `Consulta Odontológica: ${appointment.patient_name}`,
-              date,
-              time,
-              `Paciente: ${appointment.patient_name}\nTelefone: ${appointment.patient_phone}\nServiço: ${appointment.service_name}\nObservações: ${appointment.notes || "Nenhuma"}`,
-            )}
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
-          >
-            Google Agenda
-          </a>
-          <button
-            onClick={() => onSave(appointment.id, { status: "completed" })}
-            className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
-          >
-            Concluída
-          </button>
-          <button
-            onClick={() => onSave(appointment.id, { status: "cancelled" })}
-            className="rounded-full border border-border px-6 py-3 text-kicker text-muted-foreground transition-silk hover:text-destructive"
-          >
-            Cancelar
-          </button>
+          {!isBlock && (
+            <a
+              href={buildWhatsAppLink({
+                ...appointment,
+                appointment_date: date,
+                appointment_time: time,
+              })}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
+            >
+              WhatsApp
+            </a>
+          )}
+          {!isBlock && (
+            <button
+              onClick={() => onSave(appointment.id, { status: "completed" })}
+              className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent cursor-pointer"
+            >
+              Concluída
+            </button>
+          )}
+          {!isBlock && (
+            <button
+              onClick={() => onSave(appointment.id, { status: "cancelled" })}
+              className="rounded-full border border-border px-6 py-3 text-kicker text-muted-foreground transition-silk hover:text-destructive cursor-pointer"
+            >
+              Cancelar
+            </button>
+          )}
+          {confirmingDelete ? (
+            <div className="flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2">
+              <span className="text-xs font-semibold text-rose-700 dark:text-rose-300">
+                Confirmar exclusão?
+              </span>
+              <button
+                onClick={() => onDelete(appointment.id)}
+                className="rounded-full bg-rose-600 px-3.5 py-1 text-xs font-bold text-white hover:bg-rose-700 transition-colors cursor-pointer"
+              >
+                Sim, excluir
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(false)}
+                className="rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Não
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                if (isBlock) {
+                  onDelete(appointment.id);
+                } else {
+                  setConfirmingDelete(true);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-5 py-3 text-kicker text-rose-700 dark:text-rose-300 transition-silk hover:bg-rose-600 hover:text-white cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{isBlock ? "Liberar / Excluir Bloqueio" : "Excluir Agendamento"}</span>
+            </button>
+          )}
         </div>
 
         <button
           onClick={onClose}
-          className="mt-7 w-full text-center text-sm text-muted-foreground transition-silk hover:text-primary"
+          className="mt-7 w-full text-center text-sm text-muted-foreground transition-silk hover:text-primary cursor-pointer"
         >
           Fechar
         </button>
@@ -1034,19 +1401,16 @@ function AppointmentSheet({
   );
 }
 
-function GoogleEventSheet({
-  event,
-  onClose,
-}: {
-  event: ICSEvent;
-  onClose: () => void;
-}) {
-  const phoneMatch = (event.summary + " " + (event.description || "")).match(/(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}/);
+function GoogleEventSheet({ event, onClose }: { event: ICSEvent; onClose: () => void }) {
+  const phoneMatch = (event.summary + " " + (event.description || "")).match(
+    /(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}/,
+  );
   const rawPhone = phoneMatch ? phoneMatch[0] : "";
   const cleanPhone = rawPhone.replace(/\D/g, "");
-  const waUrl = cleanPhone && cleanPhone.length >= 8
-    ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá! Entrando em contato sobre o seu agendamento no consultório da Dra. Michelle Tiago marcado para ${formatLongDate(event.date)} às ${event.time}.`)}`
-    : null;
+  const waUrl =
+    cleanPhone && cleanPhone.length >= 8
+      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá! Entrando em contato sobre o seu agendamento no consultório da Dra. Michelle Tiago marcado para ${formatLongDate(event.date)} às ${event.time}.`)}`
+      : null;
 
   return (
     <div

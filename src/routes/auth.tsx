@@ -77,9 +77,7 @@ function Auth() {
       <div className="flex flex-1 items-center justify-center px-6 pb-20">
         <div className="w-full max-w-md rounded-3xl bg-card p-10 shadow-bloom">
           <p className="text-kicker text-primary-soft">Acesso restrito</p>
-          <h1 className="mt-5 font-display text-4xl text-foreground">
-            Entrar no painel
-          </h1>
+          <h1 className="mt-5 font-display text-4xl text-foreground">Entrar no painel</h1>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             Área exclusiva para gestão da agenda do consultório.
           </p>

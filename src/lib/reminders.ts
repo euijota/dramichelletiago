@@ -80,7 +80,7 @@ export function formatBrazilianDate(isoDate: string): string {
 export function shouldSendReminder(
   appointmentDate: string,
   reminderSentAt: string | null,
-  status: string
+  status: string,
 ): boolean {
   // Only send for pending/confirmed appointments
   if (!["pending", "confirmed"].includes(status)) {

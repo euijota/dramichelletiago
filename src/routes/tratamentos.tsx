@@ -133,14 +133,12 @@ function Tratamentos() {
           </p>
         </section>
 
-        <a
-          href={BOOKING_URL}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          to="/agendar"
           className="mt-16 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
         >
-          Agendar consulta
-        </a>
+          Agendar consulta online
+        </Link>
       </section>
 
       <SiteFooter />

@@ -37,14 +37,12 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs?: number }
   return { allowed: true };
 }
 
-;
-
 /** Salva o agendamento e envia notificação para a Dra. Michelle. */
 export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = bookingSchema.safeParse(data);
     if (!parsed.success) {
-      throw new Error(parsed.error.errors.map(e => e.message).join(", "));
+      throw new Error(parsed.error.errors.map((e) => e.message).join(", "));
     }
     return parsed.data;
   })
@@ -52,14 +50,17 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     const data = ctx.data;
 
     // Rate limiting by IP
-    const request = await import("@tanstack/react-start/server").then(m => m.getRequest());
-    const ip = request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim()
-      || request?.headers?.get("x-real-ip")
-      || "unknown";
+    const request = await import("@tanstack/react-start/server").then((m) => m.getRequest());
+    const ip =
+      request?.headers?.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request?.headers?.get("x-real-ip") ||
+      "unknown";
 
     const rl = checkRateLimit(ip);
     if (!rl.allowed) {
-      throw new Error(`Muitas tentativas. Tente novamente em ${Math.ceil((rl.retryAfterMs || 60000) / 1000)}s.`);
+      throw new Error(
+        `Muitas tentativas. Tente novamente em ${Math.ceil((rl.retryAfterMs || 60000) / 1000)}s.`,
+      );
     }
 
     const record = {
@@ -82,6 +83,84 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      // Auto-link appointment to public.patients
+      let patientId: string | null = null;
+      try {
+        const cleanPhone = (data.patientPhone || "").replace(/\D/g, "");
+        let matchedPatient: {
+          id: string;
+          name: string;
+          phone: string | null;
+          email: string | null;
+        } | null = null;
+
+        // Try lookup by phone (last 8 digits)
+        if (cleanPhone.length >= 8) {
+          const last8 = cleanPhone.slice(-8);
+          const { data: pByPhone } = await supabaseAdmin
+            .from("patients")
+            .select("id, name, phone, email")
+            .ilike("phone", `%${last8}%`)
+            .limit(1)
+            .maybeSingle();
+          if (pByPhone) matchedPatient = pByPhone;
+        }
+
+        // Try lookup by exact/ilike name if not matched by phone
+        if (!matchedPatient && data.patientName) {
+          const { data: pByName } = await supabaseAdmin
+            .from("patients")
+            .select("id, name, phone, email")
+            .ilike("name", data.patientName.trim())
+            .limit(1)
+            .maybeSingle();
+          if (pByName) matchedPatient = pByName;
+        }
+
+        if (matchedPatient) {
+          patientId = matchedPatient.id;
+          const updates: Record<string, string> = {};
+          if (!matchedPatient.email && data.patientEmail) {
+            updates.email = data.patientEmail.trim();
+          }
+          if (!matchedPatient.phone && data.patientPhone) {
+            updates.phone = data.patientPhone.trim();
+          }
+          if (Object.keys(updates).length > 0) {
+            await supabaseAdmin.from("patients").update(updates).eq("id", patientId);
+          }
+        } else {
+          // Create patient record automatically
+          const insurance = data.serviceName.toLowerCase().includes("plano")
+            ? data.serviceName.replace(/plano:?/i, "").trim()
+            : "Particular";
+
+          const { data: createdPatient, error: createErr } = await supabaseAdmin
+            .from("patients")
+            .insert({
+              name: data.patientName.trim(),
+              phone: data.patientPhone.trim() || null,
+              email: data.patientEmail?.trim() || null,
+              insurance: insurance || "Particular",
+              origin: "Agendamento Online",
+              notes: data.notes?.trim() || null,
+            })
+            .select("id")
+            .single();
+
+          if (!createErr && createdPatient) {
+            patientId = createdPatient.id;
+            console.log("[saveAppointmentAndNotify] New patient auto-created:", patientId);
+          }
+        }
+      } catch (err) {
+        console.warn("[saveAppointmentAndNotify] Patient auto-linking warning:", err);
+      }
+
+      if (patientId) {
+        (record as any).patient_id = patientId;
+      }
 
       // Look up service duration
       const { data: service } = await supabaseAdmin
@@ -184,8 +263,8 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       console.warn("[saveAppointmentAndNotify] Email warning:", e);
     }
 
-    // 4. Google Calendar via Apps Script (with secret token)
-    if (APPS_SCRIPT_SECRET && APPS_SCRIPT_URL) {
+    // 4. Google Calendar via Apps Script (optional background sync if configured)
+    if (APPS_SCRIPT_SECRET && APPS_SCRIPT_URL && APPS_SCRIPT_URL.startsWith("http")) {
       try {
         const [hh, mm] = data.appointmentTime.split(":").map(Number);
         const pad = (n: number) => String(n).padStart(2, "0");
@@ -226,7 +305,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       try {
         // Busca template configurado (ou usa default)
         const template = await getMessageTemplate({ data: "booking_confirmation" });
-        
+
         // Format date for template
         const [year, month, day] = data.appointmentDate.split("-");
         const dateFormatted = `${day}/${month}/${year}`;
@@ -252,7 +331,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
           dentist_name: CLINIC.shortName,
         };
 
-        const message = template 
+        const message = template
           ? renderTemplate(template.body, templateVars)
           : `Olá, ${data.patientName}! 😊
 
@@ -275,7 +354,7 @@ Aguardamos você! 🦷
         const patientPhone = data.patientPhone.replace(/\D/g, "");
         const fullPhone = patientPhone.length > 11 ? patientPhone : `55${patientPhone}`;
         const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
-        
+
         // Fire and forget - don't await
         fetch(waUrl).catch(() => {});
         console.log("[saveAppointmentAndNotify] Patient WhatsApp sent for", data.protocol);

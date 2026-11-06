@@ -22,23 +22,26 @@ export const Route = createFileRoute("/contato")({
         content: "https://dramichelletiago.com.br/assets/dra-michelle.jpg",
       },
     ],
-    links: [
-      { rel: "canonical", href: "https://dramichelletiago.com.br/contato" },
-    ],
+    links: [{ rel: "canonical", href: "https://dramichelletiago.com.br/contato" }],
   }),
   component: Contato,
 });
 
 function Contato() {
   const blocks = [
-    { 
-      label: "Telefone e WhatsApp", 
+    {
+      label: "Telefone e WhatsApp",
       value: CLINIC.phone,
       href: `tel:${CLINIC.whatsapp}`,
       isExternal: false,
     },
     { label: "E-mail", value: CLINIC.email, href: `mailto:${CLINIC.email}`, isExternal: false },
-    { label: "Endereço", value: CLINIC.address, href: `https://maps.google.com/?q=${encodeURIComponent(CLINIC.address)}`, isExternal: true },
+    {
+      label: "Endereço",
+      value: CLINIC.address,
+      href: `https://maps.google.com/?q=${encodeURIComponent(CLINIC.address)}`,
+      isExternal: true,
+    },
   ];
 
   return (
@@ -51,8 +54,8 @@ function Contato() {
           Vamos conversar
         </h1>
         <p className="mt-7 max-w-[50ch] text-base leading-relaxed text-muted-foreground">
-          Para agendar, o caminho mais rápido é a agenda online no consultorio.me. Para dúvidas
-          sobre tratamentos, fale direto com a recepção.
+          Para agendar, o caminho mais rápido é a nossa agenda online exclusiva. Para dúvidas sobre
+          tratamentos, fale direto com a recepção.
         </p>
 
         <dl className="mt-16 grid gap-x-12 gap-y-10 border-t border-border pt-12 sm:grid-cols-2">
@@ -88,14 +91,12 @@ function Contato() {
         </div>
 
         <div className="mt-16 flex flex-wrap gap-4">
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/agendar"
             className="rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
           >
-            Agendar consulta
-          </a>
+            Agendar consulta online
+          </Link>
           <a
             href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent("Oi Dra. Michelle, vim pelo site e queria agendar uma consulta")}`}
             target="_blank"

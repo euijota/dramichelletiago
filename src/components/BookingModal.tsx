@@ -34,20 +34,16 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  CLINIC,
-  INSURANCE_PLANS,
-  buildTimeSlots,
-  buildGoogleCalendarUrl,
-} from "@/lib/clinic";
+import { CLINIC, INSURANCE_PLANS, buildTimeSlots, buildGoogleCalendarUrl } from "@/lib/clinic";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { generateBookingProtocol, normalizePatientEmail } from "@/lib/booking";
 
 interface BookingModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   defaultService?: string;
+  inline?: boolean;
 }
 interface DayItem {
   dateString: string;
@@ -60,7 +56,12 @@ interface DayItem {
   weekday: number;
 }
 
-export function BookingModal({ open, onOpenChange, defaultService }: BookingModalProps) {
+export function BookingModal({
+  open,
+  onOpenChange,
+  defaultService,
+  inline = false,
+}: BookingModalProps) {
   const [bookingMode, setBookingMode] = useState<"interactive" | "iframe">("interactive");
   const [days, setDays] = useState<DayItem[]>([]);
   const [availableMonths, setAvailableMonths] = useState<string[]>([]);
@@ -172,9 +173,9 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
   const [occupiedMap, setOccupiedMap] = useState<Record<string, string[]>>({});
   const [isFeedLoaded, setIsFeedLoaded] = useState(false);
 
-  // 1. Fetch iCal Feed & Supabase appointments ONCE when modal opens
+  // 1. Fetch iCal Feed & Supabase appointments ONCE when modal opens or in inline mode
   useEffect(() => {
-    if (!open) return;
+    if (!inline && !open) return;
 
     let isMounted = true;
     setIsLoadingSlots(true);
@@ -183,10 +184,13 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       try {
         const map: Record<string, string[]> = {};
 
-        // 1. Fetch Supabase
+        // 1. Fetch Supabase (from today onwards)
+        const now = new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
         const { data: supaData } = await supabase
           .from("appointments")
           .select("appointment_date, appointment_time")
+          .gte("appointment_date", todayIso)
           .neq("status", "cancelled");
 
         if (supaData) {
@@ -221,12 +225,6 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
         setIsFeedLoaded(true);
 
         // Auto-find the absolute FIRST day & slot available in the entire calendar
-        const now = new Date();
-        const year = now.getFullYear();
-        const monthStr = String(now.getMonth() + 1).padStart(2, "0");
-        const dateNum = String(now.getDate()).padStart(2, "0");
-        const todayIso = `${year}-${monthStr}-${dateNum}`;
-
         let firstAvailableDay: DayItem | null = null;
         let firstAvailableSlot: string | null = null;
 
@@ -238,8 +236,17 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
           const avail = allSlots.filter((slot) => {
             if (occupiedForDay.includes(slot)) return false;
             if (isToday) {
-              const slotHour = parseInt(slot.split(":")[0], 10);
-              if (slotHour <= now.getHours()) return false;
+              const [slotH, slotM] = slot.split(":").map(Number);
+              const slotTime = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                slotH,
+                slotM || 0,
+              ).getTime();
+              // Regra oficial Clinicorp: Antecedência mínima de 3 horas
+              const minNotice = now.getTime() + 3 * 60 * 60 * 1000;
+              if (slotTime < minNotice) return false;
             }
             return true;
           });
@@ -385,18 +392,20 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       // Notificação imediata: abre WhatsApp da Dra. Michelle com os dados do agendamento
       const dentistMsg = encodeURIComponent(
         `🦷 *NOVO AGENDAMENTO RECEBIDO*\n\n` +
-        `📌 Protocolo: ${protocol}\n` +
-        `👤 Paciente: ${patientName.trim()}\n` +
-        `📞 Telefone: ${patientPhone.trim()}\n` +
-        `📅 Data: ${selectedDay.fullFormatted} às ${selectedSlot}\n` +
-        `💼 Serviço: ${serviceName}\n` +
-        `📝 Obs: ${notes.trim() || "Nenhuma"}`
+          `📌 Protocolo: ${protocol}\n` +
+          `👤 Paciente: ${patientName.trim()}\n` +
+          `📞 Telefone: ${patientPhone.trim()}\n` +
+          `📅 Data: ${selectedDay.fullFormatted} às ${selectedSlot}\n` +
+          `💼 Serviço: ${serviceName}\n` +
+          `📝 Obs: ${notes.trim() || "Nenhuma"}`,
       );
       window.open(`https://wa.me/${CLINIC.whatsapp}?text=${dentistMsg}`, "_blank");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro desconhecido";
       console.error("Booking error:", msg);
-      toast.error(msg.includes("horário") ? msg : "Erro ao agendar. Tente novamente ou use o WhatsApp.");
+      toast.error(
+        msg.includes("horário") ? msg : "Erro ao agendar. Tente novamente ou use o WhatsApp.",
+      );
       setIsSubmitting(false);
     }
   }
@@ -409,7 +418,7 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
     setPatientEmail("");
     setNotes("");
     setLgpdConsent(false);
-    onOpenChange(false);
+    if (onOpenChange) onOpenChange(false);
   }
 
   const waMessage = confirmedBooking
@@ -423,396 +432,419 @@ export function BookingModal({ open, onOpenChange, defaultService }: BookingModa
       )
     : "";
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-background border border-[#90464f]/20 shadow-2xl">
-        {/* Exact Header Banner with Official Burgundy Background */}
-        <div className="bg-[#90464f] py-6 px-6 text-center border-b border-white/10 flex flex-col items-center justify-center">
-          <Logo onWine className="h-11 w-auto max-w-[320px]" />
-          <DialogTitle className="sr-only">Agendamento Dra Michelle Barbosa Tiago</DialogTitle>
-          <DialogDescription className="text-white/80 text-xs mt-2 font-medium tracking-wide">
-            Consultório Odontológico · CRO-AP 596 · Macapá
-          </DialogDescription>
-        </div>
+  const cardContent = (
+    <>
+      {/* Exact Header Banner with Official Burgundy Background */}
+      <div className="bg-[#90464f] py-6 px-6 text-center border-b border-white/10 flex flex-col items-center justify-center">
+        <Logo onWine className="h-11 w-auto max-w-[320px]" />
+        <h2 className="sr-only">Agendamento Dra Michelle Barbosa Tiago</h2>
+        <p className="text-white/80 text-xs mt-2 font-medium tracking-wide">
+          Consultório Odontológico · CRO-AP 596 · Macapá
+        </p>
+      </div>
 
-        {/* Info Strip */}
-        <div className="bg-[#FAF5F5] px-6 py-3 border-b border-[#90464f]/10 grid grid-cols-3 gap-2 text-center text-xs">
-          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
-            <CalendarCheck className="w-3.5 h-3.5 text-[#90464f]" /> Hora Marcada
-          </div>
-          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium border-x border-[#90464f]/10">
-            <Clock className="w-3.5 h-3.5 text-[#90464f]" /> Seg a Sex
-          </div>
-          <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#90464f]" /> Confirmado
-          </div>
+      {/* Info Strip */}
+      <div className="bg-[#FAF5F5] px-6 py-3 border-b border-[#90464f]/10 grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
+          <CalendarCheck className="w-3.5 h-3.5 text-[#90464f]" /> Hora Marcada
         </div>
+        <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium border-x border-[#90464f]/10">
+          <Clock className="w-3.5 h-3.5 text-[#90464f]" /> Seg a Sex
+        </div>
+        <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#90464f]" /> Confirmado
+        </div>
+      </div>
 
-        {/* Confirmation Screen */}
-        {confirmedBooking ? (
-          <div className="p-8 text-center space-y-6">
-            <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+      {/* Confirmation Screen */}
+      {confirmedBooking ? (
+        <div className="p-8 text-center space-y-6">
+          <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl">
+            <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+          </div>
+
+          <div>
+            <h3 className="font-display text-2xl text-foreground font-medium">
+              Sua solicitação foi registrada
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">Guarde o seu código de protocolo:</p>
+            <div className="inline-block bg-muted text-foreground font-mono font-bold text-lg px-4 py-2 rounded-xl mt-3 border border-border">
+              {confirmedBooking.protocol}
             </div>
+          </div>
 
-            <div>
-              <h3 className="font-display text-2xl text-foreground font-medium">
-                Sua solicitação foi registrada
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Guarde o seu código de protocolo:
-              </p>
-              <div className="inline-block bg-muted text-foreground font-mono font-bold text-lg px-4 py-2 rounded-xl mt-3 border border-border">
-                {confirmedBooking.protocol}
+          <div className="bg-accent/40 p-4 rounded-2xl border border-border text-sm text-foreground space-y-1">
+            <p className="font-semibold text-[#90464f]">Consulta marcada para:</p>
+            <p className="text-base font-medium">
+              {confirmedBooking.dateFormatted} às {confirmedBooking.time}
+            </p>
+          </div>
+
+          <Button
+            onClick={() =>
+              window.open(`https://wa.me/${CLINIC.whatsapp}?text=${waMessage}`, "_blank")
+            }
+            className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-full py-6 text-base font-bold shadow-md transition-silk gap-2"
+          >
+            <Send className="w-5 h-5" /> Enviar Confirmação pelo WhatsApp
+          </Button>
+
+          {selectedDay && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                const gUrl = buildGoogleCalendarUrl(
+                  `Consulta Odontológica - Dra. Michelle Tiago (${confirmedBooking.name})`,
+                  selectedDay.dateString,
+                  confirmedBooking.time,
+                  `Agendamento para ${confirmedBooking.name} (${confirmedBooking.phone}). Protocolo: ${confirmedBooking.protocol}`,
+                );
+                window.open(gUrl, "_blank");
+              }}
+              className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
+            >
+              <CalendarIcon className="w-4 h-4 text-[#90464f]" /> Adicionar à minha Google Agenda
+            </Button>
+          )}
+
+          <Button variant="outline" onClick={handleReset} className="rounded-full w-full">
+            Concluir
+          </Button>
+        </div>
+      ) : (
+        /* Main Step: Interactive Calendar */
+        <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Month Tabs & Day Carousel */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                  <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
+                </Label>
+                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                  {availableMonths.map((month) => {
+                    const isSelected = selectedMonth === month;
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth(month);
+                          const firstDayOfMonth = days.find((d) => d.monthYear === month);
+                          if (firstDayOfMonth) {
+                            setSelectedDay(firstDayOfMonth);
+                          }
+                        }}
+                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                          isSelected
+                            ? "bg-[#90464f] text-white shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {month}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel("left")}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  aria-label="Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div
+                  ref={carouselRef}
+                  className="flex gap-2.5 overflow-x-auto px-6 py-1 scrollbar-none scroll-smooth"
+                >
+                  {filteredDays.map((day) => {
+                    const isActive = selectedDay?.dateString === day.dateString;
+                    return (
+                      <button
+                        key={day.dateString}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDay(day);
+                          setSelectedSlot(null);
+                        }}
+                        className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
+                          isActive
+                            ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
+                            : "bg-card hover:bg-accent border-border text-foreground"
+                        }`}
+                      >
+                        <div className="text-[11px] font-bold uppercase opacity-80">
+                          {day.dayName}
+                        </div>
+                        <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
+                        <div className="text-[11px] opacity-80">{day.monthName}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => scrollCarousel("right")}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  aria-label="Próximo"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
 
-            <div className="bg-accent/40 p-4 rounded-2xl border border-border text-sm text-foreground space-y-1">
-              <p className="font-semibold text-[#90464f]">Consulta marcada para:</p>
-              <p className="text-base font-medium">
-                {confirmedBooking.dateFormatted} às {confirmedBooking.time}
-              </p>
+            {/* Time Slots */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                  <Clock className="w-4 h-4" /> 2. Próximo horário disponível para atendimento (
+                  {selectedDay?.fullFormatted})
+                </Label>
+                {selectedSlot && (
+                  <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
+                    <Sparkles className="w-3 h-3" /> Selecionado automaticamente
+                  </span>
+                )}
+              </div>
+
+              {isLoadingSlots ? (
+                <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
+                  Verificando disponibilidade de horários...
+                </div>
+              ) : availableTimeSlots.length === 0 ? (
+                <div className="py-4 text-center text-xs text-muted-foreground">
+                  Nenhum horário disponível para este dia.
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-2.5">
+                  {availableTimeSlots.map((time) => {
+                    const isBooked = bookedSlots.includes(time);
+                    const isSelected = selectedSlot === time;
+                    return (
+                      <button
+                        key={time}
+                        type="button"
+                        disabled={isBooked}
+                        onClick={() => setSelectedSlot(time)}
+                        className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
+                          isBooked
+                            ? "bg-muted text-muted-foreground border-border line-through opacity-40 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-[#90464f] text-white border-[#90464f] shadow-md ring-2 ring-[#90464f]/30 scale-[1.02]"
+                              : "bg-card hover:bg-accent border-[#90464f]/40 text-[#90464f]"
+                        }`}
+                      >
+                        {time}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            <Button
-              onClick={() =>
-                window.open(`https://wa.me/${CLINIC.whatsapp}?text=${waMessage}`, "_blank")
-              }
-              className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-full py-6 text-base font-bold shadow-md transition-silk gap-2"
-            >
-              <Send className="w-5 h-5" /> Enviar Confirmação pelo WhatsApp
-            </Button>
+            {/* Patient Form Fields */}
+            <div className="space-y-4 pt-2 border-t border-border">
+              <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
+                <User className="w-4 h-4" /> 3. Dados do Paciente
+              </Label>
 
-            {selectedDay && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const gUrl = buildGoogleCalendarUrl(
-                    `Consulta Odontológica - Dra. Michelle Tiago (${confirmedBooking.name})`,
-                    selectedDay.dateString,
-                    confirmedBooking.time,
-                    `Agendamento para ${confirmedBooking.name} (${confirmedBooking.phone}). Protocolo: ${confirmedBooking.protocol}`,
-                  );
-                  window.open(gUrl, "_blank");
-                }}
-                className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
-              >
-                <CalendarIcon className="w-4 h-4 text-[#90464f]" /> Adicionar à minha Google Agenda
-              </Button>
-            )}
-
-            <Button variant="outline" onClick={handleReset} className="rounded-full w-full">
-              Concluir
-            </Button>
-          </div>
-        ) : (
-          /* Main Step: Interactive Calendar */
-          <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
-            <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Month Tabs & Day Carousel */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                      <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
-                    </Label>
-                    <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
-                      {availableMonths.map((month) => {
-                        const isSelected = selectedMonth === month;
-                        return (
-                          <button
-                            key={month}
-                            type="button"
-                            onClick={() => {
-                              setSelectedMonth(month);
-                              const firstDayOfMonth = days.find((d) => d.monthYear === month);
-                              if (firstDayOfMonth) {
-                                setSelectedDay(firstDayOfMonth);
-                              }
-                            }}
-                            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
-                              isSelected
-                                ? "bg-[#90464f] text-white shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
-                          >
-                            {month}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="relative group">
-                    <button
-                      type="button"
-                      onClick={() => scrollCarousel("left")}
-                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
-                      aria-label="Anterior"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-
-                    <div
-                      ref={carouselRef}
-                      className="flex gap-2.5 overflow-x-auto px-6 py-1 scrollbar-none scroll-smooth"
-                    >
-                      {filteredDays.map((day) => {
-                        const isActive = selectedDay?.dateString === day.dateString;
-                        return (
-                          <button
-                            key={day.dateString}
-                            type="button"
-                            onClick={() => {
-                              setSelectedDay(day);
-                              setSelectedSlot(null);
-                            }}
-                            className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
-                              isActive
-                                ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
-                                : "bg-card hover:bg-accent border-border text-foreground"
-                            }`}
-                          >
-                            <div className="text-[11px] font-bold uppercase opacity-80">
-                              {day.dayName}
-                            </div>
-                            <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
-                            <div className="text-[11px] opacity-80">{day.monthName}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => scrollCarousel("right")}
-                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
-                      aria-label="Próximo"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Time Slots */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                      <Clock className="w-4 h-4" /> 2. Próximo horário disponível para atendimento ({selectedDay?.fullFormatted})
-                    </Label>
-                    {selectedSlot && (
-                      <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                        <Sparkles className="w-3 h-3" /> Selecionado automaticamente
-                      </span>
-                    )}
-                  </div>
-
-                  {isLoadingSlots ? (
-                    <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
-                      Verificando disponibilidade de horários...
-                    </div>
-                  ) : availableTimeSlots.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      Nenhum horário disponível para este dia.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-4 gap-2.5">
-                      {availableTimeSlots.map((time) => {
-                        const isBooked = bookedSlots.includes(time);
-                        const isSelected = selectedSlot === time;
-                        return (
-                          <button
-                            key={time}
-                            type="button"
-                            disabled={isBooked}
-                            onClick={() => setSelectedSlot(time)}
-                            className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
-                              isBooked
-                                ? "bg-muted text-muted-foreground border-border line-through opacity-40 cursor-not-allowed"
-                                : isSelected
-                                  ? "bg-[#90464f] text-white border-[#90464f] shadow-md ring-2 ring-[#90464f]/30 scale-[1.02]"
-                                  : "bg-card hover:bg-accent border-[#90464f]/40 text-[#90464f]"
-                            }`}
-                          >
-                            {time}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Patient Form Fields */}
-                <div className="space-y-4 pt-2 border-t border-border">
-                  <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                    <User className="w-4 h-4" /> 3. Dados do Paciente
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="type" className="text-xs font-semibold">
+                    Tipo de Atendimento
                   </Label>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="type" className="text-xs font-semibold">
-                        Tipo de Atendimento
-                      </Label>
-                      <Select
-                        value={attendanceType}
-                        onValueChange={(v: "particular" | "convenio") => setAttendanceType(v)}
-                      >
-                        <SelectTrigger id="type" className="rounded-xl">
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="particular">Particular</SelectItem>
-                          <SelectItem value="convenio">Plano de Saúde (Convênio)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {attendanceType === "convenio" && (
-                      <div className="space-y-1.5">
-                        <Label htmlFor="plan" className="text-xs font-semibold">
-                          Convênio
-                        </Label>
-                        <Select value={healthPlan} onValueChange={setHealthPlan}>
-                          <SelectTrigger id="plan" className="rounded-xl">
-                            <SelectValue placeholder="Selecione o plano" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {INSURANCE_PLANS.map((p) => (
-                              <SelectItem key={p} value={p}>
-                                {p}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name" className="text-xs font-semibold">
-                      Nome Completo *
-                    </Label>
-                    <Input
-                      id="name"
-                      value={patientName}
-                      onChange={(e) => setPatientName(e.target.value)}
-                      placeholder="Seu nome completo"
-                      className="rounded-xl"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="phone" className="text-xs font-semibold">
-                        Celular / WhatsApp *
-                      </Label>
-                      <Input
-                        id="phone"
-                        value={patientPhone}
-                        onChange={handlePhoneChange}
-                        placeholder="(00) 00000-0000"
-                        className="rounded-xl"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <Label htmlFor="email" className="text-xs font-semibold">
-                        E-mail (opcional)
-                      </Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={patientEmail}
-                        onChange={(e) => setPatientEmail(e.target.value)}
-                        placeholder="seu@email.com"
-                        className="rounded-xl"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="notes" className="text-xs font-semibold">
-                      Observações / Motivo da Consulta
-                    </Label>
-                    <Textarea
-                      id="notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Ex: Avaliação inicial, Clareamento, Alinhadores estéticos..."
-                      className="rounded-xl resize-none"
-                      rows={2}
-                    />
-                  </div>
-
-                  {/* LGPD Consent */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-start gap-2.5">
-                      <input
-                        type="checkbox"
-                        id="lgpdConsent"
-                        checked={lgpdConsent}
-                        onChange={(e) => setLgpdConsent(e.target.checked)}
-                        required
-                        className="mt-1 h-4 w-4 rounded border-[#90464f] text-[#90464f] focus:ring-[#90464f] focus:ring-2"
-                      />
-                      <Label htmlFor="lgpdConsent" className="text-xs text-foreground/80 leading-relaxed cursor-pointer">
-                        Concordo com o tratamento dos meus dados pessoais (nome, telefone, e-mail) para fins de agendamento,
-                        envio de lembretes e comunicação via WhatsApp/e-mail, conforme a
-                        <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="underline hover:text-[#90464f]">
-                          Política de Privacidade
-                        </a>
-                        .*
-                      </Label>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground/60">
-                      * Obrigatório. Seus dados não serão compartilhados com terceiros além dos necessários para o agendamento.
-                    </p>
-                  </div>
+                  <Select
+                    value={attendanceType}
+                    onValueChange={(v: "particular" | "convenio") => setAttendanceType(v)}
+                  >
+                    <SelectTrigger id="type" className="rounded-xl">
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="particular">Particular</SelectItem>
+                      <SelectItem value="convenio">Plano de Saúde (Convênio)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
-                <div className="pt-3 border-t border-border flex justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => onOpenChange(false)}
-                    className="rounded-full"
-                  >
-                    Cancelar
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting || !selectedSlot}
-                    className="bg-[#90464f] hover:bg-[#77373f] text-white rounded-full px-6 shadow-md transition-silk gap-2"
-                  >
-                    {isSubmitting ? "Enviando..." : "Solicitar Agendamento"}
-                  </Button>
-                </div>
-              </form>
-          </div>
-        )}
+                {attendanceType === "convenio" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="plan" className="text-xs font-semibold">
+                      Convênio
+                    </Label>
+                    <Select value={healthPlan} onValueChange={setHealthPlan}>
+                      <SelectTrigger id="plan" className="rounded-xl">
+                        <SelectValue placeholder="Selecione o plano" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INSURANCE_PLANS.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {p}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
 
-        {/* WhatsApp Assistance Bar */}
-        <div className="bg-gradient-to-r from-background to-[#FAF5F5] px-6 py-4 border-t border-[#90464f]/10 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-left">
-            <p className="font-semibold text-foreground text-xs">
-              Dúvidas ou prefere agendar por mensagem?
-            </p>
-            <span className="text-[11px] text-muted-foreground">
-              Fale diretamente com nossa equipe no WhatsApp
-            </span>
-          </div>
-          <a
-            href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent(
-              "Olá, gostaria de agendar uma consulta com a Dra Michelle",
-            )}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all"
-          >
-            <Send className="w-3.5 h-3.5" /> Agendar via WhatsApp
-          </a>
+              <div className="space-y-1.5">
+                <Label htmlFor="name" className="text-xs font-semibold">
+                  Nome Completo *
+                </Label>
+                <Input
+                  id="name"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  placeholder="Seu nome completo"
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className="text-xs font-semibold">
+                    Celular / WhatsApp *
+                  </Label>
+                  <Input
+                    id="phone"
+                    value={patientPhone}
+                    onChange={handlePhoneChange}
+                    placeholder="(00) 00000-0000"
+                    className="rounded-xl"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-xs font-semibold">
+                    E-mail (opcional)
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={patientEmail}
+                    onChange={(e) => setPatientEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="notes" className="text-xs font-semibold">
+                  Observações / Motivo da Consulta
+                </Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Ex: Avaliação inicial, Clareamento, Alinhadores estéticos..."
+                  className="rounded-xl resize-none"
+                  rows={2}
+                />
+              </div>
+
+              {/* LGPD Consent */}
+              <div className="space-y-1.5">
+                <div className="flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="lgpdConsent"
+                    checked={lgpdConsent}
+                    onChange={(e) => setLgpdConsent(e.target.checked)}
+                    required
+                    className="mt-1 h-4 w-4 rounded border-[#90464f] text-[#90464f] focus:ring-[#90464f] focus:ring-2"
+                  />
+                  <Label
+                    htmlFor="lgpdConsent"
+                    className="text-xs text-foreground/80 leading-relaxed cursor-pointer"
+                  >
+                    Concordo com o tratamento dos meus dados pessoais (nome, telefone, e-mail) para
+                    fins de agendamento, envio de lembretes e comunicação via WhatsApp/e-mail,
+                    conforme a
+                    <a
+                      href="/privacidade"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-[#90464f]"
+                    >
+                      Política de Privacidade
+                    </a>
+                    .*
+                  </Label>
+                </div>
+                <p className="text-[10px] text-muted-foreground/60">
+                  * Obrigatório. Seus dados não serão compartilhados com terceiros além dos
+                  necessários para o agendamento.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-border flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="rounded-full"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting || !selectedSlot}
+                className="bg-[#90464f] hover:bg-[#77373f] text-white rounded-full px-6 shadow-md transition-silk gap-2"
+              >
+                {isSubmitting ? "Enviando..." : "Solicitar Agendamento"}
+              </Button>
+            </div>
+          </form>
         </div>
+      )}
+
+      {/* WhatsApp Assistance Bar */}
+      <div className="bg-gradient-to-r from-background to-[#FAF5F5] px-6 py-4 border-t border-[#90464f]/10 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-left">
+          <p className="font-semibold text-foreground text-xs">
+            Dúvidas ou prefere agendar por mensagem?
+          </p>
+          <span className="text-[11px] text-muted-foreground">
+            Fale diretamente com nossa equipe no WhatsApp
+          </span>
+        </div>
+        <a
+          href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent(
+            "Olá, gostaria de agendar uma consulta com a Dra Michelle",
+          )}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all"
+        >
+          <Send className="w-3.5 h-3.5" /> Agendar via WhatsApp
+        </a>
+      </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="w-full max-w-2xl mx-auto rounded-3xl p-0 overflow-hidden bg-background border border-[#90464f]/20 shadow-xl">
+        {cardContent}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-background border border-[#90464f]/20 shadow-2xl">
+        {cardContent}
       </DialogContent>
     </Dialog>
   );

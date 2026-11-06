@@ -6,15 +6,7 @@ import { formatLongDate } from "@/lib/clinic";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Calendar,
-  Clock,
-  User,
-  XCircle,
-  MapPin,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Calendar, Clock, User, XCircle, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/confirmar/$token")({
@@ -41,7 +33,11 @@ function ConfirmAppointment() {
   const navigate = useNavigate();
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const { data: appointment, isLoading, error } = useQuery({
+  const {
+    data: appointment,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["appointment", token],
     queryFn: () => getAppointmentByToken({ data: token }),
   });
@@ -87,8 +83,7 @@ function ConfirmAppointment() {
               Agendamento não encontrado
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              O link de confirmação pode estar inválido, expirado ou o agendamento já foi
-              cancelado.
+              O link de confirmação pode estar inválido, expirado ou o agendamento já foi cancelado.
             </p>
             <Button
               onClick={() => navigate({ to: "/" })}
@@ -110,9 +105,7 @@ function ConfirmAppointment() {
         <div className="container mx-auto max-w-2xl px-6 py-20">
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
             <AlertCircle className="mx-auto h-16 w-16 text-amber-600" />
-            <h1 className="mt-6 font-display text-2xl text-foreground">
-              Agendamento cancelado
-            </h1>
+            <h1 className="mt-6 font-display text-2xl text-foreground">Agendamento cancelado</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Este agendamento foi cancelado e não pode ser confirmado.
             </p>
@@ -184,9 +177,7 @@ function ConfirmAppointment() {
         <div className="container mx-auto max-w-2xl px-6 py-20">
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" />
-            <h1 className="mt-6 font-display text-2xl text-foreground">
-              Consulta confirmada!
-            </h1>
+            <h1 className="mt-6 font-display text-2xl text-foreground">Consulta confirmada!</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Seu agendamento foi confirmado com sucesso. A Dra. Michelle foi notificada.
             </p>
@@ -244,12 +235,8 @@ function ConfirmAppointment() {
         <div className="rounded-3xl border border-border bg-card p-8">
           <div className="text-center">
             <CheckCircle2 className="mx-auto h-12 w-12 text-primary" />
-            <h1 className="mt-6 font-display text-3xl text-foreground">
-              Confirmar agendamento
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Confirme sua presença na consulta
-            </p>
+            <h1 className="mt-6 font-display text-3xl text-foreground">Confirmar agendamento</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Confirme sua presença na consulta</p>
           </div>
 
           <div className="mt-8 space-y-4 rounded-2xl bg-muted/50 p-6">

@@ -36,13 +36,7 @@ describe("Appointment Token System", () => {
   });
 
   it("should return null for invalid token format", () => {
-    const invalidTokens = [
-      "",
-      "invalid",
-      "not-base64",
-      "123",
-      "äöü",
-    ];
+    const invalidTokens = ["", "invalid", "not-base64", "123", "äöü"];
 
     invalidTokens.forEach((token) => {
       const result = validateAppointmentToken(token);
@@ -130,11 +124,7 @@ describe("Cancellation Business Logic", () => {
   });
 
   it("should format cancellation reason correctly", () => {
-    const reasons = [
-      "Imprevisto pessoal",
-      "Viagem de última hora",
-      "",
-    ];
+    const reasons = ["Imprevisto pessoal", "Viagem de última hora", ""];
 
     reasons.forEach((reason) => {
       const formatted = reason

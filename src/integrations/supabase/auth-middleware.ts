@@ -107,23 +107,43 @@ export const requireSupabaseAuth = createMiddleware({ type: "function" }).server
 export const requireAdmin = createMiddleware({ type: "function" })
   .middleware([requireSupabaseAuth])
   .server(async ({ context, next }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
+    // 1. Try authenticated client first
+    const { data: userRole } = await context.supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", context.userId)
       .eq("role", "admin")
       .maybeSingle();
 
-    if (error || !data) {
-      throw new Error("Forbidden: Admin access required");
+    if (userRole) {
+      return next({
+        context: {
+          ...context,
+          isAdmin: true,
+        },
+      });
     }
 
-    return next({
-      context: {
-        ...context,
-        isAdmin: true,
-      },
-    });
-  });
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data, error } = await supabaseAdmin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", context.userId)
+        .eq("role", "admin")
+        .maybeSingle();
 
+      if (!error && data) {
+        return next({
+          context: {
+            ...context,
+            isAdmin: true,
+          },
+        });
+      }
+    } catch {
+      // Fall through to error
+    }
+
+    throw new Error("Forbidden: Admin access required");
+  });

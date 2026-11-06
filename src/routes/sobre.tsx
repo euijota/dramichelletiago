@@ -24,9 +24,7 @@ export const Route = createFileRoute("/sobre")({
         content: "https://dramichelletiago.com.br/assets/hero-clinica.jpg",
       },
     ],
-    links: [
-      { rel: "canonical", href: "https://dramichelletiago.com.br/sobre" },
-    ],
+    links: [{ rel: "canonical", href: "https://dramichelletiago.com.br/sobre" }],
   }),
   component: Sobre,
 });
@@ -84,14 +82,12 @@ function Sobre() {
             </div>
           </dl>
 
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/agendar"
             className="mt-12 inline-flex rounded-full bg-primary px-9 py-4 text-kicker text-primary-foreground shadow-petal transition-silk hover:bg-primary-deep"
           >
             Agendar consulta
-          </a>
+          </Link>
         </div>
       </section>
 

@@ -35,9 +35,9 @@ function Privacidade() {
           <section className="mb-8">
             <h2 className="font-display text-2xl text-foreground mb-4">1. Controladora</h2>
             <p>
-              <strong>Dra. Michelle Barbosa Tiago</strong>, Cirurgiã-Dentista inscrita sob o registro
-              profissional <strong>CRO-AP 596</strong>, com consultório na Travessa Joaquim Pinheiro Borges, 964 — Alvorada,
-              Macapá/AP, e-mail:{" "}
+              <strong>Dra. Michelle Barbosa Tiago</strong>, Cirurgiã-Dentista inscrita sob o
+              registro profissional <strong>CRO-AP 596</strong>, com consultório na Travessa Joaquim
+              Pinheiro Borges, 964 — Alvorada, Macapá/AP, e-mail:{" "}
               <a href="mailto:dramichellebarbosatiago@gmail.com" className="underline">
                 dramichellebarbosatiago@gmail.com
               </a>

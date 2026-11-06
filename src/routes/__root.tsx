@@ -1,21 +1,5 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as Sentry from "@sentry/react";
-
-if (typeof window !== "undefined") {
-  Sentry.init({
-    dsn: import.meta.env.VITE_SENTRY_DSN,
-    integrations: [
-      Sentry.browserTracingIntegration(),
-      Sentry.replayIntegration({
-        maskAllText: true,
-        blockAllMedia: true,
-      }),
-    ],
-    tracesSampleRate: 1.0,
-    replaysSessionSampleRate: 0.1,
-    replaysOnErrorSampleRate: 1.0,
-  });
-}
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
   Link,
@@ -24,8 +8,9 @@ import {
   HeadContent,
   Scripts,
   useLocation,
+  type ReactNode,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -38,8 +23,8 @@ function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <p className="text-kicker text-primary-soft">Erro 404</p>
-        <h1 className="mt-5 font-display text-4xl text-foreground">Página não encontrada</h1>
+        <p className="text-kicker text-primary-soft">Página não encontrada</p>
+        <h1 className="mt-5 font-display text-3xl text-foreground">Ops!</h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           O endereço que você procura não existe ou foi movido.
         </p>
@@ -188,6 +173,26 @@ function RootComponent() {
     location.pathname.startsWith("/auth") || location.pathname.startsWith("/painel");
 
   useEffect(() => {
+    if (typeof window !== "undefined" && import.meta.env.VITE_SENTRY_DSN) {
+      try {
+        Sentry.init({
+          dsn: import.meta.env.VITE_SENTRY_DSN,
+          integrations: [
+            Sentry.browserTracingIntegration(),
+            Sentry.replayIntegration({
+              maskAllText: true,
+              blockAllMedia: true,
+            }),
+          ],
+          tracesSampleRate: 1.0,
+          replaysSessionSampleRate: 0.1,
+          replaysOnErrorSampleRate: 1.0,
+        });
+      } catch (e) {
+        console.error("Erro ao iniciar Sentry:", e);
+      }
+    }
+
     const { data } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") {
         return;
@@ -200,20 +205,17 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster position="top-center" />
-      {!isAdminRoute && (
+      {!isAdminRoute && !location.pathname.startsWith("/agendar") && (
         <>
           <WhatsAppFloat />
-          <a
-            href="https://consultorio.me/pro/dramichellebarbosatiago"
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to="/agendar"
             className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 inline-flex items-center justify-center rounded-full bg-primary px-6 py-4 text-kicker text-primary-foreground shadow-bloom transition-silk hover:bg-primary-deep md:hidden"
           >
             Agendar consulta
-          </a>
+          </Link>
         </>
       )}
     </QueryClientProvider>

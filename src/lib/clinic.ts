@@ -1,6 +1,6 @@
 /** Shared, serialisable clinic constants used by both public and admin views. */
 
-export const BOOKING_URL = "https://consultorio.me/pro/dramichellebarbosatiago";
+export const BOOKING_URL = "/agendar";
 
 export const CLINIC = {
   name: "Dra. Michelle Barbosa Tiago",
@@ -76,37 +76,43 @@ export const DEFAULT_SERVICES: ClinicService[] = [
   {
     id: "1",
     name: "Esthetic Aligner (Alinhadores Invisíveis)",
-    description: "Ortodontia estética com alinhadores transparentes sob medida para alinhar os dentes com discrição.",
+    description:
+      "Ortodontia estética com alinhadores transparentes sob medida para alinhar os dentes com discrição.",
     duration_minutes: 60,
   },
   {
     id: "2",
     name: "Clareamento Dental",
-    description: "Técnica combinada (consultório + caseiro) para dentes iluminados de forma segura e duradoura.",
+    description:
+      "Técnica combinada (consultório + caseiro) para dentes iluminados de forma segura e duradoura.",
     duration_minutes: 60,
   },
   {
     id: "3",
     name: "Facetas em Resina / Restauração Estética",
-    description: "Esculpidas manualmente para harmonizar a forma, a cor e a textura dos dentes com naturalidade.",
+    description:
+      "Esculpidas manualmente para harmonizar a forma, a cor e a textura dos dentes com naturalidade.",
     duration_minutes: 90,
   },
   {
     id: "4",
     name: "Harmonização Orofacial (HOF / Fios PDO)",
-    description: "Procedimentos estéticos faciais e fios de sustentação PDO para rejuvenescimento e equilíbrio dos traços.",
+    description:
+      "Procedimentos estéticos faciais e fios de sustentação PDO para rejuvenescimento e equilíbrio dos traços.",
     duration_minutes: 60,
   },
   {
     id: "5",
     name: "Laserterapia",
-    description: "Aplicação de laser terapêutico para alívio de dor, cicatrização acelerada e bioestimulação tecidual.",
+    description:
+      "Aplicação de laser terapêutico para alívio de dor, cicatrização acelerada e bioestimulação tecidual.",
     duration_minutes: 45,
   },
   {
     id: "6",
     name: "Avaliação Odontológica (Adultos e Crianças)",
-    description: "Consulta inicial completa com exame clínico minucioso e plano de tratamento personalizado.",
+    description:
+      "Consulta inicial completa com exame clínico minucioso e plano de tratamento personalizado.",
     duration_minutes: 60,
   },
 ];
@@ -237,9 +243,13 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
       const rawDate = dtstartMatch[1]; // ex: "20260804"
       const rawH = dtstartMatch[2]; // ex: "18"
       const rawM = dtstartMatch[3]; // ex: "00"
-      const isUTC = dtstartMatch[5] === "Z" || block.includes("TZID=UTC") || block.includes("Z\n") || block.includes("Z\r");
+      const isUTC =
+        dtstartMatch[5] === "Z" ||
+        block.includes("TZID=UTC") ||
+        block.includes("Z\n") ||
+        block.includes("Z\r");
 
-      let date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
+      const date = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
       let time = "09:00";
 
       if (rawH !== undefined && rawM !== undefined) {
@@ -252,7 +262,9 @@ export function parseICSFeed(icsData: string): ICSEvent[] {
       }
 
       const summary = summaryMatch ? summaryMatch[1].trim() : "Compromisso Google Agenda";
-      const description = descMatch ? descMatch[1].replace(/\\n/g, "\n").replace(/\\,/g, ",").trim() : "";
+      const description = descMatch
+        ? descMatch[1].replace(/\\n/g, "\n").replace(/\\,/g, ",").trim()
+        : "";
       const key = `${date}|${time}|${summary}`;
 
       if (!seen.has(key)) {

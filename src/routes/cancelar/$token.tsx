@@ -8,14 +8,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Calendar,
-  Clock,
-  User,
-  XCircle,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, Calendar, Clock, User, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/cancelar/$token")({
@@ -43,14 +36,17 @@ function CancelAppointment() {
   const [reason, setReason] = useState("");
   const [showConfirmation, setShowConfirmation] = useState(false);
 
-  const { data: appointment, isLoading, error } = useQuery({
+  const {
+    data: appointment,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ["appointment", token],
     queryFn: () => getAppointmentByToken({ data: token }),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (reason: string) =>
-      cancelAppointmentByToken({ data: { token, reason } }),
+    mutationFn: (reason: string) => cancelAppointmentByToken({ data: { token, reason } }),
     onSuccess: () => {
       toast.success("Agendamento cancelado com sucesso!");
       setShowConfirmation(true);
@@ -94,8 +90,8 @@ function CancelAppointment() {
               Agendamento não encontrado
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              O link de cancelamento pode estar inválido, expirado ou o agendamento já foi
-              cancelado anteriormente.
+              O link de cancelamento pode estar inválido, expirado ou o agendamento já foi cancelado
+              anteriormente.
             </p>
             <Button
               onClick={() => navigate({ to: "/" })}
@@ -117,9 +113,7 @@ function CancelAppointment() {
         <div className="container mx-auto max-w-2xl px-6 py-20">
           <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
             <AlertCircle className="mx-auto h-16 w-16 text-amber-600" />
-            <h1 className="mt-6 font-display text-2xl text-foreground">
-              Agendamento já cancelado
-            </h1>
+            <h1 className="mt-6 font-display text-2xl text-foreground">Agendamento já cancelado</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Este agendamento foi cancelado anteriormente e não pode ser cancelado novamente.
             </p>
@@ -143,9 +137,7 @@ function CancelAppointment() {
         <div className="container mx-auto max-w-2xl px-6 py-20">
           <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center">
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" />
-            <h1 className="mt-6 font-display text-2xl text-foreground">
-              Cancelamento confirmado
-            </h1>
+            <h1 className="mt-6 font-display text-2xl text-foreground">Cancelamento confirmado</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Seu agendamento foi cancelado com sucesso. A Dra. Michelle foi notificada.
             </p>
@@ -191,9 +183,7 @@ function CancelAppointment() {
         <div className="rounded-3xl border border-border bg-card p-8">
           <div className="text-center">
             <AlertCircle className="mx-auto h-12 w-12 text-amber-600" />
-            <h1 className="mt-6 font-display text-3xl text-foreground">
-              Cancelar agendamento
-            </h1>
+            <h1 className="mt-6 font-display text-3xl text-foreground">Cancelar agendamento</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               Confirme os dados e informe o motivo do cancelamento
             </p>
@@ -245,9 +235,7 @@ function CancelAppointment() {
               className="min-h-[100px] rounded-xl"
               maxLength={500}
             />
-            <p className="text-xs text-muted-foreground">
-              {reason.length}/500 caracteres
-            </p>
+            <p className="text-xs text-muted-foreground">{reason.length}/500 caracteres</p>
           </div>
 
           <div className="mt-8 flex gap-3">

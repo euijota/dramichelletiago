@@ -39,14 +39,9 @@ export function SiteFooter() {
               <Link to="/contato" className="transition-silk hover:opacity-70">
                 Contato
               </Link>
-              <a
-                href={BOOKING_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="transition-silk hover:opacity-70"
-              >
+              <Link to="/agendar" className="transition-silk hover:opacity-70">
                 Agendar consulta
-              </a>
+              </Link>
               <Link to="/auth" className="transition-silk hover:opacity-70">
                 Área da Dra.
               </Link>

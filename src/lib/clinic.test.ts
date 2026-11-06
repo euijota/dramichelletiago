@@ -143,14 +143,7 @@ describe("buildTimeSlots", () => {
   it("should handle undefined weekday (return all ranges)", () => {
     const slots = buildTimeSlots(undefined);
 
-    expect(slots).toEqual([
-      "09:00",
-      "10:00",
-      "11:00",
-      "15:00",
-      "16:00",
-      "17:00",
-    ]);
+    expect(slots).toEqual(["09:00", "10:00", "11:00", "15:00", "16:00", "17:00"]);
   });
 });
 
@@ -248,7 +241,7 @@ describe("buildGoogleCalendarUrl", () => {
       "Consulta Odontológica",
       "2026-08-10",
       "15:00",
-      "Consulta com Dra. Michelle"
+      "Consulta com Dra. Michelle",
     );
 
     expect(url).toContain("calendar.google.com/calendar/render");
@@ -261,12 +254,7 @@ describe("buildGoogleCalendarUrl", () => {
   });
 
   it("should handle time at end of day (23:00)", () => {
-    const url = buildGoogleCalendarUrl(
-      "Consulta Emergência",
-      "2026-08-10",
-      "23:00",
-      "Urgência"
-    );
+    const url = buildGoogleCalendarUrl("Consulta Emergência", "2026-08-10", "23:00", "Urgência");
 
     expect(url).toContain("20260810T2300");
     expect(url).toContain("20260810T2400"); // Same day 24:00 (Google Calendar format)

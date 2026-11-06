@@ -2,9 +2,7 @@ import { z } from "zod";
 
 const BOOKING_PROTOCOL_PATTERN = /^AG-[0-9A-Za-z]{6,12}$/;
 
-const bookingProtocolSchema = z
-  .string()
-  .regex(BOOKING_PROTOCOL_PATTERN, "Protocolo inválido");
+const bookingProtocolSchema = z.string().regex(BOOKING_PROTOCOL_PATTERN, "Protocolo inválido");
 
 const patientEmailSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim() || null : value),

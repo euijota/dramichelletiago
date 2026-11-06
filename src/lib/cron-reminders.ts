@@ -142,10 +142,10 @@ export const send24hReminders = createServerFn({ method: "POST" })
 export const send1hReminders = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
-  // Similar logic for 1h before - would need more precise timing
-  // For now, return not implemented
-  return { success: true, sent: 0, message: "1h reminders not yet implemented" };
-});
+    // Similar logic for 1h before - would need more precise timing
+    // For now, return not implemented
+    return { success: true, sent: 0, message: "1h reminders not yet implemented" };
+  });
 
 // Manual trigger for testing
 export const testReminder = createServerFn({ method: "POST" })

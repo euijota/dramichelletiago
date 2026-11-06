@@ -14,6 +14,30 @@ export type SessionState = {
  * `admin` role. Role state comes from the `user_roles` table via server function,
  * never from client storage.
  */
+async function determineAdmin(userId: string): Promise<boolean> {
+  // 1. Direct check via client (fast, validated against PostgreSQL RLS with current JWT)
+  try {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    if (data?.role === "admin") return true;
+  } catch (err) {
+    console.warn("Client admin check error, falling back to server function:", err);
+  }
+
+  // 2. Server function fallback
+  try {
+    const adminData = await checkIsAdmin();
+    return !!adminData?.isAdmin;
+  } catch {
+    return false;
+  }
+}
+
 export function useSession(): SessionState {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -22,41 +46,40 @@ export function useSession(): SessionState {
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
       const sess = data.session;
       setSession(sess);
-      setLoading(false);
 
-      // Check admin role via server function if session exists
       if (sess?.user) {
-        checkIsAdmin()
-          .then((adminData) => {
-            if (active) setIsAdmin(adminData.isAdmin);
-          })
-          .catch(() => {
-            if (active) setIsAdmin(false);
-          });
+        const admin = await determineAdmin(sess.user.id);
+        if (active) {
+          setIsAdmin(admin);
+          setLoading(false);
+        }
       } else {
-        setIsAdmin(false);
+        if (active) {
+          setIsAdmin(false);
+          setLoading(false);
+        }
       }
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, next) => {
       if (!active) return;
       setSession(next);
-      setLoading(false);
 
       if (next?.user) {
-        checkIsAdmin()
-          .then((adminData) => {
-            if (active) setIsAdmin(adminData.isAdmin);
-          })
-          .catch(() => {
-            if (active) setIsAdmin(false);
-          });
+        const admin = await determineAdmin(next.user.id);
+        if (active) {
+          setIsAdmin(admin);
+          setLoading(false);
+        }
       } else {
-        setIsAdmin(false);
+        if (active) {
+          setIsAdmin(false);
+          setLoading(false);
+        }
       }
     });
 
