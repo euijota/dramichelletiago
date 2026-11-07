@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getAppointmentByToken, confirmAppointmentByToken } from "@/lib/cancellation";
+import {
+  getAppointmentByToken,
+  confirmAppointmentByToken,
+  cancelAppointmentByToken,
+} from "@/lib/cancellation";
 import { buildBrowserAppointmentToken } from "@/lib/reminders";
 import { CLINIC, formatLongDate, trimSeconds } from "@/lib/clinic";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -60,6 +64,25 @@ function ConfirmAppointment() {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao confirmar agendamento");
+    },
+  });
+
+  const rescheduleMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      const cancelTok = buildBrowserAppointmentToken(appointmentId, "cancel");
+      return cancelAppointmentByToken({
+        data: {
+          token: cancelTok,
+          reason: "Paciente solicitou reagendamento pelo link de confirmação",
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Horário anterior liberado! Escolha agora sua nova data e horário.");
+      navigate({ to: "/agendar" });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Não foi possível reagendar");
     },
   });
 
@@ -329,14 +352,12 @@ function ConfirmAppointment() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <Button
                 variant="outline"
-                onClick={() => {
-                  const cancelTok = buildBrowserAppointmentToken(appointment.id, "cancel");
-                  navigate({ to: `/cancelar/${cancelTok}` });
-                }}
+                disabled={rescheduleMutation.isPending}
+                onClick={() => rescheduleMutation.mutate(appointment.id)}
                 className="rounded-full py-5 font-semibold border-primary/30 text-primary hover:bg-primary/10 gap-2"
               >
                 <RotateCcw className="h-4 w-4" />
-                Reagendar Outro Horário
+                {rescheduleMutation.isPending ? "Abrindo agenda..." : "Reagendar Outro Horário"}
               </Button>
 
               <Button

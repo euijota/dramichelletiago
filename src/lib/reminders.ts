@@ -44,25 +44,23 @@ export function buildConfirmationLinks(appointmentId?: string) {
 }
 
 /**
- * Builds WhatsApp reminder message (24h before appointment) with Confirm / Cancel / Reschedule links
+ * Builds WhatsApp reminder message (24h before appointment) with a SINGLE confirmation link
  */
 export function buildWhatsAppReminderMessage(data: ReminderData): string {
   const dateFormatted = formatBrazilianDate(data.appointmentDate);
-  const { confirmUrl, cancelUrl, rescheduleUrl } = buildConfirmationLinks(data.appointmentId);
+  const { confirmUrl } = buildConfirmationLinks(data.appointmentId);
 
   return (
     `🦷 *Confirmação de Consulta — Dra. Michelle Barbosa Tiago*\n\n` +
     `Olá, *${data.patientName}*!\n\n` +
-    `Passando para lembrar e confirmar sua consulta agendada:\n\n` +
+    `Passando para lembrar da sua consulta agendada:\n\n` +
     `📅 *Data:* ${dateFormatted}\n` +
     `⏰ *Horário:* ${data.appointmentTime}\n` +
     `🩺 *Atendimento:* ${data.serviceName}\n` +
     `📍 *Local:* Travessa Joaquim Pinheiro Borges, 964 — Alvorada, Macapá/AP\n\n` +
-    `👇 *Escolha uma opção abaixo clicando no link:*\n\n` +
-    `✅ *CONFIRMAR PRESENÇA:*\n${confirmUrl}\n\n` +
-    `🔄 *REAGENDAR (Escolher novo horário):*\n${rescheduleUrl}\n\n` +
-    `❌ *CANCELAR CONSULTA:*\n${cancelUrl}\n\n` +
-    `Agradecemos a confirmação! 😊`
+    `👉 *Toque no link abaixo para Confirmar, Reagendar ou Cancelar:*\n` +
+    `${confirmUrl}\n\n` +
+    `Aguardamos você! 😊`
   );
 }
 
