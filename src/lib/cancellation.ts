@@ -218,7 +218,7 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
 export const getAppointmentByToken = createServerFn({ method: "GET" })
   .validator((token: string) => z.string().min(10).parse(token))
   .handler(async ({ data: token }) => {
-    const appointmentId = validateCancellationToken(token);
+    const appointmentId = validateAppointmentToken(token);
 
     if (!appointmentId) {
       return null;

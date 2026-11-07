@@ -8,25 +8,61 @@ export interface ReminderData {
   appointmentDate: string;
   appointmentTime: string;
   serviceName: string;
+  appointmentId?: string;
 }
 
 /**
- * Builds WhatsApp reminder message (24h before appointment)
+ * Generates deterministic base64url token usable in browser & node for confirm/cancel URLs
+ */
+export function buildBrowserAppointmentToken(
+  appointmentId: string,
+  purpose: "confirm" | "cancel" = "confirm",
+): string {
+  const payload = `${appointmentId}:${purpose}:clinica`;
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(payload, "utf-8").toString("base64url");
+  }
+  return btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+export function buildConfirmationLinks(appointmentId?: string) {
+  const baseUrl = "https://dramichelletiago.com.br";
+  if (!appointmentId) {
+    return {
+      confirmUrl: `${baseUrl}/agendar`,
+      cancelUrl: `${baseUrl}/agendar`,
+      rescheduleUrl: `${baseUrl}/agendar`,
+    };
+  }
+  const confirmToken = buildBrowserAppointmentToken(appointmentId, "confirm");
+  const cancelToken = buildBrowserAppointmentToken(appointmentId, "cancel");
+  return {
+    confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
+    cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
+    rescheduleUrl: `${baseUrl}/agendar`,
+  };
+}
+
+/**
+ * Builds WhatsApp reminder message (24h before appointment) with Confirm / Cancel / Reschedule links
  */
 export function buildWhatsAppReminderMessage(data: ReminderData): string {
   const dateFormatted = formatBrazilianDate(data.appointmentDate);
+  const { confirmUrl, cancelUrl, rescheduleUrl } = buildConfirmationLinks(data.appointmentId);
 
   return (
-    `🦷 *Lembrete de Consulta*\n\n` +
-    `Olá, ${data.patientName}!\n\n` +
-    `Este é um lembrete de que você tem uma consulta agendada:\n\n` +
+    `🦷 *Confirmação de Consulta — Dra. Michelle Barbosa Tiago*\n\n` +
+    `Olá, *${data.patientName}*!\n\n` +
+    `Passando para lembrar e confirmar sua consulta agendada:\n\n` +
     `📅 *Data:* ${dateFormatted}\n` +
     `⏰ *Horário:* ${data.appointmentTime}\n` +
-    `🩺 *Serviço:* ${data.serviceName}\n\n` +
-    `🏥 *Local:* Consultório Dra. Michelle Barbosa Tiago\n` +
-    `📍 Macapá, AP\n\n` +
-    `⚠️ Caso não possa comparecer, por favor nos avise com antecedência.\n\n` +
-    `Nos vemos amanhã! 😊`
+    `🩺 *Atendimento:* ${data.serviceName}\n` +
+    `📍 *Local:* Travessa Joaquim Pinheiro Borges, 964 — Alvorada, Macapá/AP\n\n` +
+    `👇 *Escolha uma opção abaixo clicando no link:*\n\n` +
+    `✅ *CONFIRMAR PRESENÇA:*\n${confirmUrl}\n\n` +
+    `🔄 *REAGENDAR (Escolher novo horário):*\n${rescheduleUrl}\n\n` +
+    `❌ *CANCELAR CONSULTA:*\n${cancelUrl}\n\n` +
+    `Agradecemos a confirmação! 😊`
   );
 }
 

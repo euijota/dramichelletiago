@@ -2,11 +2,21 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getAppointmentByToken, confirmAppointmentByToken } from "@/lib/cancellation";
-import { formatLongDate } from "@/lib/clinic";
+import { buildBrowserAppointmentToken } from "@/lib/reminders";
+import { CLINIC, formatLongDate, trimSeconds } from "@/lib/clinic";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle2, Calendar, Clock, User, XCircle, MapPin } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  Calendar,
+  Clock,
+  User,
+  XCircle,
+  MapPin,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/confirmar/$token")({
@@ -110,10 +120,10 @@ function ConfirmAppointment() {
               Este agendamento foi cancelado e não pode ser confirmado.
             </p>
             <Button
-              onClick={() => navigate({ to: "/" })}
+              onClick={() => navigate({ to: "/agendar" })}
               className="mt-6 rounded-full bg-primary px-8 py-3"
             >
-              Fazer novo agendamento
+              Escolher novo horário na Agenda
             </Button>
           </div>
         </div>
@@ -268,7 +278,7 @@ function ConfirmAppointment() {
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Horário
                 </p>
-                <p className="mt-1 text-foreground">{appointment.appointment_time}</p>
+                <p className="mt-1 text-foreground">{trimSeconds(appointment.appointment_time)}</p>
               </div>
             </div>
 
@@ -279,42 +289,79 @@ function ConfirmAppointment() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Serviço
+                    Atendimento
                   </p>
                   <p className="mt-1 text-foreground">{appointment.service_name}</p>
                 </div>
               </div>
             )}
+
+            <div className="flex items-start gap-3">
+              <MapPin className="mt-0.5 h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Endereço do Consultório
+                </p>
+                <p className="mt-1 text-foreground">{CLINIC.address}</p>
+              </div>
+            </div>
           </div>
 
           <div className="mt-8 rounded-2xl border border-primary/20 bg-primary/5 p-4">
             <p className="text-sm text-muted-foreground">
-              ✓ Ao confirmar, você garante sua presença na consulta e a Dra. Michelle será
-              notificada automaticamente.
+              ✓ Escolha abaixo se deseja <strong>Confirmar sua presença</strong>,{" "}
+              <strong>Reagendar para outra data</strong> ou <strong>Cancelar</strong>:
             </p>
           </div>
 
-          <div className="mt-8 flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => navigate({ to: "/" })}
-              className="flex-1 rounded-full"
-            >
-              Voltar
-            </Button>
+          <div className="mt-6 flex flex-col gap-3">
             <Button
               onClick={handleConfirm}
               disabled={confirmMutation.isPending}
-              className="flex-1 rounded-full bg-primary text-white hover:bg-primary/90"
+              className="w-full rounded-full bg-emerald-600 py-6 text-base font-bold text-white hover:bg-emerald-700 shadow-md gap-2"
             >
-              {confirmMutation.isPending ? "Confirmando..." : "Confirmar Consulta"}
+              <CheckCircle2 className="h-5 w-5" />
+              {confirmMutation.isPending
+                ? "Confirmando presença..."
+                : "Sim, Confirmar Minha Consulta"}
             </Button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const cancelTok = buildBrowserAppointmentToken(appointment.id, "cancel");
+                  navigate({ to: `/cancelar/${cancelTok}` });
+                }}
+                className="rounded-full py-5 font-semibold border-primary/30 text-primary hover:bg-primary/10 gap-2"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Reagendar Outro Horário
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const cancelTok = buildBrowserAppointmentToken(appointment.id, "cancel");
+                  navigate({ to: `/cancelar/${cancelTok}` });
+                }}
+                className="rounded-full py-5 font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 gap-2"
+              >
+                <XCircle className="h-4 w-4" />
+                Cancelar Consulta
+              </Button>
+            </div>
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Precisa remarcar ou cancelar?{" "}
-            <a href="https://wa.me/5596981234567" className="text-primary underline">
-              Entre em contato
+            Dúvidas?{" "}
+            <a
+              href={`https://wa.me/${CLINIC.whatsapp}`}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary underline font-medium"
+            >
+              Falar com o consultório no WhatsApp ({CLINIC.phone})
             </a>
           </p>
         </div>

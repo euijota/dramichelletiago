@@ -97,7 +97,7 @@ export function NewAppointmentModal({
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [service, setService] = useState(COMMON_SERVICES[0]);
   const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<"confirmed" | "pending">("confirmed");
+  const [status, setStatus] = useState<"confirmed" | "pending">("pending");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedData, setConfirmedData] = useState<{
@@ -858,17 +858,6 @@ export function NewAppointmentModal({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setStatus("confirmed")}
-                    className={`px-3 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer ${
-                      status === "confirmed"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "bg-muted text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    Confirmada
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setStatus("pending")}
                     className={`px-3 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer ${
                       status === "pending"
@@ -876,7 +865,18 @@ export function NewAppointmentModal({
                         : "bg-muted text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Pendente
+                    Agendado (Aguardando confirmação)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStatus("confirmed")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                      status === "confirmed"
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Confirmado
                   </button>
                 </div>
               </div>

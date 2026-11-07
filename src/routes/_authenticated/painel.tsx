@@ -891,14 +891,22 @@ function Painel() {
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={buildReminderLink(appointment)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => markReminderSent(appointment)}
+                          className="min-h-10 px-4 py-2 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary-deep cursor-pointer flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                          <span>Enviar Link de Confirmação (1 dia antes)</span>
+                        </a>
                         <button
-                          onClick={() =>
-                            updateAppointment(appointment.id, { status: "confirmed" }, appointment)
-                          }
+                          onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
                           className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span>Confirmar e Avisar no WhatsApp</span>
+                          <span>Marcar Confirmado</span>
                         </button>
                         <a
                           href={buildWhatsAppLink(appointment)}
@@ -1522,15 +1530,19 @@ function Painel() {
             {/* Pending queue */}
 
             <section className="mt-20">
-              <h2 className="font-display text-3xl text-foreground">Aguardando confirmação</h2>
+              <h2 className="font-display text-3xl text-foreground">
+                Consultas Agendadas (Aguardando confirmação 1 dia antes)
+              </h2>
               <p className="mt-3 text-sm text-muted-foreground">
-                Confirme o horário e avise o paciente pelo WhatsApp em um clique.
+                Quando o paciente agenda pelo site, a consulta entra como <strong>Agendado</strong>.
+                Um dia antes, clique em <strong>Enviar Link de Confirmação</strong> para ele
+                escolher entre Confirmar, Reagendar ou Cancelar.
               </p>
 
               <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
                 {pendingCount === 0 && (
                   <p className="p-10 text-center text-sm text-muted-foreground">
-                    Nenhum pedido pendente. Tudo em dia.
+                    Nenhuma consulta aguardando confirmação. Tudo em dia.
                   </p>
                 )}
                 {pending?.map((appointment) => (
@@ -1553,14 +1565,22 @@ function Painel() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <button
-                        onClick={() =>
-                          updateAppointment(appointment.id, { status: "confirmed" }, appointment)
-                        }
+                      <a
+                        href={buildReminderLink(appointment)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => markReminderSent(appointment)}
                         className="group inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
                       >
+                        <Send className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-110" />
+                        <span>Enviar Link de Confirmação</span>
+                      </a>
+                      <button
+                        onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                        className="group inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 active:scale-95"
+                      >
                         <Check className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-125" />
-                        <span>Confirmar e Avisar</span>
+                        <span>Marcar Confirmado</span>
                       </button>
                       <a
                         href={buildWhatsAppLink(appointment)}
@@ -1569,14 +1589,14 @@ function Painel() {
                         className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95"
                       >
                         <MessageCircle className="h-3.5 w-3.5 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
-                        <span>Avisar</span>
+                        <span>WhatsApp</span>
                       </a>
                       <button
                         onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
                         className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-all duration-300 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
                       >
                         <X className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-90" />
-                        <span>Recusar</span>
+                        <span>Cancelar</span>
                       </button>
                     </div>
                   </div>
@@ -1973,11 +1993,12 @@ function buildReminderLink(appointment: Appointment) {
     appointmentDate: appointment.appointment_date,
     appointmentTime: trimSeconds(appointment.appointment_time),
     serviceName: appointment.service_name,
+    appointmentId: appointment.id,
   });
 }
 
 function buildWhatsAppLink(appointment: Appointment) {
-  const message = `Olá, ${appointment.patient_name}! Aqui é do consultório da ${CLINIC.shortName}. Sua consulta de ${appointment.service_name} está confirmada para ${formatLongDate(appointment.appointment_date)} às ${trimSeconds(appointment.appointment_time)}. Até lá!`;
+  const message = `Olá, ${appointment.patient_name}! Aqui é do consultório da ${CLINIC.shortName}. Sua consulta de ${appointment.service_name} está agendada para ${formatLongDate(appointment.appointment_date)} às ${trimSeconds(appointment.appointment_time)}. Nosso endereço: ${CLINIC.address}. Até lá!`;
   return buildWhatsAppWebUrl(appointment.patient_phone, message);
 }
 
@@ -2114,8 +2135,22 @@ function AppointmentSheet({
         </div>
 
         {!isBlock && appointment.patient_phone && appointment.patient_phone !== "Não informado" && (
-          <div className="mt-6 space-y-2.5">
-            <p className="text-kicker text-primary-soft">Mensagens Rápidas WhatsApp</p>
+          <div className="mt-6 space-y-3">
+            <a
+              href={buildReminderLink({
+                ...appointment,
+                appointment_date: date,
+                appointment_time: time,
+              })}
+              target="_blank"
+              rel="noreferrer"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-sm hover:bg-primary-deep transition-all"
+            >
+              <Send className="h-4 w-4" />
+              <span>Enviar Link de Confirmação / Cancelar / Reagendar</span>
+            </a>
+
+            <p className="text-kicker text-primary-soft pt-1">Mensagens Rápidas WhatsApp</p>
             <div className="flex flex-wrap gap-2">
               {CONSULTORIO_ME_QUICK_TEMPLATES.map((tpl) => {
                 const dateFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR");
@@ -2141,20 +2176,41 @@ function AppointmentSheet({
         <div className="mt-9 flex flex-wrap gap-2.5">
           <button
             onClick={() =>
-              onSave(
-                appointment.id,
-                {
-                  appointment_date: date,
-                  appointment_time: time,
-                  status: "confirmed",
-                },
-                appointment,
-              )
+              onSave(appointment.id, {
+                appointment_date: date,
+                appointment_time: time,
+              })
             }
             className="rounded-full bg-primary px-6 py-3 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep cursor-pointer"
           >
-            Salvar e confirmar
+            Salvar data/horário
           </button>
+          {!isBlock && appointment.status !== "confirmed" && (
+            <button
+              onClick={() =>
+                onSave(appointment.id, {
+                  appointment_date: date,
+                  appointment_time: time,
+                  status: "confirmed",
+                })
+              }
+              className="rounded-full bg-emerald-600 px-6 py-3 text-kicker text-white transition-silk hover:bg-emerald-700 cursor-pointer"
+            >
+              Marcar como Confirmado
+            </button>
+          )}
+          {!isBlock && appointment.status === "confirmed" && (
+            <button
+              onClick={() =>
+                onSave(appointment.id, {
+                  status: "pending",
+                })
+              }
+              className="rounded-full border border-amber-500/40 bg-amber-500/10 px-5 py-3 text-kicker text-amber-800 dark:text-amber-300 transition-silk hover:bg-amber-500/20 cursor-pointer"
+            >
+              Voltar p/ Agendado
+            </button>
+          )}
           {!isBlock && (
             <a
               href={buildWhatsAppLink({

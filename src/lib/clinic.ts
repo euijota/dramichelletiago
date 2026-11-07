@@ -58,7 +58,7 @@ export const INSURANCE_PLANS = [
 ] as const;
 
 export const STATUS_LABELS: Record<string, string> = {
-  pending: "Pendente",
+  pending: "Agendado",
   confirmed: "Confirmado",
   cancelled: "Cancelado",
   completed: "Concluído",

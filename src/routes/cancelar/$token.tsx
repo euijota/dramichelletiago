@@ -33,8 +33,9 @@ export const Route = createFileRoute("/cancelar/$token")({
 function CancelAppointment() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState("Solicitado pelo paciente");
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [redirectToReschedule, setRedirectToReschedule] = useState(false);
 
   const {
     data: appointment,
@@ -46,10 +47,16 @@ function CancelAppointment() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (reason: string) => cancelAppointmentByToken({ data: { token, reason } }),
+    mutationFn: (reasonText: string) =>
+      cancelAppointmentByToken({ data: { token, reason: reasonText } }),
     onSuccess: () => {
-      toast.success("Agendamento cancelado com sucesso!");
-      setShowConfirmation(true);
+      if (redirectToReschedule) {
+        toast.success("Horário anterior liberado! Escolha agora sua nova data e horário.");
+        navigate({ to: "/agendar" });
+      } else {
+        toast.success("Agendamento cancelado com sucesso!");
+        setShowConfirmation(true);
+      }
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao cancelar agendamento");
@@ -57,11 +64,13 @@ function CancelAppointment() {
   });
 
   const handleCancel = () => {
-    if (!reason.trim()) {
-      toast.error("Por favor, informe o motivo do cancelamento");
-      return;
-    }
-    cancelMutation.mutate(reason);
+    setRedirectToReschedule(false);
+    cancelMutation.mutate(reason.trim() || "Cancelado pelo paciente via link");
+  };
+
+  const handleCancelAndReschedule = () => {
+    setRedirectToReschedule(true);
+    cancelMutation.mutate(reason.trim() || "Paciente solicitou reagendamento para outra data");
   };
 
   if (isLoading) {
@@ -164,7 +173,7 @@ function CancelAppointment() {
               </div>
             </div>
             <Button
-              onClick={() => navigate({ to: "/" })}
+              onClick={() => navigate({ to: "/agendar" })}
               className="mt-6 rounded-full bg-primary px-8 py-3"
             >
               Agendar nova consulta
@@ -238,21 +247,35 @@ function CancelAppointment() {
             <p className="text-xs text-muted-foreground">{reason.length}/500 caracteres</p>
           </div>
 
-          <div className="mt-8 flex gap-3">
+          <div className="mt-8 flex flex-col gap-3">
             <Button
-              variant="outline"
-              onClick={() => navigate({ to: "/" })}
-              className="flex-1 rounded-full"
+              onClick={handleCancelAndReschedule}
+              disabled={cancelMutation.isPending}
+              className="w-full rounded-full bg-primary py-6 text-base font-bold text-white hover:bg-primary-deep shadow-md"
             >
-              Voltar
+              {cancelMutation.isPending && redirectToReschedule
+                ? "Liberando horário..."
+                : "🔄 Cancelar este e Escolher Novo Horário (Reagendar)"}
             </Button>
-            <Button
-              onClick={handleCancel}
-              disabled={cancelMutation.isPending || !reason.trim()}
-              className="flex-1 rounded-full bg-rose-600 text-white hover:bg-rose-700"
-            >
-              {cancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
-            </Button>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => navigate({ to: "/" })}
+                className="flex-1 rounded-full"
+              >
+                Voltar
+              </Button>
+              <Button
+                onClick={handleCancel}
+                disabled={cancelMutation.isPending}
+                className="flex-1 rounded-full bg-rose-600 text-white hover:bg-rose-700"
+              >
+                {cancelMutation.isPending && !redirectToReschedule
+                  ? "Cancelando..."
+                  : "Apenas Cancelar Consulta"}
+              </Button>
+            </div>
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
