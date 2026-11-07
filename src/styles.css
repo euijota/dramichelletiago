@@ -86,7 +86,7 @@
   --secondary-foreground: oklch(0.38 0.05 13);
 
   --muted: oklch(0.955 0.01 50);
-  --muted-foreground: oklch(0.52 0.022 20);
+  --muted-foreground: oklch(0.42 0.028 16);
 
   /* Blush */
   --accent: oklch(0.935 0.024 12);
@@ -409,6 +409,50 @@
 
 @utility animate-veil {
   animation: veil-in 1.4s var(--ease-silk) both;
+}
+
+/* Apple HIG — Tactile Press Response, Contrast & Touch Ergonomics */
+button:not(:disabled),
+[role="button"]:not(:disabled),
+a[class*="rounded-"] {
+  transition:
+    transform 160ms var(--ease-silk),
+    background-color 200ms var(--ease-silk),
+    border-color 200ms var(--ease-silk),
+    color 200ms var(--ease-silk),
+    box-shadow 200ms var(--ease-silk);
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active,
+a[class*="rounded-"]:active {
+  transform: scale(0.98);
+}
+
+@utility apple-glass-header {
+  background: linear-gradient(
+    165deg,
+    oklch(0.39 0.072 13.5 / 0.96) 0%,
+    oklch(0.31 0.062 12 / 0.97) 100%
+  );
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.12) inset,
+    0 12px 32px -12px oklch(0.25 0.05 13 / 0.32);
+}
+
+@utility apple-surface-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-soft);
+}
+
+@utility apple-pill-segment {
+  background-color: oklch(0.95 0.012 45 / 0.85);
+  border: 1px solid oklch(0.88 0.016 25 / 0.7);
+  padding: 0.25rem;
+  border-radius: 9999px;
 }
 
 /* Hide the Lovable "Made with Lovable" badge without affecting layout */

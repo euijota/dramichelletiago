@@ -569,7 +569,7 @@ export function NewAppointmentModal({
                         <div className="text-xs text-muted-foreground flex items-center gap-2">
                           {selectedPatient.phone && <span>{selectedPatient.phone}</span>}
                           {selectedPatient.insurance && (
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
                               {selectedPatient.insurance}
                             </span>
                           )}
@@ -757,7 +757,7 @@ export function NewAppointmentModal({
                           >
                             <span>{slot}</span>
                             {isOccupied && (
-                              <span className="text-[10px] no-underline font-normal">
+                              <span className="text-[11px] no-underline font-normal">
                                 (Ocupado)
                               </span>
                             )}

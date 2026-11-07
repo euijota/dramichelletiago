@@ -316,7 +316,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
       >
         <span
           className={cn(
-            "text-[10px] sm:text-[11px] font-mono font-bold leading-none",
+            "text-[11px] sm:text-[11px] font-mono font-bold leading-none",
             isSelected
               ? "text-primary"
               : procs.length > 0
@@ -456,7 +456,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
           </div>
         </div>
         <div className="text-center">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/70">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-muted-foreground/70">
             {upperLabel}
           </span>
         </div>
@@ -467,7 +467,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
       {/* Arcada Inferior */}
       <div className="space-y-1.5">
         <div className="text-center">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/70">
+          <span className="text-[11px] uppercase font-bold tracking-widest text-muted-foreground/70">
             {lowerLabel}
           </span>
         </div>
@@ -547,7 +547,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
       {/* Grade Responsiva da Arcada Dentária (Sem cortar os dentes 18/28/48/38) */}
       <div className="p-4 sm:p-6 rounded-3xl bg-card border border-border shadow-petal space-y-5">
         {/* Legenda de Orientação */}
-        <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+        <div className="flex items-center justify-between text-[11px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
           <span>Quadrante Direito (Q1 / Q4)</span>
           <span className="text-primary font-bold">Linha Mediana</span>
           <span>Quadrante Esquerdo (Q2 / Q3)</span>
@@ -795,7 +795,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                       onClick={() =>
                         updateStatusMutation.mutate({ proc: item, newStatus: "completed" })
                       }
-                      className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 text-[10px] font-semibold uppercase flex items-center gap-1 cursor-pointer transition-colors"
+                      className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 text-[11px] font-semibold uppercase flex items-center gap-1 cursor-pointer transition-colors"
                       title="Marcar como concluído e registrar evolução no prontuário"
                     >
                       <Check className="h-3 w-3" />
@@ -805,7 +805,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
                   <span
                     className={cn(
-                      "px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase",
+                      "px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase",
                       item.status === "completed"
                         ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                         : item.status === "in_progress"

@@ -367,46 +367,54 @@ function Painel() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] dark:bg-background">
-      {/* BARRA SUPERIOR GLOBAL (#262626) — ARQUITETURA CLINICORP DA DRA. MICHELLE */}
-      <header className="sticky top-0 z-40 bg-[#262626] text-white shadow-md">
-        <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6">
-          {/* Lado Esquerdo: Menu Hambúrguer (≡) + Voltar para Pacientes ou Módulos */}
+    <div className="min-h-screen bg-background">
+      {/* BARRA SUPERIOR GLOBAL — APPLE HIG TRANSLUCENT WINE CHROME + LOGO DRA. MICHELLE */}
+      <header className="sticky top-0 z-40 apple-glass-header text-white border-b border-white/15">
+        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 py-2">
+          {/* Lado Esquerdo: Menu Hambúrguer (≡) + Logomarca Oficial + Voltar ou Módulos */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative">
               <button
                 onClick={() => setShowHamburgerMenu((prev) => !prev)}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
+                aria-label="Abrir menu de módulos do sistema"
+                aria-expanded={showHamburgerMenu}
+                className="flex h-11 w-11 items-center justify-center rounded-xl text-white/90 hover:bg-white/12 hover:text-white transition-all cursor-pointer"
                 title="Menu de módulos do sistema"
               >
                 <Menu className="h-5 w-5" />
               </button>
               {showHamburgerMenu && (
-                <div className="absolute left-0 top-full mt-2 w-64 rounded-2xl bg-card text-foreground border border-border shadow-2xl p-2 z-50 space-y-1">
+                <div className="absolute left-0 top-full mt-2 w-72 rounded-2xl bg-card text-foreground border border-border shadow-bloom p-2.5 z-50 space-y-1">
+                  <div className="px-3 py-2 border-b border-border/60 mb-1 flex items-center justify-between">
+                    <Logo className="h-9" />
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                      Sistema Clínico
+                    </span>
+                  </div>
                   {[
                     {
                       id: "agenda" as const,
                       label: "Agenda",
                       desc: "Consultas, confirmações e bloqueios",
-                      icon: <Calendar className="h-4 w-4 text-[#e66c2c]" />,
+                      icon: <Calendar className="h-4 w-4 text-primary" />,
                     },
                     {
                       id: "pacientes" as const,
                       label: "Pacientes",
                       desc: "Prontuário completo, Odontograma e Fichas",
-                      icon: <Users className="h-4 w-4 text-[#e66c2c]" />,
+                      icon: <Users className="h-4 w-4 text-primary" />,
                     },
                     {
                       id: "crc" as const,
                       label: "CRC — Relacionamento",
                       desc: "Retornos, confirmações e aniversariantes",
-                      icon: <HeartHandshake className="h-4 w-4 text-[#e66c2c]" />,
+                      icon: <HeartHandshake className="h-4 w-4 text-primary" />,
                     },
                     {
                       id: "financeiro" as const,
                       label: "Financeiro",
                       desc: "Fluxo de caixa, orçamentos e recibos",
-                      icon: <DollarSign className="h-4 w-4 text-[#e66c2c]" />,
+                      icon: <DollarSign className="h-4 w-4 text-primary" />,
                     },
                   ].map((m) => (
                     <button
@@ -417,29 +425,44 @@ function Painel() {
                         setShowHamburgerMenu(false);
                       }}
                       className={cn(
-                        "w-full flex items-start gap-3 p-2.5 rounded-xl text-left transition-colors cursor-pointer",
-                        mainTab === m.id ? "bg-[#e66c2c]/10" : "hover:bg-muted",
+                        "w-full min-h-11 flex items-start gap-3 p-3 rounded-xl text-left transition-colors cursor-pointer",
+                        mainTab === m.id
+                          ? "bg-primary/12 text-primary"
+                          : "hover:bg-accent/60 text-foreground",
                       )}
                     >
                       <div className="mt-0.5">{m.icon}</div>
                       <div>
                         <div className="text-xs font-bold text-foreground">{m.label}</div>
-                        <div className="text-[11px] text-muted-foreground">{m.desc}</div>
+                        <div className="text-xs text-muted-foreground">{m.desc}</div>
                       </div>
                     </button>
                   ))}
-                  <div className="border-t border-border pt-1 mt-1">
+                  <div className="border-t border-border pt-1.5 mt-1.5">
                     <Link
                       to="/"
-                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="w-full min-h-11 flex items-center gap-2.5 p-3 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                     >
-                      <Globe className="h-4 w-4" />
-                      <span>Ver site institucional</span>
+                      <Globe className="h-4 w-4 text-primary" />
+                      <span>Abrir site institucional</span>
                     </Link>
                   </div>
                 </div>
               )}
             </div>
+
+            {/* Logomarca Oficial sempre presente na barra do sistema */}
+            <button
+              type="button"
+              onClick={() => {
+                setMainTab("agenda");
+                setActiveChartPatient(null);
+              }}
+              className="flex items-center gap-2.5 pr-2 border-r border-white/15 cursor-pointer"
+              title="Início do Sistema — Dra. Michelle Barbosa Tiago"
+            >
+              <Logo onWine className="h-9 sm:h-11 max-w-[155px] sm:max-w-[190px]" />
+            </button>
 
             {mainTab === "pacientes" && activeChartPatient ? (
               <button
@@ -447,13 +470,16 @@ function Painel() {
                   setSelectedPatientIdForChart("__close__");
                   setActiveChartPatient(null);
                 }}
-                className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-neutral-200 hover:text-white transition-colors cursor-pointer"
+                className="min-h-11 px-3 rounded-xl inline-flex items-center gap-2 text-xs sm:text-sm font-semibold text-white/95 hover:bg-white/12 hover:text-white transition-colors cursor-pointer"
               >
                 <ArrowLeft className="h-4 w-4" />
                 <span>Voltar para Pacientes</span>
               </button>
             ) : (
-              <nav className="hidden lg:flex items-center gap-1">
+              <nav
+                className="hidden lg:flex items-center gap-1 rounded-full bg-black/15 p-1 border border-white/10"
+                aria-label="Módulos do sistema"
+              >
                 {[
                   {
                     id: "agenda" as const,
@@ -480,10 +506,10 @@ function Painel() {
                     key={item.id}
                     onClick={() => setMainTab(item.id)}
                     className={cn(
-                      "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer",
+                      "min-h-9 px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer",
                       mainTab === item.id
-                        ? "bg-[#e66c2c] text-white"
-                        : "text-neutral-300 hover:bg-neutral-800 hover:text-white",
+                        ? "bg-white text-primary shadow-sm"
+                        : "text-white/85 hover:bg-white/10 hover:text-white",
                     )}
                   >
                     {item.icon}
@@ -496,26 +522,28 @@ function Painel() {
 
           {/* Centro: Smartbar Global ("Encontre pacientes ou funções do sistema") */}
           <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
               value={globalSmartSearch}
               onChange={(e) => setGlobalSmartSearch(e.target.value)}
               placeholder="Encontre pacientes ou funções do sistema"
-              className="w-full rounded-lg bg-white text-neutral-900 pl-10 pr-8 py-2 text-xs font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-[#e66c2c]"
+              aria-label="Encontre pacientes ou funções do sistema"
+              className="w-full min-h-11 rounded-full bg-card text-foreground pl-10 pr-9 py-2 text-xs sm:text-sm font-medium placeholder:text-muted-foreground/80 shadow-inner focus:outline-none focus:ring-2 focus:ring-white/60"
             />
             {globalSmartSearch && (
               <button
                 onClick={() => setGlobalSmartSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+                aria-label="Limpar busca"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             )}
 
             {globalSmartSearch.trim().length >= 2 && (
-              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl bg-card text-foreground border border-border shadow-2xl overflow-hidden">
-                <div className="px-3.5 py-2 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
+              <div className="absolute left-0 right-0 top-full mt-2 z-50 rounded-2xl bg-card text-foreground border border-border shadow-bloom overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
                   Pacientes encontrados ({globalSmartPatients.length})
                 </div>
                 {globalSmartPatients.length === 0 ? (
@@ -532,10 +560,10 @@ function Painel() {
                           setMainTab("pacientes");
                           setGlobalSmartSearch("");
                         }}
-                        className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between text-xs cursor-pointer"
+                        className="w-full min-h-11 px-4 py-2.5 text-left hover:bg-accent/60 flex items-center justify-between text-xs cursor-pointer"
                       >
                         <div>
-                          <span className="font-mono font-bold text-[#e66c2c]">
+                          <span className="font-mono font-bold text-primary">
                             #{p.record_number}
                           </span>{" "}
                           — <span className="font-semibold text-foreground">{p.name}</span>
@@ -545,20 +573,20 @@ function Painel() {
                     ))}
                   </div>
                 )}
-                <div className="px-3.5 py-2 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-y border-border">
+                <div className="px-4 py-2 bg-muted/60 text-[11px] font-bold uppercase tracking-wider text-muted-foreground border-y border-border">
                   Atalhos do Sistema
                 </div>
-                <div className="p-2 flex flex-wrap gap-1.5">
+                <div className="p-2.5 flex flex-wrap gap-1.5">
                   {[
                     {
-                      label: "Agenda da Semana",
+                      label: "Abrir Agenda da Semana",
                       action: () => {
                         setMainTab("agenda");
                         setGlobalSmartSearch("");
                       },
                     },
                     {
-                      label: "Lista de Pacientes",
+                      label: "Ver Lista de Pacientes",
                       action: () => {
                         setSelectedPatientIdForChart("__close__");
                         setMainTab("pacientes");
@@ -566,7 +594,7 @@ function Painel() {
                       },
                     },
                     {
-                      label: "CRC — Alertas de Retorno",
+                      label: "Consultar Alertas de Retorno",
                       action: () => {
                         setMainTab("crc");
                         setCrcSubTab("retornos");
@@ -574,14 +602,14 @@ function Painel() {
                       },
                     },
                     {
-                      label: "Financeiro",
+                      label: "Acessar Financeiro",
                       action: () => {
                         setMainTab("financeiro");
                         setGlobalSmartSearch("");
                       },
                     },
                     {
-                      label: "Nova Consulta",
+                      label: "Agendar Consulta",
                       action: () => {
                         setShowNewAppointmentModal(true);
                         setGlobalSmartSearch("");
@@ -591,7 +619,7 @@ function Painel() {
                     <button
                       key={s.label}
                       onClick={s.action}
-                      className="px-2.5 py-1 rounded-lg bg-muted hover:bg-[#e66c2c] hover:text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                      className="min-h-9 px-3 py-1.5 rounded-full bg-muted hover:bg-primary hover:text-primary-foreground text-xs font-semibold transition-colors cursor-pointer"
                     >
                       {s.label}
                     </button>
@@ -602,17 +630,17 @@ function Painel() {
           </div>
 
           {/* Lado Direito: Ações Rápidas + Notificações + Perfil Dra. Michelle */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             <button
               onClick={() => {
                 setNewAppointmentDate(undefined);
                 setNewAppointmentMode("existing");
                 setShowNewAppointmentModal(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] px-3 py-1.5 text-xs font-semibold text-white transition-colors cursor-pointer"
+              className="min-h-11 inline-flex items-center gap-1.5 rounded-full bg-white text-primary hover:bg-white/90 px-4 py-2 text-xs font-bold shadow-sm transition-all cursor-pointer"
             >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Nova Consulta</span>
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Agendar Consulta</span>
             </button>
 
             <button
@@ -622,10 +650,10 @@ function Painel() {
                 setShowNewAppointmentModal(true);
               }}
               title="Bloquear horário na agenda"
-              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors cursor-pointer"
+              className="hidden md:inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 hover:bg-white/18 px-3.5 py-2 text-xs font-medium text-white transition-colors cursor-pointer"
             >
-              <Ban className="h-3.5 w-3.5 text-amber-400" />
-              <span>Bloquear</span>
+              <Ban className="h-3.5 w-3.5 text-amber-300" />
+              <span>Bloquear Horário</span>
             </button>
 
             <button
@@ -635,10 +663,10 @@ function Painel() {
                 toast.success(`Link de agendamento copiado: ${publicUrl}`);
               }}
               title="Copiar link público de agendamento online"
-              className="hidden xl:inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors cursor-pointer"
+              className="hidden xl:inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 hover:bg-white/18 px-3.5 py-2 text-xs font-medium text-white transition-colors cursor-pointer"
             >
-              <Link2 className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Link Online</span>
+              <Link2 className="h-3.5 w-3.5 text-emerald-300" />
+              <span>Copiar Link</span>
             </button>
 
             <button
@@ -646,32 +674,34 @@ function Painel() {
                 setMainTab("crc");
                 setCrcSubTab("confirmacoes");
               }}
+              aria-label="Notificações e confirmações pendentes"
               title="Agendamentos aguardando confirmação e alertas CRC"
-              className="relative p-2 rounded-lg text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
+              className="relative h-11 w-11 flex items-center justify-center rounded-full text-white/90 hover:bg-white/12 hover:text-white transition-colors cursor-pointer"
             >
               <Bell className="h-4 w-4" />
               {(pendingCount > 0 || returnAlertPatients.length > 0) && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e66c2c] text-[10px] font-bold text-white flex items-center justify-center">
+                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-[11px] font-bold text-neutral-950 flex items-center justify-center shadow-sm">
                   {pendingCount + returnAlertPatients.length}
                 </span>
               )}
             </button>
 
-            {/* Perfil estilo Clinicorp */}
-            <div className="hidden sm:flex items-center gap-2.5 rounded-full bg-neutral-800 border border-neutral-700 pl-2 pr-3 py-1">
-              <div className="h-7 w-7 rounded-full bg-[#e66c2c] text-white text-xs font-bold flex items-center justify-center">
+            {/* Perfil Dra. Michelle */}
+            <div className="hidden sm:flex items-center gap-2.5 rounded-full bg-white/10 border border-white/20 pl-1.5 pr-3.5 py-1">
+              <div className="h-8 w-8 rounded-full bg-white text-primary text-xs font-bold flex items-center justify-center shadow-sm">
                 MT
               </div>
               <div className="leading-tight">
                 <div className="text-xs font-semibold text-white">Dra. Michelle Tiago</div>
-                <div className="text-[10px] text-neutral-400">Administradora</div>
+                <div className="text-[11px] text-white/75">Cirurgiã-Dentista</div>
               </div>
             </div>
 
             <button
               onClick={handleSignOut}
+              aria-label="Sair do sistema"
               title="Sair do sistema"
-              className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
+              className="h-11 w-11 flex items-center justify-center rounded-full text-white/80 hover:bg-white/12 hover:text-white transition-colors cursor-pointer"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -679,7 +709,7 @@ function Painel() {
         </div>
 
         {/* Sub-barra mobile para alternar entre Agenda, Pacientes, CRC e Financeiro */}
-        <div className="flex lg:hidden items-center gap-1 px-4 pb-2.5 overflow-x-auto">
+        <div className="flex lg:hidden items-center gap-1.5 px-4 pb-3 overflow-x-auto">
           {[
             { id: "agenda" as const, label: "Agenda" },
             { id: "pacientes" as const, label: "Pacientes" },
@@ -690,8 +720,10 @@ function Painel() {
               key={item.id}
               onClick={() => setMainTab(item.id)}
               className={cn(
-                "px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer",
-                mainTab === item.id ? "bg-[#e66c2c] text-white" : "bg-neutral-800 text-neutral-300",
+                "min-h-10 px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap cursor-pointer transition-all",
+                mainTab === item.id
+                  ? "bg-white text-primary shadow-sm"
+                  : "bg-white/10 text-white/90 hover:bg-white/15",
               )}
             >
               {item.label}
@@ -713,15 +745,15 @@ function Painel() {
              MÓDULO CRC — CENTRAL DE RELACIONAMENTO COM O CLIENTE
              ==================================================================== */
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-3xl p-6 shadow-petal">
               <div>
-                <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <HeartHandshake className="h-5 w-5 text-[#e66c2c]" />
-                  <span>CRC — Central de Relacionamento com o Cliente</span>
+                <h1 className="font-display text-2xl font-normal text-foreground flex items-center gap-2.5">
+                  <HeartHandshake className="h-5 w-5 text-primary" />
+                  <span>CRC — Central de Relacionamento com o Paciente</span>
                 </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                   Acompanhe confirmações pendentes, alertas de retorno, orçamentos em aberto e
-                  aniversariantes.
+                  aniversariantes do mês.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -752,16 +784,16 @@ function Painel() {
                     key={tab.id}
                     onClick={() => setCrcSubTab(tab.id)}
                     className={cn(
-                      "px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition-colors cursor-pointer",
+                      "min-h-11 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer",
                       crcSubTab === tab.id
-                        ? "bg-[#e66c2c] text-white border-[#e66c2c]"
-                        : "bg-background text-foreground border-border hover:bg-muted",
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                        : "bg-background text-foreground border-border hover:bg-accent/60",
                     )}
                   >
                     <span>{tab.label}</span>
                     <span
                       className={cn(
-                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                        "px-2 py-0.5 rounded-full text-[11px] font-bold",
                         crcSubTab === tab.id
                           ? "bg-white/20 text-white"
                           : "bg-muted text-foreground",
@@ -775,19 +807,19 @@ function Painel() {
             </div>
 
             {crcSubTab === "confirmacoes" && (
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
-                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
+                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Pacientes Aguardando Confirmação de Consulta ({pendingCount})
                 </div>
                 {pendingCount === 0 ? (
-                  <div className="p-10 text-center text-xs text-muted-foreground">
+                  <div className="p-10 text-center text-sm text-muted-foreground">
                     Todas as consultas agendadas já estão confirmadas!
                   </div>
                 ) : (
                   pending?.map((appointment) => (
                     <div
                       key={appointment.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                     >
                       <div>
                         <div className="text-sm font-bold text-foreground">
@@ -805,19 +837,19 @@ function Painel() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
-                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1"
+                          className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span>Confirmar</span>
+                          <span>Confirmar Consulta</span>
                         </button>
                         <a
                           href={buildWhatsAppLink(appointment)}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold flex items-center gap-1"
+                          className="min-h-10 px-4 py-2 rounded-full border border-border bg-background hover:bg-accent font-semibold flex items-center gap-1.5"
                         >
                           <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>WhatsApp</span>
+                          <span>Conversar no WhatsApp</span>
                         </a>
                         {appointment.patient_id && (
                           <button
@@ -825,7 +857,7 @@ function Painel() {
                               setSelectedPatientIdForChart(appointment.patient_id);
                               setMainTab("pacientes");
                             }}
-                            className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                            className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 font-semibold text-primary cursor-pointer"
                           >
                             Abrir Prontuário
                           </button>
@@ -838,12 +870,12 @@ function Painel() {
             )}
 
             {crcSubTab === "retornos" && (
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
-                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
+                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Pacientes com Alerta de Retorno Programado ({returnAlertPatients.length})
                 </div>
                 {returnAlertPatients.length === 0 ? (
-                  <div className="p-10 text-center text-xs text-muted-foreground">
+                  <div className="p-10 text-center text-sm text-muted-foreground">
                     Nenhum alerta de retorno programado no momento. Defina alertas na Visão Geral do
                     prontuário de cada paciente.
                   </div>
@@ -851,7 +883,7 @@ function Painel() {
                   returnAlertPatients.map((p) => (
                     <div
                       key={p.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                     >
                       <div>
                         <div className="text-sm font-bold text-foreground">
@@ -876,7 +908,7 @@ function Painel() {
                             href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! Aqui é do consultório da Dra. Michelle Tiago. Está chegando o período do seu retorno odontológico preventivo. Vamos agendar seu horário?`)}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
+                            className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
                             <span>Chamar p/ Retorno</span>
@@ -887,7 +919,7 @@ function Painel() {
                             setSelectedPatientIdForChart(p.id);
                             setMainTab("pacientes");
                           }}
-                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                          className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 font-semibold text-primary cursor-pointer"
                         >
                           Abrir Prontuário
                         </button>
@@ -899,14 +931,14 @@ function Painel() {
             )}
 
             {crcSubTab === "orcamentos" && (
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
-                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
+                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Orçamentos Registrados para Acompanhamento (
                   {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length})
                 </div>
                 {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length ===
                 0 ? (
-                  <div className="p-10 text-center text-xs text-muted-foreground">
+                  <div className="p-10 text-center text-sm text-muted-foreground">
                     Nenhum orçamento registrado ainda.
                   </div>
                 ) : (
@@ -915,7 +947,7 @@ function Painel() {
                     .map((item) => (
                       <div
                         key={item.id}
-                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                        className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                       >
                         <div>
                           <div className="text-sm font-bold text-foreground">
@@ -930,7 +962,7 @@ function Painel() {
                             setSelectedPatientIdForChart(item.patient_id);
                             setMainTab("pacientes");
                           }}
-                          className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] text-white font-semibold cursor-pointer shrink-0"
+                          className="min-h-10 px-4 py-2 rounded-full bg-primary hover:bg-primary-deep text-primary-foreground font-semibold cursor-pointer shrink-0"
                         >
                           Abrir Orçamento no Prontuário
                         </button>
@@ -941,20 +973,20 @@ function Painel() {
             )}
 
             {crcSubTab === "aniversariantes" && (
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
-                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground flex items-center gap-2">
-                  <Gift className="h-4 w-4 text-[#e66c2c]" />
+              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
+                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-primary" />
                   <span>Aniversariantes deste Mês ({birthdayPatients.length})</span>
                 </div>
                 {birthdayPatients.length === 0 ? (
-                  <div className="p-10 text-center text-xs text-muted-foreground">
+                  <div className="p-10 text-center text-sm text-muted-foreground">
                     Nenhum paciente com data de nascimento neste mês.
                   </div>
                 ) : (
                   birthdayPatients.map((p) => (
                     <div
                       key={p.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                     >
                       <div>
                         <div className="text-sm font-bold text-foreground">
@@ -973,7 +1005,7 @@ function Painel() {
                             href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! 🎉 Passando para desejar um feliz aniversário, com muita saúde, alegria e motivos para sorrir! Com carinho, Dra. Michelle Barbosa Tiago.`)}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
+                            className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
                           >
                             <MessageCircle className="h-3.5 w-3.5" />
                             <span>Enviar Parabéns</span>
@@ -984,7 +1016,7 @@ function Painel() {
                             setSelectedPatientIdForChart(p.id);
                             setMainTab("pacientes");
                           }}
-                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold cursor-pointer"
+                          className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 text-primary font-semibold cursor-pointer"
                         >
                           Abrir Prontuário
                         </button>
@@ -1000,20 +1032,20 @@ function Painel() {
              MÓDULO FINANCEIRO DA CLÍNICA
              ==================================================================== */
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-3xl p-6 shadow-petal">
               <div>
-                <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-                  <DollarSign className="h-5 w-5 text-[#e66c2c]" />
+                <h1 className="font-display text-2xl font-normal text-foreground flex items-center gap-2.5">
+                  <DollarSign className="h-5 w-5 text-primary" />
                   <span>Gestão Financeira e Faturamento da Clínica</span>
                 </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                   Controle centralizado de pagamentos recebidos, orçamentos emitidos e exportação de
                   relatórios.
                 </p>
               </div>
               <button
                 onClick={() => setShowExportModal(true)}
-                className="px-4 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                className="min-h-11 px-5 py-2.5 rounded-full bg-primary hover:bg-primary-deep text-primary-foreground text-xs font-semibold flex items-center gap-2 shadow-sm cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 <span>Exportar Relatório</span>
@@ -1021,38 +1053,38 @@ function Painel() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+              <div className="rounded-3xl bg-card border border-border p-6 shadow-petal">
                 <span className="text-xs font-semibold text-muted-foreground">
                   Pagamentos / Recibos Registrados
                 </span>
-                <div className="text-3xl font-bold text-emerald-600 mt-2">
+                <div className="font-display text-4xl font-light text-emerald-600 mt-2">
                   {clinicFinancialRecords.filter((r) => r.record_type === "pagamento").length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+              <div className="rounded-3xl bg-card border border-border p-6 shadow-petal">
                 <span className="text-xs font-semibold text-muted-foreground">
                   Orçamentos e Planos Emitidos
                 </span>
-                <div className="text-3xl font-bold text-[#e66c2c] mt-2">
+                <div className="font-display text-4xl font-light text-primary mt-2">
                   {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length}
                 </div>
               </div>
-              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+              <div className="rounded-3xl bg-card border border-border p-6 shadow-petal">
                 <span className="text-xs font-semibold text-muted-foreground">
                   Total de Lançamentos Financeiros
                 </span>
-                <div className="text-3xl font-bold text-foreground mt-2">
+                <div className="font-display text-4xl font-light text-foreground mt-2">
                   {clinicFinancialRecords.length}
                 </div>
               </div>
             </div>
 
-            <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
-              <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+            <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
+              <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Últimas Movimentações Financeiras e Orçamentos
               </div>
               {clinicFinancialRecords.length === 0 ? (
-                <div className="p-10 text-center text-xs text-muted-foreground">
+                <div className="p-10 text-center text-sm text-muted-foreground">
                   Nenhum lançamento financeiro encontrado. Lance pagamentos ou orçamentos dentro do
                   prontuário do paciente.
                 </div>
@@ -1060,16 +1092,16 @@ function Painel() {
                 clinicFinancialRecords.map((rec) => (
                   <div
                     key={rec.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
                   >
                     <div>
                       <div className="flex items-center gap-2">
                         <span
                           className={cn(
-                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                            "px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase",
                             rec.record_type === "pagamento"
                               ? "bg-emerald-500/15 text-emerald-700"
-                              : "bg-orange-500/15 text-orange-700",
+                              : "bg-primary/12 text-primary",
                           )}
                         >
                           {rec.record_type === "pagamento" ? "Recebimento" : "Orçamento"}
@@ -1091,7 +1123,7 @@ function Painel() {
                           setSelectedPatientIdForChart(rec.patient_id);
                           setMainTab("pacientes");
                         }}
-                        className="px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                        className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 font-semibold text-primary cursor-pointer"
                       >
                         Abrir Prontuário
                       </button>
@@ -1328,7 +1360,7 @@ function Painel() {
                               </span>
                               <span
                                 className={cn(
-                                  "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
+                                  "text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
                                   item.status === "pending"
                                     ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
                                     : item.status === "confirmed"
@@ -1702,7 +1734,7 @@ function MessageTemplates({ queryClient }: { queryClient: ReturnType<typeof useQ
                           {template.channel}
                         </span>
                         {template.is_default && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
+                          <span className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-bold">
                             DEFAULT
                           </span>
                         )}

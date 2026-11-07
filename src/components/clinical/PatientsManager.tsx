@@ -858,7 +858,7 @@ export function PatientsManager({
     return (
       <div className="space-y-4">
         {!hideTopBar && (
-          <div className="rounded-2xl bg-[#262626] text-white px-5 py-3.5 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="rounded-2xl apple-glass-header text-white px-5 py-3.5 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSelectedPatient(null)}
@@ -919,7 +919,7 @@ export function PatientsManager({
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => setShowAppointmentModal(true)}
-                className="rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                className="rounded-lg bg-primary hover:bg-primary-deep text-white px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Novo Agendamento</span>
@@ -929,38 +929,40 @@ export function PatientsManager({
         )}
 
         {/* IDENTIFICAÇÃO DO PACIENTE ATIVO */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-card border border-border shadow-sm">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 rounded-2xl bg-card border border-border shadow-petal">
+          <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={() => setSelectedPatient(null)}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              className="min-h-10 px-3 rounded-full border border-border bg-background hover:bg-accent/60 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground transition-colors cursor-pointer"
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
+              <ArrowLeft className="h-3.5 w-3.5 text-primary" />
               <span>Voltar para Pacientes</span>
             </button>
-            <span className="text-border">|</span>
-            <span className="text-xs font-mono font-bold text-[#e66c2c]">
+            <span className="text-border hidden sm:inline">|</span>
+            <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
               Prontuário #{selectedPatient.record_number}
             </span>
-            <span className="text-sm font-bold text-foreground">{selectedPatient.name}</span>
+            <h2 className="font-display text-xl sm:text-2xl font-normal text-foreground">
+              {selectedPatient.name}
+            </h2>
             {selectedPatient.insurance && (
-              <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-semibold uppercase text-foreground">
+              <span className="px-2.5 py-0.5 rounded-full bg-muted text-[11px] font-semibold uppercase text-foreground border border-border/60">
                 {selectedPatient.insurance}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => openEditPatientModal(selectedPatient)}
-              className="px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
+              className="min-h-10 px-4 py-2 rounded-full border border-border bg-background hover:bg-accent/60 text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
             >
-              <Edit className="h-3.5 w-3.5" />
+              <Edit className="h-3.5 w-3.5 text-primary" />
               <span>Editar Cadastro</span>
             </button>
             <button
               onClick={(e) => handleConfirmDeletePatient(selectedPatient, e)}
               disabled={deletePatientMutation.isPending}
-              className="px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              className="min-h-10 px-4 py-2 rounded-full border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               title="Excluir Paciente"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -968,7 +970,7 @@ export function PatientsManager({
             </button>
             <button
               onClick={() => setShowAppointmentModal(true)}
-              className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              className="min-h-10 px-4 py-2 rounded-full bg-primary hover:bg-primary-deep text-primary-foreground text-xs font-semibold flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>Agendar Consulta</span>
@@ -978,34 +980,36 @@ export function PatientsManager({
 
         {/* ALERTA CLÍNICO (SE EXISTIR) */}
         {selectedPatient.medical_warning && (
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-700 dark:text-rose-300">
+          <div className="flex items-center justify-between gap-3 px-5 py-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-700 dark:text-rose-300">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
               <span>Alerta Médico / Anamnese: {selectedPatient.medical_warning}</span>
             </div>
             <button
               onClick={() => openEditPatientModal(selectedPatient)}
-              className="underline hover:opacity-80 cursor-pointer"
+              className="min-h-9 px-3 rounded-full bg-rose-500/15 hover:bg-rose-500/25 text-rose-800 dark:text-rose-200 font-semibold cursor-pointer shrink-0"
             >
-              Editar alerta
+              Editar Alerta
             </button>
           </div>
         )}
 
-        {/* BARRA DE 13 ABAS DO PRONTUÁRIO */}
-        <div className="rounded-xl bg-card border border-border px-4 pt-2 shadow-sm overflow-x-auto">
-          <div className="flex items-center gap-6 min-w-max">
+        {/* BARRA DE 13 ABAS DO PRONTUÁRIO — APPLE HIG SEGMENTED NAVIGATION */}
+        <div className="rounded-2xl bg-card border border-border p-1.5 shadow-petal overflow-x-auto">
+          <div className="flex items-center gap-1 min-w-max" role="tablist">
             {CLINICORP_TABS.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={isActive}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    "pb-3 pt-1.5 text-xs font-medium transition-all border-b-2 cursor-pointer whitespace-nowrap",
+                    "min-h-10 px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap",
                     isActive
-                      ? "border-[#e66c2c] text-foreground font-semibold"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
                   {tab.label}
@@ -1026,7 +1030,7 @@ export function PatientsManager({
                 <h3 className="text-sm font-bold text-foreground">Informações do paciente</h3>
                 <button
                   onClick={() => openEditPatientModal(selectedPatient)}
-                  className="text-xs font-semibold text-[#e66c2c] hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Edit className="h-3.5 w-3.5" />
                   <span>Editar</span>
@@ -1191,7 +1195,7 @@ export function PatientsManager({
                     </div>
                   ) : (
                     <div className="my-4 flex items-center gap-3.5">
-                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <Calendar className="h-6 w-6" />
                       </div>
                       <div>
@@ -1235,7 +1239,7 @@ export function PatientsManager({
                     </div>
                   ) : (
                     <div className="my-4 flex items-center gap-3.5">
-                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <ClipboardList className="h-6 w-6" />
                       </div>
                       <div>
@@ -1280,7 +1284,7 @@ export function PatientsManager({
                     </div>
                   ) : (
                     <div className="my-4 flex items-center gap-3.5">
-                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <Bell className="h-6 w-6" />
                       </div>
                       <div>
@@ -1326,7 +1330,7 @@ export function PatientsManager({
                     </div>
                   ) : (
                     <div className="my-4 flex items-center gap-3.5">
-                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                         <FileText className="h-6 w-6" />
                       </div>
                       <div>
@@ -1366,7 +1370,7 @@ export function PatientsManager({
 
                 {categorizedRecords.generalNotes.length === 0 && !selectedPatient.notes ? (
                   <div className="py-4 flex items-center gap-3.5">
-                    <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                    <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <FileText className="h-6 w-6" />
                     </div>
                     <div>
@@ -1423,7 +1427,7 @@ export function PatientsManager({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Plus className="h-4 w-4 text-[#e66c2c]" />
+                <Plus className="h-4 w-4 text-primary" />
                 Novo Orçamento / Proposta de Tratamento
               </h3>
               <div className="space-y-3 text-xs">
@@ -1521,7 +1525,7 @@ export function PatientsManager({
                       },
                     );
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold transition-colors cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Salvar Orçamento
                 </button>
@@ -1718,7 +1722,7 @@ export function PatientsManager({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Camera className="h-4 w-4 text-[#e66c2c]" />
+                <Camera className="h-4 w-4 text-primary" />
                 Adicionar Foto Clínica / Sorriso
               </h3>
               <div className="space-y-3 text-xs">
@@ -1776,7 +1780,7 @@ export function PatientsManager({
                       },
                     );
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-primary text-white text-xs font-semibold cursor-pointer"
                 >
                   Salvar Foto na Ficha
                 </button>
@@ -1829,7 +1833,7 @@ export function PatientsManager({
             <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <Stethoscope className="h-4 w-4 text-[#e66c2c]" />
+                  <Stethoscope className="h-4 w-4 text-primary" />
                   Novo Item no Plano e Ficha Clínica
                 </h3>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -1897,7 +1901,7 @@ export function PatientsManager({
                       },
                     );
                   }}
-                  className="px-5 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer"
                 >
                   Salvar na Ficha Clínica
                 </button>
@@ -1972,7 +1976,7 @@ export function PatientsManager({
                     className={cn(
                       "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer",
                       selectedSpecialty === key
-                        ? "bg-[#e66c2c] text-white border-[#e66c2c]"
+                        ? "bg-primary text-white border-primary"
                         : "bg-background text-foreground border-border hover:bg-muted",
                     )}
                   >
@@ -2002,7 +2006,7 @@ export function PatientsManager({
                     },
                   );
                 }}
-                className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer"
               >
                 Salvar Ficha de Especialidade
               </button>
@@ -2052,7 +2056,7 @@ export function PatientsManager({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <ClipboardList className="h-4 w-4 text-[#e66c2c]" />
+                <ClipboardList className="h-4 w-4 text-primary" />
                 Questionário Oficial de Anamnese Clínica
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs max-h-[620px] overflow-y-auto pr-1">
@@ -2599,7 +2603,7 @@ export function PatientsManager({
                     },
                   );
                 }}
-                className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer"
               >
                 Salvar Anamnese
               </button>
@@ -2645,7 +2649,7 @@ export function PatientsManager({
         {activeTab === "planos" && (
           <div className="rounded-2xl bg-card border border-border p-6 shadow-sm space-y-4 max-w-2xl">
             <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-[#e66c2c]" />
+              <ShieldCheck className="h-4 w-4 text-primary" />
               Plano / Convênio Odontológico Vinculado
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -2664,7 +2668,7 @@ export function PatientsManager({
             </div>
             <button
               onClick={() => openEditPatientModal(selectedPatient)}
-              className="px-4 py-2 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold cursor-pointer"
             >
               Alterar Plano ou Nº da Carteirinha
             </button>
@@ -2714,7 +2718,7 @@ export function PatientsManager({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <FileCheck className="h-4 w-4 text-[#e66c2c]" />
+                <FileCheck className="h-4 w-4 text-primary" />
                 Registrar Pedido ou Laudo de Exame
               </h3>
               <div className="space-y-3 text-xs">
@@ -2763,7 +2767,7 @@ export function PatientsManager({
                       },
                     );
                   }}
-                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-primary text-white text-xs font-semibold cursor-pointer"
                 >
                   Salvar Exame
                 </button>
@@ -2811,12 +2815,12 @@ export function PatientsManager({
           <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-[#e66c2c]" />
+                <Receipt className="h-4 w-4 text-primary" />
                 Recibos de Pagamento do Paciente ({categorizedRecords.payments.length})
               </h3>
               <button
                 onClick={() => setActiveTab("financeiro")}
-                className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                className="px-3.5 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold cursor-pointer"
               >
                 + Novo Recebimento
               </button>
@@ -2860,12 +2864,12 @@ export function PatientsManager({
           <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-[#e66c2c]" />
+                <Calendar className="h-4 w-4 text-primary" />
                 Histórico de Agendamentos do Paciente ({patientAppointments.length})
               </h3>
               <button
                 onClick={() => setShowAppointmentModal(true)}
-                className="px-4 py-2 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
               >
                 <Plus className="h-3.5 w-3.5" />
                 <span>Novo Agendamento</span>
@@ -2898,7 +2902,7 @@ export function PatientsManager({
                     <div className="flex items-center gap-2">
                       <span
                         className={cn(
-                          "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase border",
+                          "px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase border",
                           appt.status === "confirmed"
                             ? "bg-emerald-500/15 text-emerald-800 border-emerald-500/30"
                             : appt.status === "pending"
@@ -3019,7 +3023,7 @@ export function PatientsManager({
                 </button>
                 <button
                   onClick={() => saveReturnAlertMutation.mutate()}
-                  className="px-5 py-2 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                  className="px-5 py-2 rounded-lg bg-primary text-white text-xs font-semibold cursor-pointer"
                 >
                   Salvar Alerta
                 </button>
@@ -3078,7 +3082,7 @@ export function PatientsManager({
                       },
                     );
                   }}
-                  className="px-5 py-2 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                  className="px-5 py-2 rounded-lg bg-primary text-white text-xs font-semibold cursor-pointer"
                 >
                   Salvar Nota
                 </button>
@@ -3348,7 +3352,7 @@ export function PatientsManager({
                 type="button"
                 onClick={() => savePatientMutation.mutate()}
                 disabled={savePatientMutation.isPending}
-                className="px-6 py-2.5 rounded-full bg-[#e66c2c] text-white text-xs font-semibold shadow-sm hover:bg-[#d45d1e] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 rounded-full bg-primary text-white text-xs font-semibold shadow-sm hover:bg-primary-deep transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 {savePatientMutation.isPending ? "Salvando..." : "Salvar Cadastro"}
@@ -3389,14 +3393,14 @@ export function PatientsManager({
               className={cn(
                 "text-left p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between",
                 isSelected
-                  ? "bg-card border-[#e66c2c] ring-2 ring-[#e66c2c]/25 shadow-md"
+                  ? "bg-card border-primary ring-2 ring-primary/25 shadow-md"
                   : "bg-card/80 border-border hover:border-foreground/30",
               )}
             >
               <div className="flex items-center justify-between gap-2">
                 <span
                   className={cn(
-                    "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                    "text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
                     stage.tone,
                   )}
                 >
@@ -3503,10 +3507,10 @@ export function PatientsManager({
 
             <button
               onClick={openCreatePatientModal}
-              className="px-4 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+              className="min-h-11 px-5 py-2.5 rounded-full bg-primary hover:bg-primary-deep text-primary-foreground text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
-              <Plus className="h-3.5 w-3.5" />
-              Novo Paciente
+              <Plus className="h-4 w-4" />
+              <span>Cadastrar Paciente</span>
             </button>
           </div>
         </div>
@@ -3514,7 +3518,7 @@ export function PatientsManager({
         {/* Barra Alfabética A–Z */}
         <div className="pt-2 border-t border-border/50">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1 shrink-0">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1 shrink-0">
               Índice:
             </span>
             {ALPHABET.map((letter) => {
@@ -3527,10 +3531,10 @@ export function PatientsManager({
                     setPage(1);
                   }}
                   className={cn(
-                    "min-w-[28px] h-7 px-2 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center justify-center",
+                    "min-w-[36px] h-9 px-2.5 rounded-full text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center justify-center",
                     isSelected
-                      ? "bg-[#e66c2c] text-white shadow-sm scale-105"
-                      : "bg-background/80 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/60",
+                      ? "bg-primary text-primary-foreground shadow-sm scale-105"
+                      : "bg-background/80 text-muted-foreground hover:bg-accent/60 hover:text-foreground border border-border/60",
                   )}
                 >
                   {letter}
@@ -3582,29 +3586,29 @@ export function PatientsManager({
                   setSelectedPatient(patient);
                   setActiveTab("visao_geral");
                 }}
-                className="px-6 py-4 hover:bg-muted/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+                className="px-6 py-4 hover:bg-accent/35 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
               >
                 <div className="space-y-1 min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="text-xs font-mono font-bold text-[#e66c2c]">
+                    <span className="text-xs font-mono font-bold text-primary">
                       #{patient.record_number}
                     </span>
                     <span className="text-sm font-bold text-foreground">{patient.name}</span>
                     <span
                       className={cn(
-                        "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                        "text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border",
                         stageObj.tone,
                       )}
                     >
                       {stageObj.label.replace(/^\d+\.\s*/, "")}
                     </span>
                     {patient.insurance && (
-                      <span className="px-2 py-0.5 rounded-md bg-muted text-[10px] font-semibold uppercase text-foreground">
+                      <span className="px-2.5 py-0.5 rounded-full bg-muted text-[11px] font-semibold uppercase text-foreground">
                         {patient.insurance}
                       </span>
                     )}
                     {patient.medical_warning && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/20">
                         <AlertTriangle className="h-3 w-3" />
                         {patient.medical_warning}
                       </span>
@@ -3636,23 +3640,24 @@ export function PatientsManager({
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="px-2.5 py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                      className="min-h-10 px-3.5 py-2 rounded-full border border-emerald-600/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1.5"
                       title="Conversar no WhatsApp"
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
-                      <span className="hidden md:inline">WhatsApp</span>
+                      <span className="hidden md:inline">Conversar</span>
                     </a>
                   )}
                   <button
                     type="button"
                     onClick={(e) => handleConfirmDeletePatient(patient, e)}
                     disabled={deletePatientMutation.isPending}
-                    className="p-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
+                    aria-label={`Excluir paciente ${patient.name}`}
+                    className="h-10 w-10 flex items-center justify-center rounded-full border border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
                     title="Excluir Paciente"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#e66c2c]">
+                  <span className="min-h-10 px-3.5 py-2 rounded-full bg-primary/10 hover:bg-primary/15 inline-flex items-center gap-1 text-xs font-semibold text-primary">
                     <span>Abrir Prontuário</span>
                     <ChevronRight className="h-4 w-4" />
                   </span>
@@ -3669,7 +3674,7 @@ export function PatientsManager({
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                className="min-h-10 px-4 py-2 rounded-full border border-border text-xs font-semibold text-foreground bg-background hover:bg-accent/60 disabled:opacity-40 cursor-pointer flex items-center gap-1"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
                 Anterior
@@ -3677,7 +3682,7 @@ export function PatientsManager({
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                className="min-h-10 px-4 py-2 rounded-full border border-border text-xs font-semibold text-foreground bg-background hover:bg-accent/60 disabled:opacity-40 cursor-pointer flex items-center gap-1"
               >
                 Próxima
                 <ChevronRight className="h-3.5 w-3.5" />
