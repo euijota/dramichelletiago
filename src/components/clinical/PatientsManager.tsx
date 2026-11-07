@@ -284,16 +284,37 @@ export function PatientsManager({
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>("endodontia");
   const [specialtyText, setSpecialtyText] = useState(SPECIALTY_TEMPLATES.endodontia.template);
 
-  // Anamnese estruturada state
+  // Anamnese estruturada state (Perguntas Oficiais do Clinicorp - Dra. Michelle)
   const [anamnesisForm, setAnamnesisForm] = useState({
-    bleedingGums: "Não",
-    sensitivity: "Não",
+    reasonForVisit: "",
+    lastDentalTreatment: "",
+    medicalTreatment: "Não",
+    medicalTreatmentDetails: "",
+    takingMedication: "Não",
+    continuousMeds: "",
     drugAllergy: "Não",
     drugAllergyDetails: "",
-    pregnant: "Não",
-    systemicConditions: [] as string[],
-    continuousMeds: "",
+    localAnesthesiaReaction: "Não",
+    foodAllergy: "Não",
+    foodAllergyDetails: "",
+    bleedingGums: "Não",
+    foodRetention: "Não",
+    sensitivity: "Não",
     bruxism: "Não",
+    habits: "Não",
+    habitsDetails: "",
+    smoking: "Não",
+    smokingDetails: "",
+    excessiveBleeding: "Não",
+    faintingOrEpilepsy: "Não",
+    facialOrTmjPain: "Não",
+    normalBloodPressure: "Sim",
+    pregnant: "Não",
+    pregnantMonth: "",
+    previousOrthodontics: "Não",
+    smileComplaint: "Não",
+    smileComplaintDetails: "",
+    systemicConditions: [] as string[],
     notes: "",
   });
 
@@ -1985,19 +2006,178 @@ export function PatientsManager({
         )}
 
         {/* ====================================================================
-            ABA 8: ANAMNESE (QUESTIONÁRIO DE SAÚDE + TRIAGEM CONSULTÓRIO.ME)
+            ABA 8: ANAMNESE (QUESTIONÁRIO OFICIAL CLINICORP)
            ==================================================================== */}
         {activeTab === "anamnese" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-[#e66c2c]" />
-                Preencher / Atualizar Anamnese Odontológica
+                Questionário Oficial de Anamnese Clínica
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs max-h-[620px] overflow-y-auto pr-1">
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    Sangramento gengival ao escovar?
+                    1. Qual o motivo da consulta?
+                  </label>
+                  <input
+                    type="text"
+                    value={anamnesisForm.reasonForVisit}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, reasonForVisit: e.target.value })
+                    }
+                    placeholder="Ex: Dor, limpeza, avaliação estética, prótese..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    2. Quando foi o último tratamento odontológico?
+                  </label>
+                  <input
+                    type="text"
+                    value={anamnesisForm.lastDentalTreatment}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, lastDentalTreatment: e.target.value })
+                    }
+                    placeholder="Ex: Há 6 meses, 1 ano..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    3. Está fazendo algum tratamento médico?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.medicalTreatment}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, medicalTreatment: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.medicalTreatmentDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({
+                          ...anamnesisForm,
+                          medicalTreatmentDetails: e.target.value,
+                        })
+                      }
+                      placeholder="Qual tratamento?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    4. Está tomando algum medicamento?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.takingMedication}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, takingMedication: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.continuousMeds}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, continuousMeds: e.target.value })
+                      }
+                      placeholder="Quais medicamentos?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    5. Tem alergia a algum medicamento?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.drugAllergy}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, drugAllergy: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.drugAllergyDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, drugAllergyDetails: e.target.value })
+                      }
+                      placeholder="Qual medicamento? (Ex: Dipirona)"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    6. Teve alguma reação à anestesia local?
+                  </label>
+                  <select
+                    value={anamnesisForm.localAnesthesiaReaction}
+                    onChange={(e) =>
+                      setAnamnesisForm({
+                        ...anamnesisForm,
+                        localAnesthesiaReaction: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    7. Já teve reação alérgica a algum alimento?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.foodAllergy}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, foodAllergy: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.foodAllergyDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, foodAllergyDetails: e.target.value })
+                      }
+                      placeholder="Qual alimento?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    8. Sua gengiva sangra com frequência / facilmente?
                   </label>
                   <select
                     value={anamnesisForm.bleedingGums}
@@ -2011,9 +2191,26 @@ export function PatientsManager({
                     <option value="Às vezes">Às vezes</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    Sensibilidade dentária?
+                    9. Há retenção de alimentos entre os dentes?
+                  </label>
+                  <select
+                    value={anamnesisForm.foodRetention}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, foodRetention: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    10. Sente sensibilidade nos dentes?
                   </label>
                   <select
                     value={anamnesisForm.sensitivity}
@@ -2026,53 +2223,10 @@ export function PatientsManager({
                     <option value="Sim">Sim</option>
                   </select>
                 </div>
+
                 <div>
                   <label className="font-semibold text-foreground block mb-1">
-                    Alergia a algum medicamento/anestésico?
-                  </label>
-                  <select
-                    value={anamnesisForm.drugAllergy}
-                    onChange={(e) =>
-                      setAnamnesisForm({ ...anamnesisForm, drugAllergy: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
-                  >
-                    <option value="Não">Não</option>
-                    <option value="Sim">Sim</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-foreground block mb-1">
-                    Qual alergia? (se houver)
-                  </label>
-                  <input
-                    type="text"
-                    value={anamnesisForm.drugAllergyDetails}
-                    onChange={(e) =>
-                      setAnamnesisForm({ ...anamnesisForm, drugAllergyDetails: e.target.value })
-                    }
-                    placeholder="Ex: Dipirona, Penicilina, Amoxicilina..."
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-foreground block mb-1">
-                    Está grávida ou lactante?
-                  </label>
-                  <select
-                    value={anamnesisForm.pregnant}
-                    onChange={(e) =>
-                      setAnamnesisForm({ ...anamnesisForm, pregnant: e.target.value })
-                    }
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
-                  >
-                    <option value="Não">Não</option>
-                    <option value="Sim">Sim</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-semibold text-foreground block mb-1">
-                    Bruxismo / Apertamento dental?
+                    11. Range os dentes ou tem apertamento (dia/noite)?
                   </label>
                   <select
                     value={anamnesisForm.bruxism}
@@ -2085,18 +2239,210 @@ export function PatientsManager({
                     <option value="Sim">Sim</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    12. Tem hábito (roer unhas, morder lápis/caneta)?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.habits}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, habits: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.habitsDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, habitsDetails: e.target.value })
+                      }
+                      placeholder="Qual hábito?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    13. É fumante? Quantos cigarros por dia?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.smoking}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, smoking: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.smokingDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, smokingDetails: e.target.value })
+                      }
+                      placeholder="Quantidade/dia"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    14. Quando você se corta, sangra muito?
+                  </label>
+                  <select
+                    value={anamnesisForm.excessiveBleeding}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, excessiveBleeding: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    15. Sente dores de cabeça, face, ouvido ou articulação (ATM)?
+                  </label>
+                  <select
+                    value={anamnesisForm.facialOrTmjPain}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, facialOrTmjPain: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    16. Desmaio, ataques nervosos, epilepsia ou convulsão?
+                  </label>
+                  <select
+                    value={anamnesisForm.faintingOrEpilepsy}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, faintingOrEpilepsy: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    17. Sua pressão arterial é normal?
+                  </label>
+                  <select
+                    value={anamnesisForm.normalBloodPressure}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, normalBloodPressure: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Sim">Sim (Normal)</option>
+                    <option value="Não">Não (Alterada)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    18. Está grávida? Qual mês?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.pregnant}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, pregnant: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.pregnantMonth}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, pregnantMonth: e.target.value })
+                      }
+                      placeholder="Qual mês?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    19. Já fez tratamento ortodôntico?
+                  </label>
+                  <select
+                    value={anamnesisForm.previousOrthodontics}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, previousOrthodontics: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    20. Há algo que lhe incomoda no seu sorriso?
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={anamnesisForm.smileComplaint}
+                      onChange={(e) =>
+                        setAnamnesisForm({ ...anamnesisForm, smileComplaint: e.target.value })
+                      }
+                      className="w-24 rounded-xl border border-border bg-background px-2.5 py-2"
+                    >
+                      <option value="Não">Não</option>
+                      <option value="Sim">Sim</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={anamnesisForm.smileComplaintDetails}
+                      onChange={(e) =>
+                        setAnamnesisForm({
+                          ...anamnesisForm,
+                          smileComplaintDetails: e.target.value,
+                        })
+                      }
+                      placeholder="O que incomoda?"
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2"
+                    />
+                  </div>
+                </div>
+
                 <div className="sm:col-span-2">
                   <label className="font-semibold text-foreground block mb-1">
-                    Condições Sistêmicas (marque se houver):
+                    Condições Sistêmicas (Hipertensão, Diabetes, Cardíaco, Respiratório, Renal):
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {[
-                      "Hipertensão",
+                      "Hipertenso",
                       "Diabetes",
-                      "Problema Cardíaco",
-                      "Asma / Bronquite",
+                      "Problemas Cardíacos",
+                      "Problemas Respiratórios",
+                      "Problemas Renais",
                       "Gastrite",
-                      "Problema Renal",
                     ].map((cond) => {
                       const active = anamnesisForm.systemicConditions.includes(cond);
                       return (
@@ -2124,17 +2470,16 @@ export function PatientsManager({
                     })}
                   </div>
                 </div>
+
                 <div className="sm:col-span-2">
                   <label className="font-semibold text-foreground block mb-1">
-                    Medicamentos de uso contínuo / Observações de saúde
+                    Possui outro tipo de enfermidade ou observações adicionais?
                   </label>
                   <textarea
-                    rows={3}
-                    value={anamnesisForm.continuousMeds}
-                    onChange={(e) =>
-                      setAnamnesisForm({ ...anamnesisForm, continuousMeds: e.target.value })
-                    }
-                    placeholder="Liste medicamentos de uso diário ou observações importantes..."
+                    rows={2}
+                    value={anamnesisForm.notes}
+                    onChange={(e) => setAnamnesisForm({ ...anamnesisForm, notes: e.target.value })}
+                    placeholder="Observações complementares da anamnese..."
                     className="w-full rounded-xl border border-border bg-background p-2.5"
                   />
                 </div>
@@ -2144,23 +2489,55 @@ export function PatientsManager({
                   const warnings: string[] = [];
                   if (anamnesisForm.drugAllergy === "Sim") {
                     warnings.push(
-                      `Alergia: ${anamnesisForm.drugAllergyDetails || "Medicamentosa"}`,
+                      `Alergia Medicamentosa: ${anamnesisForm.drugAllergyDetails || "Sim"}`,
                     );
                   }
-                  if (anamnesisForm.pregnant === "Sim") warnings.push("Gestante/Lactante");
+                  if (anamnesisForm.localAnesthesiaReaction === "Sim") {
+                    warnings.push("Reação a Anestesia Local");
+                  }
+                  if (anamnesisForm.pregnant === "Sim") {
+                    warnings.push(
+                      `Gestante${anamnesisForm.pregnantMonth ? ` (${anamnesisForm.pregnantMonth})` : ""}`,
+                    );
+                  }
+                  if (anamnesisForm.excessiveBleeding === "Sim") {
+                    warnings.push("Sangramento excessivo");
+                  }
+                  if (anamnesisForm.faintingOrEpilepsy === "Sim") {
+                    warnings.push("Histórico de desmaio/epilepsia");
+                  }
                   warnings.push(...anamnesisForm.systemicConditions);
-                  if (anamnesisForm.bleedingGums === "Sim") warnings.push("Sangramento gengival");
-                  if (anamnesisForm.bruxism === "Sim") warnings.push("Bruxismo");
 
                   const content = [
-                    `• Sangramento gengival: ${anamnesisForm.bleedingGums}`,
-                    `• Sensibilidade dentária: ${anamnesisForm.sensitivity}`,
-                    `• Alergia medicamentosa: ${anamnesisForm.drugAllergy} ${anamnesisForm.drugAllergyDetails ? `(${anamnesisForm.drugAllergyDetails})` : ""}`,
-                    `• Gestante / Lactante: ${anamnesisForm.pregnant}`,
-                    `• Bruxismo / Apertamento: ${anamnesisForm.bruxism}`,
+                    anamnesisForm.reasonForVisit
+                      ? `• Qual o motivo da consulta? ${anamnesisForm.reasonForVisit}`
+                      : null,
+                    anamnesisForm.lastDentalTreatment
+                      ? `• Quando foi o seu último tratamento odontológico? ${anamnesisForm.lastDentalTreatment}`
+                      : null,
+                    `• Está fazendo algum tratamento médico? ${anamnesisForm.medicalTreatment}${anamnesisForm.medicalTreatmentDetails ? ` (${anamnesisForm.medicalTreatmentDetails})` : ""}`,
+                    `• Está tomando algum medicamento? ${anamnesisForm.takingMedication}${anamnesisForm.continuousMeds ? ` (${anamnesisForm.continuousMeds})` : ""}`,
+                    `• Tem alergia a algum medicamento? ${anamnesisForm.drugAllergy}${anamnesisForm.drugAllergyDetails ? ` (${anamnesisForm.drugAllergyDetails})` : ""}`,
+                    `• Teve alguma reação a anestesia local? ${anamnesisForm.localAnesthesiaReaction}`,
+                    `• Já teve ou tem reação alérgica a algum alimento? ${anamnesisForm.foodAllergy}${anamnesisForm.foodAllergyDetails ? ` (${anamnesisForm.foodAllergyDetails})` : ""}`,
+                    `• Sua gengiva sangra com frequência? ${anamnesisForm.bleedingGums}`,
+                    `• Há retenção de alimentos entre os dentes? ${anamnesisForm.foodRetention}`,
+                    `• Sente sensibilidade nos dentes? ${anamnesisForm.sensitivity}`,
+                    `• Range os dentes ou tem apertamento? ${anamnesisForm.bruxism}`,
+                    `• Tem algum hábito? ${anamnesisForm.habits}${anamnesisForm.habitsDetails ? ` (${anamnesisForm.habitsDetails})` : ""}`,
+                    `• Fuma? ${anamnesisForm.smoking}${anamnesisForm.smokingDetails ? ` (${anamnesisForm.smokingDetails})` : ""}`,
+                    `• Quando você se corta, sangra muito? ${anamnesisForm.excessiveBleeding}`,
+                    `• Sente dores de cabeça, dores na face, ouvido ou articulação? ${anamnesisForm.facialOrTmjPain}`,
+                    `• Teve algum desmaio, tem ataques nervosos, epilepsia ou convulsão? ${anamnesisForm.faintingOrEpilepsy}`,
+                    `• Sua pressão arterial é normal? ${anamnesisForm.normalBloodPressure}`,
+                    `• Está grávida? ${anamnesisForm.pregnant}${anamnesisForm.pregnantMonth ? ` (${anamnesisForm.pregnantMonth})` : ""}`,
+                    `• Já fez tratamento ortodôntico? ${anamnesisForm.previousOrthodontics}`,
+                    `• Há algo que lhe incomoda no seu sorriso? ${anamnesisForm.smileComplaint}${anamnesisForm.smileComplaintDetails ? ` (${anamnesisForm.smileComplaintDetails})` : ""}`,
                     `• Condições sistêmicas: ${anamnesisForm.systemicConditions.join(", ") || "Nenhuma"}`,
-                    `• Medicamentos em uso / Obs: ${anamnesisForm.continuousMeds || "Nenhum"}`,
-                  ].join("\n");
+                    anamnesisForm.notes ? `• Observações: ${anamnesisForm.notes}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
 
                   if (warnings.length > 0) {
                     await supabase
@@ -2188,7 +2565,7 @@ export function PatientsManager({
               </button>
             </div>
 
-            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground">
                 Histórico de Anamnese do Paciente ({categorizedRecords.anamneses.length})
               </h3>
@@ -2197,7 +2574,7 @@ export function PatientsManager({
                   Nenhuma ficha de anamnese respondida ainda para este paciente.
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[620px] overflow-y-auto pr-1">
                   {categorizedRecords.anamneses.map((a) => (
                     <div
                       key={a.id}
@@ -2205,7 +2582,7 @@ export function PatientsManager({
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-indigo-700 dark:text-indigo-400">
-                          {a.title || "Anamnese / Triagem"}
+                          {a.title || "Anamnese Clínica"}
                         </span>
                         <span className="font-mono text-muted-foreground">
                           {new Date(a.record_date).toLocaleDateString("pt-BR")}
