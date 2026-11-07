@@ -221,7 +221,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       }
     }
 
-    // 3. Email notification via Formspree
+    // 3. Email notification (FormSubmit + Formspree + optional Resend / Webhook)
     const cancellationLink = cancellationToken
       ? `https://dramichelletiago.com.br/cancelar/${cancellationToken}`
       : "";
@@ -229,27 +229,106 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       ? `https://dramichelletiago.com.br/confirmar/${confirmationToken}`
       : "";
 
+    const [yyyy, mm, dd] = data.appointmentDate.split("-");
+    const dateFormattedBr = `${dd}/${mm}/${yyyy}`;
+    const timeShort = data.appointmentTime.slice(0, 5);
+
     const messageText =
-      `📌 NOVO AGENDAMENTO RECEBIDO\n\n` +
+      `📌 NOVO AGENDAMENTO ONLINE RECEBIDO\n\n` +
       `Protocolo: ${data.protocol}\n` +
       `Paciente: ${data.patientName}\n` +
-      `Telefone: ${data.patientPhone}\n` +
+      `WhatsApp: ${data.patientPhone}\n` +
       `E-mail: ${data.patientEmail || "Não informado"}\n` +
-      `Data: ${data.appointmentDate} às ${data.appointmentTime}\n` +
+      `Data: ${dateFormattedBr} às ${timeShort}\n` +
       `Serviço: ${data.serviceName}\n` +
       `Duração: ${durationMinutes} min\n` +
       `Observações: ${data.notes || "Nenhuma"}\n\n` +
-      `✅ Salvo no banco: ${dbSaved ? "Sim" : "Não"}\n\n` +
-      (confirmationLink ? `✅ Link de confirmação: ${confirmationLink}\n` : "") +
-      (cancellationLink ? `🔗 Link de cancelamento: ${cancellationLink}` : "");
+      `🔗 Painel da Clínica: https://dramichelletiago.com.br/painel\n` +
+      (confirmationLink ? `✅ Confirmar consulta: ${confirmationLink}\n` : "") +
+      (cancellationLink ? `❌ Cancelar consulta: ${cancellationLink}` : "");
 
+    const emailSubject = `🦷 [Novo Agendamento] ${data.patientName} — ${dateFormattedBr} às ${timeShort}`;
+
+    // 3a. Direct email to dramichellebarbosatiago@gmail.com via FormSubmit AJAX
+    try {
+      await fetch(`https://formsubmit.co/ajax/${CLINIC.email}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Origin: "https://dramichelletiago.com.br",
+          Referer: "https://dramichelletiago.com.br/agendar",
+        },
+        body: JSON.stringify({
+          _subject: emailSubject,
+          _template: "table",
+          _captcha: "false",
+          Protocolo: data.protocol,
+          Paciente: data.patientName,
+          WhatsApp: data.patientPhone,
+          Email_Paciente: data.patientEmail || "Não informado",
+          Data_e_Horario: `${dateFormattedBr} às ${timeShort}`,
+          Atendimento: data.serviceName,
+          Observacoes: data.notes || "Nenhuma",
+          Painel_Clinica: "https://dramichelletiago.com.br/painel",
+          Link_Confirmacao: confirmationLink,
+        }),
+      });
+    } catch (e) {
+      console.warn("[saveAppointmentAndNotify] FormSubmit email warning:", e);
+    }
+
+    // 3b. Optional Resend API if RESEND_API_KEY is configured in environment
+    if (process.env.RESEND_API_KEY) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: "Agenda Dra. Michelle <onboarding@resend.dev>",
+            to: [CLINIC.email],
+            subject: emailSubject,
+            text: messageText,
+          }),
+        });
+      } catch (e) {
+        console.warn("[saveAppointmentAndNotify] Resend email warning:", e);
+      }
+    }
+
+    // 3c. Optional WhatsApp Webhook / Evolution API / Z-API if WHATSAPP_WEBHOOK_URL is configured
+    if (process.env.WHATSAPP_WEBHOOK_URL) {
+      try {
+        await fetch(process.env.WHATSAPP_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone: CLINIC.whatsapp,
+            text: messageText,
+            protocol: data.protocol,
+            patientName: data.patientName,
+            patientPhone: data.patientPhone,
+            appointmentDate: dateFormattedBr,
+            appointmentTime: timeShort,
+            serviceName: data.serviceName,
+          }),
+        });
+      } catch (e) {
+        console.warn("[saveAppointmentAndNotify] WhatsApp webhook warning:", e);
+      }
+    }
+
+    // 3d. Formspree fallback
     try {
       await fetch("https://formspree.io/f/xbjnqpyz", {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({
           _replyto: data.patientEmail || "noreply@site.com",
-          subject: `🩺 [Agendamento Site] ${data.patientName} - ${data.appointmentDate} às ${data.appointmentTime}`,
+          subject: emailSubject,
           message: messageText,
           protocol: data.protocol,
           patientName: data.patientName,
@@ -258,7 +337,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
           cancellationLink,
         }),
       });
-      console.log("[saveAppointmentAndNotify] Email sent for", data.protocol);
+      console.log("[saveAppointmentAndNotify] Email notification dispatched for", data.protocol);
     } catch (e) {
       console.warn("[saveAppointmentAndNotify] Email warning:", e);
     }

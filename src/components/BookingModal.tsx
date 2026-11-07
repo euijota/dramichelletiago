@@ -172,6 +172,10 @@ export function BookingModal({
   // Cache of occupied events by date: { "2026-08-10": ["15:00", "16:00", "17:00"] }
   const [occupiedMap, setOccupiedMap] = useState<Record<string, string[]>>({});
   const [isFeedLoaded, setIsFeedLoaded] = useState(false);
+  const [firstAvailableSuggestion, setFirstAvailableSuggestion] = useState<{
+    day: DayItem;
+    slot: string;
+  } | null>(null);
 
   // 1. Fetch iCal Feed & Supabase appointments ONCE when modal opens or in inline mode
   useEffect(() => {
@@ -258,7 +262,8 @@ export function BookingModal({
           }
         }
 
-        if (firstAvailableDay) {
+        if (firstAvailableDay && firstAvailableSlot) {
+          setFirstAvailableSuggestion({ day: firstAvailableDay, slot: firstAvailableSlot });
           setSelectedMonth(firstAvailableDay.monthYear);
           setSelectedDay(firstAvailableDay);
           setSelectedSlot(firstAvailableSlot);
@@ -275,7 +280,22 @@ export function BookingModal({
     return () => {
       isMounted = false;
     };
-  }, [open, days]);
+  }, [open, inline, days]);
+
+  // Auto-scroll day carousel to the active day card when selectedDay changes
+  useEffect(() => {
+    if (!selectedDay || !carouselRef.current) return;
+    const timer = setTimeout(() => {
+      const activeBtn = carouselRef.current?.querySelector<HTMLElement>('[data-day-active="true"]');
+      if (activeBtn && carouselRef.current) {
+        const container = carouselRef.current;
+        const scrollLeft =
+          activeBtn.offsetLeft - container.clientWidth / 2 + activeBtn.clientWidth / 2;
+        container.scrollTo({ left: Math.max(0, scrollLeft), behavior: "smooth" });
+      }
+    }, 80);
+    return () => clearTimeout(timer);
+  }, [selectedDay, selectedMonth]);
 
   // 2. When feed loads or selectedDay changes, calculate available slots INSTANTLY
   useEffect(() => {
@@ -283,7 +303,6 @@ export function BookingModal({
 
     const dateKey = selectedDay.dateString;
     const occupiedForDay = occupiedMap[dateKey] || [];
-    setBookedSlots(occupiedForDay);
 
     const allSlots = buildTimeSlots(selectedDay.weekday);
     const now = new Date();
@@ -292,15 +311,29 @@ export function BookingModal({
     const dateNum = String(now.getDate()).padStart(2, "0");
     const todayIso = `${year}-${monthStr}-${dateNum}`;
     const isToday = selectedDay.dateString === todayIso;
+    const minNotice = now.getTime() + 3 * 60 * 60 * 1000;
 
+    const blockedSet = new Set(occupiedForDay);
     const availableSlots = allSlots.filter((slot) => {
-      if (occupiedForDay.includes(slot)) return false;
+      if (blockedSet.has(slot)) return false;
       if (isToday) {
-        const slotHour = parseInt(slot.split(":")[0], 10);
-        if (slotHour <= now.getHours()) return false;
+        const [slotH, slotM] = slot.split(":").map(Number);
+        const slotTime = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          slotH,
+          slotM || 0,
+        ).getTime();
+        if (slotTime < minNotice) {
+          blockedSet.add(slot);
+          return false;
+        }
       }
       return true;
     });
+
+    setBookedSlots(Array.from(blockedSet));
 
     if (availableSlots.length > 0) {
       setSelectedSlot(availableSlots[0]);
@@ -513,8 +546,48 @@ export function BookingModal({
         </div>
       ) : (
         /* Main Step: Interactive Calendar */
-        <div className="p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+        <div className={`p-6 space-y-5 ${inline ? "" : "max-h-[78vh] overflow-y-auto"}`}>
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Smart Banner: Primeiro Horário Disponível */}
+            {firstAvailableSuggestion && (
+              <div className="rounded-2xl bg-gradient-to-r from-[#90464f]/10 via-[#FAF5F5] to-[#90464f]/5 border border-[#90464f]/25 p-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[#90464f] text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#90464f]">
+                      1º Horário Disponível na Agenda
+                    </p>
+                    <p className="text-sm font-semibold text-foreground">
+                      {firstAvailableSuggestion.day.fullFormatted} às{" "}
+                      <span className="text-[#90464f] font-bold">
+                        {firstAvailableSuggestion.slot}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                {selectedDay?.dateString === firstAvailableSuggestion.day.dateString &&
+                selectedSlot === firstAvailableSuggestion.slot ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-500/15 border border-emerald-600/25 px-3 py-1 rounded-full flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Já selecionado para você
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(firstAvailableSuggestion.day.monthYear);
+                      setSelectedDay(firstAvailableSuggestion.day);
+                      setSelectedSlot(firstAvailableSuggestion.slot);
+                    }}
+                    className="text-xs font-bold bg-[#90464f] hover:bg-[#77373f] text-white px-3.5 py-1.5 rounded-full shadow-sm transition-all"
+                  >
+                    Voltar para o 1º horário livre
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Month Tabs & Day Carousel */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -568,6 +641,7 @@ export function BookingModal({
                       <button
                         key={day.dateString}
                         type="button"
+                        data-day-active={isActive ? "true" : "false"}
                         onClick={() => {
                           setSelectedDay(day);
                           setSelectedSlot(null);
@@ -789,47 +863,30 @@ export function BookingModal({
             </div>
 
             <div className="pt-3 border-t border-border flex justify-end gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange?.(false)}
-                className="rounded-full"
-              >
-                Cancelar
-              </Button>
+              {!inline && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange?.(false)}
+                  className="rounded-full"
+                >
+                  Cancelar
+                </Button>
+              )}
               <Button
                 type="submit"
                 disabled={isSubmitting || !selectedSlot}
-                className="bg-[#90464f] hover:bg-[#77373f] text-white rounded-full px-6 shadow-md transition-silk gap-2"
+                className={`bg-[#90464f] hover:bg-[#77373f] text-white rounded-full px-6 py-6 text-base font-bold shadow-md transition-silk gap-2 ${
+                  inline ? "w-full" : ""
+                }`}
               >
-                {isSubmitting ? "Enviando..." : "Solicitar Agendamento"}
+                <CalendarCheck className="w-5 h-5" />
+                {isSubmitting ? "Confirmando Agendamento..." : "Confirmar Agendamento"}
               </Button>
             </div>
           </form>
         </div>
       )}
-
-      {/* WhatsApp Assistance Bar */}
-      <div className="bg-gradient-to-r from-background to-[#FAF5F5] px-6 py-4 border-t border-[#90464f]/10 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-left">
-          <p className="font-semibold text-foreground text-xs">
-            Dúvidas ou prefere agendar por mensagem?
-          </p>
-          <span className="text-[11px] text-muted-foreground">
-            Fale diretamente com nossa equipe no WhatsApp
-          </span>
-        </div>
-        <a
-          href={`https://wa.me/${CLINIC.whatsapp}?text=${encodeURIComponent(
-            "Olá, gostaria de agendar uma consulta com a Dra Michelle",
-          )}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#22c35e] text-white px-4 py-2 rounded-full text-xs font-bold shadow-sm transition-all"
-        >
-          <Send className="w-3.5 h-3.5" /> Agendar via WhatsApp
-        </a>
-      </div>
     </>
   );
 

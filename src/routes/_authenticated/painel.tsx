@@ -283,6 +283,39 @@ function Painel() {
     },
   });
 
+  // Alerta em tempo real no painel quando um novo agendamento online chega
+  useEffect(() => {
+    if (!session) return;
+
+    const channel = supabase
+      .channel("painel-realtime-appointments")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "appointments" },
+        (payload) => {
+          const novo = payload.new as Partial<Appointment>;
+          queryClient.invalidateQueries({ queryKey: ["appointments"] });
+          queryClient.invalidateQueries({ queryKey: ["patients"] });
+
+          if (novo?.patient_name) {
+            const dataBr = novo.appointment_date
+              ? novo.appointment_date.split("-").reverse().join("/")
+              : "";
+            const horaBr = (novo.appointment_time || "").slice(0, 5);
+            toast.success(`🦷 Novo agendamento online: ${novo.patient_name}`, {
+              description: `${dataBr} às ${horaBr} · ${novo.service_name || "Consulta"}`,
+              duration: 10000,
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session, queryClient]);
+
   async function markReminderSent(appointment: Appointment) {
     const { error } = await supabase
       .from("appointments")
