@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -12,7 +12,6 @@ import {
   Smile,
   Plus,
   Clock,
-  ExternalLink,
   ChevronRight,
   ChevronLeft,
   Filter,
@@ -21,6 +20,21 @@ import {
   Edit,
   CheckCircle2,
   Trash2,
+  ArrowLeft,
+  Bell,
+  DollarSign,
+  Camera,
+  ClipboardList,
+  Stethoscope,
+  ShieldCheck,
+  FileCheck,
+  Receipt,
+  Sparkles,
+  MessageCircle,
+  ArrowRight,
+  Layers,
+  Check,
+  Printer,
 } from "lucide-react";
 import { OdontogramView } from "./OdontogramView";
 import { DocumentGenerator } from "./DocumentGenerator";
@@ -30,21 +44,34 @@ import { cn } from "@/lib/utils";
 
 export interface Patient {
   id: string;
+  legacy_patient_id?: number | null;
   record_number: number;
   name: string;
+  nickname?: string | null;
   phone: string | null;
+  phone2?: string | null;
   email: string | null;
   cpf: string | null;
+  rg?: string | null;
   birth_date: string | null;
   gender: string | null;
+  marital_status?: string | null;
+  profession?: string | null;
+  origin?: string | null;
   insurance: string | null;
   insurance_number: string | null;
   medical_warning: string | null;
+  postal_code?: string | null;
   address: string | null;
+  address_number?: string | null;
+  address_extra?: string | null;
   neighborhood: string | null;
   city: string | null;
   state: string | null;
   notes?: string | null;
+  return_alert_date?: string | null;
+  return_alert_notes?: string | null;
+  funnel_stage?: string | null;
   created_at: string;
 }
 
@@ -65,6 +92,103 @@ interface PatientAppointment {
   status: "pending" | "confirmed" | "cancelled" | "completed";
   notes: string | null;
 }
+
+type ClinicorpTab =
+  | "visao_geral"
+  | "orcamentos"
+  | "financeiro"
+  | "fotos"
+  | "plano_ficha"
+  | "fichas_especialidades"
+  | "odontograma"
+  | "anamnese"
+  | "planos"
+  | "documentos"
+  | "exames"
+  | "recibos"
+  | "agendamentos";
+
+const CLINICORP_TABS: { id: ClinicorpTab; label: string }[] = [
+  { id: "visao_geral", label: "Visão Geral" },
+  { id: "orcamentos", label: "Orçamentos" },
+  { id: "financeiro", label: "Financeiro" },
+  { id: "fotos", label: "Fotos" },
+  { id: "plano_ficha", label: "Plano e Ficha Clínica" },
+  { id: "fichas_especialidades", label: "Fichas Especialidades" },
+  { id: "odontograma", label: "Odontograma" },
+  { id: "anamnese", label: "Anamnese" },
+  { id: "planos", label: "Planos" },
+  { id: "documentos", label: "Documentos" },
+  { id: "exames", label: "Exames" },
+  { id: "recibos", label: "Recibos" },
+  { id: "agendamentos", label: "Agendamentos" },
+];
+
+const FUNNEL_STAGES = [
+  {
+    id: "all",
+    label: "Todos os Pacientes",
+    badge: "Base Unificada",
+    tone: "bg-primary/10 text-primary border-primary/25",
+  },
+  {
+    id: "triagem",
+    label: "1. Triagem / Leads (Consultório.me)",
+    badge: "Captação / Agendamento",
+    tone: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
+  },
+  {
+    id: "anamnese",
+    label: "2. Ficha / Anamnese Preenchida",
+    badge: "Pronto p/ Avaliação",
+    tone: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30",
+  },
+  {
+    id: "orcamento",
+    label: "3. Orçamento em Aberto",
+    badge: "Em Negociação",
+    tone: "bg-orange-500/15 text-orange-800 dark:text-orange-300 border-orange-500/30",
+  },
+  {
+    id: "tratamento",
+    label: "4. Em Gestão no Clinicorp",
+    badge: "Paciente Ativo",
+    tone: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
+  },
+];
+
+const SPECIALTY_TEMPLATES: Record<string, { label: string; template: string }> = {
+  endodontia: {
+    label: "Ficha de Endodontia",
+    template:
+      "Dente: \nDiagnóstico Pulpar / Periapical: \nTeste de Sensibilidade: \nComprimento de Trabalho (CAD / CRD / CRT): \nInstrumentação / Limas utilizadas: \nMedicação Intracanal: \nObturação (Cimento / Técnica): \nObservações pós-operatórias:",
+  },
+  ortodontia: {
+    label: "Ficha de Ortodontia / Alinhadores",
+    template:
+      "Classificação de Angle (Classe I / II / III): \nPadrão Facial / Perfil: \nArco Superior (Fio / Alinhador nº): \nArco Inferior (Fio / Alinhador nº): \nElásticos intermaxilares: \nHigiene Bucal (Boa / Regular / Deficiente): \nConduta na próxima manutenção:",
+  },
+  protese: {
+    label: "Ficha de Prótese / Reabilitação",
+    template:
+      "Tipo de Prótese (Coroa / Faceta / PPR / Total / Sobre Implante): \nDentes envolvidos: \nEscala de Cor (Vita): \nMoldagem / Escaneamento: \nLaboratório / Protético: \nProva de estrutura / Ajuste oclusal: \nCimentação (Cimento utilizado):",
+  },
+  hof: {
+    label: "Ficha de Harmonização Orofacial (HOF)",
+    template:
+      "Procedimento (Toxina Botulínica / Preenchimento / Bioestimulador): \nProduto / Marca / Lote / Validade: \nDiluição / Volume total aplicado: \nPontos e doses por região facial: \nOrientações pós-procedimento entregues: \nData do retorno de 15 dias:",
+  },
+  odontopediatria: {
+    label: "Ficha de Odontopediatria",
+    template:
+      "Comportamento da criança (Colaborador / Ansioso / Choro): \nResponsável acompanhante: \nDieta cariogênica / Hábitos (Chupeta / Mamadeira / Bruxismo infantil): \nAplicação tópica de flúor / Selante: \nProcedimento realizado: \nOrientação de escovação aos pais:",
+  },
+  periodontia: {
+    label: "Ficha de Periodontia (PSR / Raspagem)",
+    template:
+      "Índice de Placa / Sangramento Gengival: \nPresença de Cálculo (Supragengival / Subgengival): \nBolsas periodontais / Mobilidade dentária: \nRaspagem e Alisamento Radicular (Sextantes): \nProfilaxia / Jato de Bicarbonato: \nManutenção periodontal recomendada em:",
+  },
+};
 
 const ALPHABET = [
   "Todos",
@@ -104,7 +228,9 @@ interface PatientsManagerProps {
 export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsManagerProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const [quickJumpSearch, setQuickJumpSearch] = useState("");
   const [selectedInsurance, setSelectedInsurance] = useState<string>("all");
+  const [selectedFunnelStage, setSelectedFunnelStage] = useState<string>("all");
   const [selectedLetter, setSelectedLetter] = useState<string>("Todos");
   const [onlyWarnings, setOnlyWarnings] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<"name_asc" | "name_desc" | "recent" | "record_num">(
@@ -115,26 +241,87 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
 
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<"prontuario" | "odontograma" | "documentos">(
-    "prontuario",
-  );
+  const [activeTab, setActiveTab] = useState<ClinicorpTab>("visao_geral");
+  const [infoSubTab, setInfoSubTab] = useState<"cadastro" | "contato" | "complemento">("cadastro");
 
-  // Modal de Criar / Editar Paciente
+  // Modais específicos do Clinicorp
   const [patientFormMode, setPatientFormMode] = useState<"create" | "edit" | null>(null);
-  const [patientForm, setPatientForm] = useState({
-    name: "",
-    phone: "",
-    cpf: "",
-    birth_date: "",
-    email: "",
-    insurance: "PARTICULAR",
-    neighborhood: "",
-    city: "Macapá",
-    medical_warning: "",
+  const [showReturnAlertModal, setShowReturnAlertModal] = useState(false);
+  const [returnAlertForm, setReturnAlertForm] = useState({ date: "", notes: "" });
+
+  const [showGeneralNoteModal, setShowGeneralNoteModal] = useState(false);
+  const [generalNoteText, setGeneralNoteText] = useState("");
+
+  // Orçamentos state
+  const [budgetForm, setBudgetForm] = useState({
+    description: "",
+    tooth: "",
+    amount: "",
+    paymentForm: "PIX / À vista",
+    status: "Aberto",
   });
 
-  // Nova evolução clínica
+  // Financeiro state
+  const [financeForm, setFinanceForm] = useState({
+    description: "",
+    amount: "",
+    method: "PIX",
+    status: "Pago",
+  });
+
+  // Plano e Ficha Clínica state
   const [newEvolutionText, setNewEvolutionText] = useState("");
+  const [newEvolutionTitle, setNewEvolutionTitle] = useState("Evolução em Consulta");
+
+  // Fichas Especialidades state
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("endodontia");
+  const [specialtyText, setSpecialtyText] = useState(SPECIALTY_TEMPLATES.endodontia.template);
+
+  // Anamnese estruturada state
+  const [anamnesisForm, setAnamnesisForm] = useState({
+    bleedingGums: "Não",
+    sensitivity: "Não",
+    drugAllergy: "Não",
+    drugAllergyDetails: "",
+    pregnant: "Não",
+    systemicConditions: [] as string[],
+    continuousMeds: "",
+    bruxism: "Não",
+    notes: "",
+  });
+
+  // Fotos & Exames state
+  const [photoTitle, setPhotoTitle] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [examTitle, setExamTitle] = useState("");
+  const [examNotes, setExamNotes] = useState("");
+
+  const [patientForm, setPatientForm] = useState({
+    name: "",
+    nickname: "",
+    phone: "",
+    phone2: "",
+    cpf: "",
+    rg: "",
+    birth_date: "",
+    gender: "",
+    marital_status: "",
+    profession: "",
+    email: "",
+    origin: "Consultório.me (Triagem)",
+    insurance: "PARTICULAR",
+    insurance_number: "",
+    postal_code: "",
+    address: "",
+    address_number: "",
+    address_extra: "",
+    neighborhood: "",
+    city: "Macapá",
+    state: "AP",
+    medical_warning: "",
+    notes: "",
+    funnel_stage: "tratamento",
+  });
 
   // Carregar paciente vindo da Agenda automaticamente
   useEffect(() => {
@@ -147,7 +334,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
       .then(({ data: p }) => {
         if (p) {
           setSelectedPatient(p as Patient);
-          setActiveTab("prontuario");
+          setActiveTab("visao_geral");
         }
         if (onPatientLoaded) onPatientLoaded();
       });
@@ -156,14 +343,29 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
   function openCreatePatientModal() {
     setPatientForm({
       name: "",
+      nickname: "",
       phone: "",
+      phone2: "",
       cpf: "",
+      rg: "",
       birth_date: "",
+      gender: "",
+      marital_status: "",
+      profession: "",
       email: "",
+      origin: "Clinicorp / Painel",
       insurance: "PARTICULAR",
+      insurance_number: "",
+      postal_code: "",
+      address: "",
+      address_number: "",
+      address_extra: "",
       neighborhood: "",
       city: "Macapá",
+      state: "AP",
       medical_warning: "",
+      notes: "",
+      funnel_stage: "tratamento",
     });
     setPatientFormMode("create");
   }
@@ -171,14 +373,29 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
   function openEditPatientModal(p: Patient) {
     setPatientForm({
       name: p.name || "",
+      nickname: p.nickname || "",
       phone: p.phone || "",
+      phone2: p.phone2 || "",
       cpf: p.cpf || "",
+      rg: p.rg || "",
       birth_date: p.birth_date || "",
+      gender: p.gender || "",
+      marital_status: p.marital_status || "",
+      profession: p.profession || "",
       email: p.email || "",
+      origin: p.origin || "Consultório.me (Triagem)",
       insurance: p.insurance || "PARTICULAR",
+      insurance_number: p.insurance_number || "",
+      postal_code: p.postal_code || "",
+      address: p.address || "",
+      address_number: p.address_number || "",
+      address_extra: p.address_extra || "",
       neighborhood: p.neighborhood || "",
       city: p.city || "Macapá",
+      state: p.state || "AP",
       medical_warning: p.medical_warning || "",
+      notes: p.notes || "",
+      funnel_stage: p.funnel_stage || "tratamento",
     });
     setPatientFormMode("edit");
   }
@@ -190,14 +407,29 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
       }
       const payload = {
         name: patientForm.name.trim(),
+        nickname: patientForm.nickname.trim() || null,
         phone: patientForm.phone.trim() || null,
+        phone2: patientForm.phone2.trim() || null,
         cpf: patientForm.cpf.trim() || null,
+        rg: patientForm.rg.trim() || null,
         birth_date: patientForm.birth_date || null,
+        gender: patientForm.gender || null,
+        marital_status: patientForm.marital_status || null,
+        profession: patientForm.profession.trim() || null,
         email: patientForm.email.trim() || null,
+        origin: patientForm.origin.trim() || "Consultório.me (Triagem)",
         insurance: patientForm.insurance.trim() || "PARTICULAR",
+        insurance_number: patientForm.insurance_number.trim() || null,
+        postal_code: patientForm.postal_code.trim() || null,
+        address: patientForm.address.trim() || null,
+        address_number: patientForm.address_number.trim() || null,
+        address_extra: patientForm.address_extra.trim() || null,
         neighborhood: patientForm.neighborhood.trim() || null,
         city: patientForm.city.trim() || "Macapá",
+        state: patientForm.state.trim() || "AP",
         medical_warning: patientForm.medical_warning.trim() || null,
+        notes: patientForm.notes.trim() || null,
+        funnel_stage: patientForm.funnel_stage || "tratamento",
       };
 
       if (patientFormMode === "edit" && selectedPatient) {
@@ -212,7 +444,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
       } else {
         const { data: created, error } = await supabase
           .from("patients")
-          .insert({ ...payload, origin: "Painel Clínico" })
+          .insert(payload)
           .select("*")
           .single();
         if (error) throw error;
@@ -222,59 +454,120 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     onSuccess: (saved) => {
       toast.success(
         patientFormMode === "edit"
-          ? "Cadastro do paciente atualizado!"
+          ? "Ficha do paciente atualizada!"
           : "Novo paciente cadastrado com sucesso!",
       );
       setSelectedPatient(saved);
       setPatientFormMode(null);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
     },
     onError: (err: Error) => {
       toast.error(err.message || "Não foi possível salvar os dados do paciente.");
     },
   });
 
-  // Resetar página quando filtros mudarem
-  function handleSearchChange(val: string) {
-    setSearch(val);
-    setPage(1);
-  }
+  // Atualizar etapa do funil (Triagem Consultório.me -> Em Gestão no Clinicorp)
+  const updateFunnelStageMutation = useMutation({
+    mutationFn: async ({ patientId, stage }: { patientId: string; stage: string }) => {
+      const { data: updated, error } = await supabase
+        .from("patients")
+        .update({ funnel_stage: stage })
+        .eq("id", patientId)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return updated as Patient;
+    },
+    onSuccess: (updated) => {
+      setSelectedPatient(updated);
+      toast.success("Etapa do paciente atualizada no Clinicorp!");
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+    },
+  });
 
-  function handleLetterChange(letter: string) {
-    setSelectedLetter(letter);
-    setPage(1);
-  }
+  // Salvar Alerta de Retorno
+  const saveReturnAlertMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPatient) return;
+      const { data: updated, error } = await supabase
+        .from("patients")
+        .update({
+          return_alert_date: returnAlertForm.date || null,
+          return_alert_notes: returnAlertForm.notes.trim() || null,
+        })
+        .eq("id", selectedPatient.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return updated as Patient;
+    },
+    onSuccess: (updated) => {
+      if (updated) setSelectedPatient(updated);
+      setShowReturnAlertModal(false);
+      toast.success("Alerta de retorno atualizado!");
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
 
-  function handleInsuranceChange(insurance: string) {
-    setSelectedInsurance(insurance);
-    setPage(1);
-  }
+  // Contadores do Funil (Triagem Consultório.me -> Clinicorp)
+  const { data: funnelCounts = { all: 0, triagem: 0, anamnese: 0, orcamento: 0, tratamento: 0 } } =
+    useQuery({
+      queryKey: ["funnel_counts"],
+      queryFn: async () => {
+        const [allRes, triRes, anaRes, orcRes, traRes] = await Promise.all([
+          supabase.from("patients").select("id", { count: "exact", head: true }),
+          supabase
+            .from("patients")
+            .select("id", { count: "exact", head: true })
+            .eq("funnel_stage", "triagem"),
+          supabase
+            .from("patients")
+            .select("id", { count: "exact", head: true })
+            .eq("funnel_stage", "anamnese"),
+          supabase
+            .from("patients")
+            .select("id", { count: "exact", head: true })
+            .eq("funnel_stage", "orcamento"),
+          supabase
+            .from("patients")
+            .select("id", { count: "exact", head: true })
+            .eq("funnel_stage", "tratamento"),
+        ]);
+        return {
+          all: allRes.count ?? 0,
+          triagem: triRes.count ?? 0,
+          anamnese: anaRes.count ?? 0,
+          orcamento: orcRes.count ?? 0,
+          tratamento: traRes.count ?? 0,
+        };
+      },
+    });
 
-  function handleSortChange(sort: typeof sortBy) {
-    setSortBy(sort);
-    setPage(1);
-  }
+  // Busca rápida global estilo Smartbar Clinicorp ("Encontre pacientes ou funções do sistema")
+  const { data: quickJumpResults = [] } = useQuery({
+    queryKey: ["patients_quick_jump", quickJumpSearch],
+    enabled: quickJumpSearch.trim().length >= 2,
+    queryFn: async () => {
+      const term = quickJumpSearch.trim();
+      const { data } = await supabase
+        .from("patients")
+        .select("*")
+        .or(`name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%`)
+        .order("name")
+        .limit(8);
+      return (data || []) as Patient[];
+    },
+  });
 
-  function handleToggleWarnings() {
-    setOnlyWarnings((prev) => !prev);
-    setPage(1);
-  }
-
-  function clearAllFilters() {
-    setSearch("");
-    setSelectedInsurance("all");
-    setSelectedLetter("Todos");
-    setOnlyWarnings(false);
-    setSortBy("name_asc");
-    setPage(1);
-  }
-
-  // Buscar lista de pacientes com paginação e contagem exata no Supabase
+  // Buscar lista de pacientes com paginação e contagem exata
   const { data, isLoading } = useQuery({
     queryKey: [
       "patients",
       search,
       selectedInsurance,
+      selectedFunnelStage,
       selectedLetter,
       onlyWarnings,
       sortBy,
@@ -304,6 +597,10 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
 
       if (selectedInsurance !== "all") {
         query = query.eq("insurance", selectedInsurance);
+      }
+
+      if (selectedFunnelStage !== "all") {
+        query = query.eq("funnel_stage", selectedFunnelStage);
       }
 
       if (onlyWarnings) {
@@ -353,7 +650,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     },
   });
 
-  // Buscar consultas agendadas/realizadas deste paciente na Agenda
+  // Buscar consultas agendadas/realizadas deste paciente
   const { data: patientAppointments = [] } = useQuery({
     queryKey: ["patient_appointments", selectedPatient?.id],
     enabled: !!selectedPatient?.id,
@@ -370,56 +667,2309 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     },
   });
 
-  // Salvar nova evolução clínica
-  const addEvolutionMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedPatient || !newEvolutionText.trim()) return;
+  // Categorizar os registros clínicos para cada aba do Clinicorp
+  const categorizedRecords = useMemo(() => {
+    const anamneses = records.filter((r) => r.record_type === "formulario");
+    const evolutions = records.filter(
+      (r) => r.record_type === "evolucao" || r.record_type === "sinais_vitais",
+    );
+    const specialtySheets = records.filter((r) => r.record_type === "ficha_especialidade");
+    const budgets = records.filter((r) => r.record_type === "orcamento");
+    const payments = records.filter((r) => r.record_type === "pagamento");
+    const documents = records.filter(
+      (r) => r.record_type === "receita" || r.record_type === "atestado",
+    );
+    const photos = records.filter((r) => r.record_type === "foto");
+    const exams = records.filter((r) => r.record_type === "exame");
+    const generalNotes = records.filter((r) => r.record_type === "nota_geral");
+
+    return {
+      anamneses,
+      evolutions,
+      specialtySheets,
+      budgets,
+      payments,
+      documents,
+      photos,
+      exams,
+      generalNotes,
+    };
+  }, [records]);
+
+  const todayISO = new Date().toISOString().split("T")[0];
+  const nextAppointment = useMemo(() => {
+    const upcoming = patientAppointments
+      .filter((a) => a.appointment_date >= todayISO && a.status !== "cancelled")
+      .sort((a, b) =>
+        `${a.appointment_date}_${a.appointment_time}`.localeCompare(
+          `${b.appointment_date}_${b.appointment_time}`,
+        ),
+      );
+    return upcoming[0] || null;
+  }, [patientAppointments, todayISO]);
+
+  // Mutação genérica para criar qualquer registro clínico nas abas do Clinicorp
+  const createClinicalRecordMutation = useMutation({
+    mutationFn: async (payload: {
+      record_type: string;
+      title: string;
+      content: string;
+      promoteStage?: string;
+    }) => {
+      if (!selectedPatient) return;
       const { error } = await supabase.from("clinical_records").insert({
         patient_id: selectedPatient.id,
-        record_type: "evolucao",
+        record_type: payload.record_type,
         record_date: new Date().toISOString(),
-        title: "Evolução em Consulta",
-        content: newEvolutionText.trim(),
+        title: payload.title,
+        content: payload.content,
       });
+      if (error) throw error;
+
+      if (payload.promoteStage && selectedPatient.funnel_stage !== "tratamento") {
+        const { data: updated } = await supabase
+          .from("patients")
+          .update({ funnel_stage: payload.promoteStage })
+          .eq("id", selectedPatient.id)
+          .select("*")
+          .single();
+        if (updated) setSelectedPatient(updated as Patient);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao salvar registro: ${err.message}`);
+    },
+  });
+
+  const deleteClinicalRecordMutation = useMutation({
+    mutationFn: async (recordId: string) => {
+      const { error } = await supabase.from("clinical_records").delete().eq("id", recordId);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Evolução clínica registrada no prontuário!");
-      setNewEvolutionText("");
+      toast.success("Registro removido.");
       queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
     },
-    onError: (err: any) => {
-      toast.error(`Erro ao salvar: ${err.message}`);
-    },
   });
+
+  function clearAllFilters() {
+    setSearch("");
+    setSelectedInsurance("all");
+    setSelectedFunnelStage("all");
+    setSelectedLetter("Todos");
+    setOnlyWarnings(false);
+    setSortBy("name_asc");
+    setPage(1);
+  }
 
   const isFiltered =
     search.trim() !== "" ||
     selectedInsurance !== "all" ||
+    selectedFunnelStage !== "all" ||
     selectedLetter !== "Todos" ||
     onlyWarnings ||
     sortBy !== "name_asc";
 
+  // ============================================================================
+  // VISÃO INTERNA DO PACIENTE — LAYOUT IDÊNTICO AO CLINICORP (sistema.clinicorp.com)
+  // ============================================================================
+  if (selectedPatient) {
+    const currentStageObj =
+      FUNNEL_STAGES.find((s) => s.id === (selectedPatient.funnel_stage || "triagem")) ||
+      FUNNEL_STAGES[1];
+
+    return (
+      <div className="space-y-4">
+        {/* BARRA SUPERIOR ESCURA ESTILO CLINICORP ("<- Voltar para Pacientes" + Smartbar Global) */}
+        <div className="rounded-2xl bg-[#262626] text-white px-5 py-3.5 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedPatient(null)}
+              className="inline-flex items-center gap-2 text-sm font-medium text-neutral-200 hover:text-white transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Voltar para Pacientes</span>
+            </button>
+            <span className="text-neutral-600">|</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-xs font-mono text-amber-400 font-semibold">
+                #{selectedPatient.record_number}
+              </span>
+              <span className="text-sm font-bold text-white truncate">{selectedPatient.name}</span>
+            </div>
+          </div>
+
+          {/* Barra Central "Encontre pacientes ou funções do sistema" */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <input
+              type="text"
+              value={quickJumpSearch}
+              onChange={(e) => setQuickJumpSearch(e.target.value)}
+              placeholder="Encontre pacientes ou funções do sistema"
+              className="w-full rounded-lg bg-white text-neutral-900 pl-10 pr-8 py-2 text-xs font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+            {quickJumpSearch && (
+              <button
+                onClick={() => setQuickJumpSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {quickJumpSearch.trim().length >= 2 && quickJumpResults.length > 0 && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl bg-card border border-border shadow-xl divide-y divide-border overflow-hidden">
+                {quickJumpResults.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedPatient(p);
+                      setQuickJumpSearch("");
+                    }}
+                    className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between text-xs text-foreground cursor-pointer"
+                  >
+                    <div>
+                      <span className="font-bold">#{p.record_number}</span> — {p.name}
+                    </div>
+                    <span className="text-muted-foreground">{p.phone || p.cpf || ""}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Status no Funil (Triagem Consultório.me -> Clinicorp) */}
+          <div className="flex items-center gap-2 shrink-0">
+            <select
+              value={selectedPatient.funnel_stage || "triagem"}
+              onChange={(e) =>
+                updateFunnelStageMutation.mutate({
+                  patientId: selectedPatient.id,
+                  stage: e.target.value,
+                })
+              }
+              title="Etapa do paciente (Triagem Consultório.me → Gestão Clinicorp)"
+              className="rounded-lg bg-neutral-800 border border-neutral-700 text-xs font-semibold text-amber-400 px-3 py-1.5 cursor-pointer focus:outline-none"
+            >
+              <option value="triagem">Etapa: 1. Triagem / Lead (Consultório.me)</option>
+              <option value="anamnese">Etapa: 2. Anamnese Preenchida</option>
+              <option value="orcamento">Etapa: 3. Orçamento em Aberto</option>
+              <option value="tratamento">Etapa: 4. Paciente Ativo (Clinicorp)</option>
+            </select>
+            {selectedPatient.funnel_stage !== "tratamento" && (
+              <button
+                onClick={() =>
+                  updateFunnelStageMutation.mutate({
+                    patientId: selectedPatient.id,
+                    stage: "tratamento",
+                  })
+                }
+                className="rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Ativar no Clinicorp</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ALERTA CLÍNICO (SE EXISTIR) */}
+        {selectedPatient.medical_warning && (
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs font-semibold text-rose-700 dark:text-rose-300">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>Alerta Médico / Anamnese: {selectedPatient.medical_warning}</span>
+            </div>
+            <button
+              onClick={() => openEditPatientModal(selectedPatient)}
+              className="underline hover:opacity-80 cursor-pointer"
+            >
+              Editar alerta
+            </button>
+          </div>
+        )}
+
+        {/* BARRA DE 13 ABAS DO PRONTUÁRIO CLINICORP */}
+        <div className="rounded-xl bg-card border border-border px-4 pt-2 shadow-sm overflow-x-auto">
+          <div className="flex items-center gap-6 min-w-max">
+            {CLINICORP_TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "pb-3 pt-1.5 text-xs font-medium transition-all border-b-2 cursor-pointer whitespace-nowrap",
+                    isActive
+                      ? "border-[#e66c2c] text-foreground font-semibold"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ====================================================================
+            ABA 1: VISÃO GERAL (IDÊNTICA AO PRINT DO SISTEMA.CLINICORP.COM)
+           ==================================================================== */}
+        {activeTab === "visao_geral" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            {/* COLUNA ESQUERDA (4 cols): INFORMAÇÕES DO PACIENTE (Cadastro | Contato | Complemento) */}
+            <div className="lg:col-span-4 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-foreground">Informações do paciente</h3>
+                <button
+                  onClick={() => openEditPatientModal(selectedPatient)}
+                  className="text-xs font-semibold text-[#e66c2c] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit className="h-3.5 w-3.5" />
+                  <span>Editar</span>
+                </button>
+              </div>
+
+              {/* Sub-abas: Cadastro | Contato | Complemento */}
+              <div className="grid grid-cols-3 rounded-xl bg-muted/60 p-1 text-xs">
+                <button
+                  onClick={() => setInfoSubTab("cadastro")}
+                  className={cn(
+                    "py-1.5 rounded-lg font-medium transition-all cursor-pointer",
+                    infoSubTab === "cadastro"
+                      ? "bg-card text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Cadastro
+                </button>
+                <button
+                  onClick={() => setInfoSubTab("contato")}
+                  className={cn(
+                    "py-1.5 rounded-lg font-medium transition-all cursor-pointer",
+                    infoSubTab === "contato"
+                      ? "bg-card text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Contato
+                </button>
+                <button
+                  onClick={() => setInfoSubTab("complemento")}
+                  className={cn(
+                    "py-1.5 rounded-lg font-medium transition-all cursor-pointer",
+                    infoSubTab === "complemento"
+                      ? "bg-card text-foreground shadow-sm font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Complemento
+                </button>
+              </div>
+
+              {infoSubTab === "cadastro" && (
+                <div className="divide-y divide-border/60 text-xs">
+                  {[
+                    { label: "Apelido", value: selectedPatient.nickname || "-" },
+                    {
+                      label: "Data de nascimento",
+                      value: selectedPatient.birth_date
+                        ? new Date(selectedPatient.birth_date + "T12:00:00").toLocaleDateString(
+                            "pt-BR",
+                          )
+                        : "-",
+                    },
+                    { label: "CPF", value: selectedPatient.cpf || "-" },
+                    { label: "RG", value: selectedPatient.rg || "-" },
+                    { label: "Estado civil", value: selectedPatient.marital_status || "-" },
+                    { label: "Sexo", value: selectedPatient.gender || "-" },
+                    { label: "E-mail", value: selectedPatient.email || "-" },
+                    { label: "Telefone", value: selectedPatient.phone || "-" },
+                    {
+                      label: "Como conheceu?",
+                      value: selectedPatient.origin || "Consultório.me (Triagem)",
+                    },
+                    { label: "Plano", value: selectedPatient.insurance || "-" },
+                    { label: "Nº Plano", value: selectedPatient.insurance_number || "-" },
+                    {
+                      label: "Cadastrado em",
+                      value: new Date(selectedPatient.created_at).toLocaleDateString("pt-BR"),
+                    },
+                    { label: "Observações", value: selectedPatient.notes || "-" },
+                  ].map((row) => (
+                    <div key={row.label} className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="font-semibold text-foreground shrink-0">{row.label}</span>
+                      <span className="text-muted-foreground text-right truncate max-w-[60%]">
+                        {row.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {infoSubTab === "contato" && (
+                <div className="divide-y divide-border/60 text-xs">
+                  {[
+                    { label: "Celular / WhatsApp", value: selectedPatient.phone || "-" },
+                    { label: "Telefone Secundário", value: selectedPatient.phone2 || "-" },
+                    { label: "E-mail", value: selectedPatient.email || "-" },
+                    { label: "CEP", value: selectedPatient.postal_code || "-" },
+                    { label: "Endereço", value: selectedPatient.address || "-" },
+                    { label: "Número", value: selectedPatient.address_number || "-" },
+                    { label: "Complemento", value: selectedPatient.address_extra || "-" },
+                    { label: "Bairro", value: selectedPatient.neighborhood || "-" },
+                    { label: "Cidade", value: selectedPatient.city || "Macapá" },
+                    { label: "UF", value: selectedPatient.state || "AP" },
+                  ].map((row) => (
+                    <div key={row.label} className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="font-semibold text-foreground shrink-0">{row.label}</span>
+                      <span className="text-muted-foreground text-right">{row.value}</span>
+                    </div>
+                  ))}
+                  {selectedPatient.phone && (
+                    <div className="pt-3">
+                      <a
+                        href={`https://wa.me/55${selectedPatient.phone.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full py-2 rounded-lg border border-emerald-600/30 bg-emerald-500/10 text-emerald-700 font-semibold flex items-center justify-center gap-1.5 hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        <span>Conversar no WhatsApp</span>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {infoSubTab === "complemento" && (
+                <div className="divide-y divide-border/60 text-xs">
+                  {[
+                    { label: "Nº Prontuário", value: `#${selectedPatient.record_number}` },
+                    {
+                      label: "ID Triagem (Consultório.me)",
+                      value: selectedPatient.legacy_patient_id
+                        ? String(selectedPatient.legacy_patient_id)
+                        : "-",
+                    },
+                    { label: "Etapa Atual", value: currentStageObj.label },
+                    { label: "Profissão", value: selectedPatient.profession || "-" },
+                    {
+                      label: "Alerta Clínico",
+                      value: selectedPatient.medical_warning || "Sem alertas registrados",
+                    },
+                    { label: "Responsável / Notas", value: selectedPatient.notes || "-" },
+                  ].map((row) => (
+                    <div key={row.label} className="py-2.5 flex items-center justify-between gap-3">
+                      <span className="font-semibold text-foreground shrink-0">{row.label}</span>
+                      <span className="text-muted-foreground text-right">{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* COLUNA DIREITA/CENTRO (8 cols): 4 CARDS CLINICORP + NOTAS GERAIS */}
+            <div className="lg:col-span-8 space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* CARD 1: PRÓXIMO AGENDAMENTO */}
+                <div className="rounded-2xl bg-card border border-border p-5 shadow-sm flex flex-col justify-between min-h-[210px]">
+                  <h4 className="text-sm font-bold text-foreground">Próximo agendamento</h4>
+                  {nextAppointment ? (
+                    <div className="my-4 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-3.5">
+                      <div className="h-11 w-11 rounded-xl bg-emerald-500/20 text-emerald-700 flex items-center justify-center shrink-0">
+                        <Calendar className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">
+                          {new Date(
+                            nextAppointment.appointment_date + "T12:00:00",
+                          ).toLocaleDateString("pt-BR")}{" "}
+                          às {trimSeconds(nextAppointment.appointment_time)}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {nextAppointment.service_name} ({STATUS_LABELS[nextAppointment.status]})
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="my-4 flex items-center gap-3.5">
+                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                        <Calendar className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">
+                          Sem próximo agendamento
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Realize o agendamento de uma nova consulta para este paciente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setShowAppointmentModal(true)}
+                    className="w-full py-2.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    Novo Agendamento
+                  </button>
+                </div>
+
+                {/* CARD 2: ANAMNESE */}
+                <div className="rounded-2xl bg-card border border-border p-5 shadow-sm flex flex-col justify-between min-h-[210px]">
+                  <h4 className="text-sm font-bold text-foreground">Anamnese</h4>
+                  {categorizedRecords.anamneses.length > 0 || selectedPatient.medical_warning ? (
+                    <div className="my-4 p-3.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center gap-3.5">
+                      <div className="h-11 w-11 rounded-xl bg-indigo-500/20 text-indigo-700 flex items-center justify-center shrink-0">
+                        <ClipboardList className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-foreground">
+                          {categorizedRecords.anamneses.length > 0
+                            ? `${categorizedRecords.anamneses.length} ficha(s) preenchida(s)`
+                            : "Alerta de saúde registrado"}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {selectedPatient.medical_warning ||
+                            categorizedRecords.anamneses[0]?.title ||
+                            "Questionário de saúde disponível"}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="my-4 flex items-center gap-3.5">
+                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                        <ClipboardList className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">Sem anamnese</div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Preencha a anamnese para iniciar o atendimento do paciente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveTab("anamnese")}
+                    className="w-full py-2.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    {categorizedRecords.anamneses.length > 0
+                      ? "Ver / Atualizar anamnese"
+                      : "Preencher anamnese"}
+                  </button>
+                </div>
+
+                {/* CARD 3: ALERTA DE RETORNO */}
+                <div className="rounded-2xl bg-card border border-border p-5 shadow-sm flex flex-col justify-between min-h-[210px]">
+                  <h4 className="text-sm font-bold text-foreground">Alerta de retorno</h4>
+                  {selectedPatient.return_alert_date ? (
+                    <div className="my-4 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-11 w-11 rounded-xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0">
+                          <Bell className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-foreground">
+                            Retorno:{" "}
+                            {new Date(
+                              selectedPatient.return_alert_date + "T12:00:00",
+                            ).toLocaleDateString("pt-BR")}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {selectedPatient.return_alert_notes || "Retorno preventivo programado"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="my-4 flex items-center gap-3.5">
+                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                        <Bell className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">
+                          Sem alerta de retorno
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Defina um alerta de retorno para lembrar o retorno do paciente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => {
+                      setReturnAlertForm({
+                        date: selectedPatient.return_alert_date || "",
+                        notes: selectedPatient.return_alert_notes || "Retorno preventivo (6 meses)",
+                      });
+                      setShowReturnAlertModal(true);
+                    }}
+                    className="w-full py-2.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    Novo alerta
+                  </button>
+                </div>
+
+                {/* CARD 4: ORÇAMENTOS EM ABERTO */}
+                <div className="rounded-2xl bg-card border border-border p-5 shadow-sm flex flex-col justify-between min-h-[210px]">
+                  <h4 className="text-sm font-bold text-foreground">Orçamentos em aberto</h4>
+                  {categorizedRecords.budgets.length > 0 ? (
+                    <div className="my-4 p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/25 flex items-center gap-3.5">
+                      <div className="h-11 w-11 rounded-xl bg-orange-500/20 text-orange-700 flex items-center justify-center shrink-0">
+                        <DollarSign className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">
+                          {categorizedRecords.budgets.length} orçamento(s) registrado(s)
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                          {categorizedRecords.budgets[0]?.title}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="my-4 flex items-center gap-3.5">
+                      <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">
+                          Sem orçamentos em aberto
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          Nenhum orçamento em aberto para acompanhar ou converter em proposta.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setActiveTab("orcamentos")}
+                    className="w-full py-2.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    Ver orçamentos
+                  </button>
+                </div>
+              </div>
+
+              {/* CARD INFERIOR LARGO: NOTAS GERAIS */}
+              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-foreground">Notas Gerais</h4>
+                  <button
+                    onClick={() => {
+                      setGeneralNoteText("");
+                      setShowGeneralNoteModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Adicionar nota</span>
+                  </button>
+                </div>
+
+                {categorizedRecords.generalNotes.length === 0 && !selectedPatient.notes ? (
+                  <div className="py-4 flex items-center gap-3.5">
+                    <div className="h-12 w-12 rounded-2xl bg-[#fff3ec] text-[#e66c2c] flex items-center justify-center shrink-0">
+                      <FileText className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground">Sem notas gerais</div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Registre aqui observações importantes sobre o paciente para manter todas as
+                        informações organizadas em um só lugar.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {selectedPatient.notes && (
+                      <div className="p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
+                        <span className="font-semibold text-foreground block mb-0.5">
+                          Observação do Cadastro:
+                        </span>
+                        <span className="text-muted-foreground">{selectedPatient.notes}</span>
+                      </div>
+                    )}
+                    {categorizedRecords.generalNotes.map((n) => (
+                      <div
+                        key={n.id}
+                        className="p-3.5 rounded-xl bg-muted/30 border border-border flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div>
+                          <div className="font-semibold text-foreground">
+                            {new Date(n.record_date).toLocaleDateString("pt-BR")} —{" "}
+                            {n.title || "Nota Geral"}
+                          </div>
+                          <p className="text-muted-foreground mt-1 whitespace-pre-line">
+                            {n.content}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => deleteClinicalRecordMutation.mutate(n.id)}
+                          className="text-muted-foreground hover:text-rose-600 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 2: ORÇAMENTOS (CRIAR E APROVAR PROPOSTAS / TRATAMENTOS)
+           ==================================================================== */}
+        {activeTab === "orcamentos" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Plus className="h-4 w-4 text-[#e66c2c]" />
+                Novo Orçamento / Proposta de Tratamento
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Procedimento / Plano *
+                  </label>
+                  <input
+                    type="text"
+                    value={budgetForm.description}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, description: e.target.value })}
+                    placeholder="Ex: Restauração em Resina, Clareamento, Prótese, Profilaxia..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Dente / Região
+                    </label>
+                    <input
+                      type="text"
+                      value={budgetForm.tooth}
+                      onChange={(e) => setBudgetForm({ ...budgetForm, tooth: e.target.value })}
+                      placeholder="Ex: 24, Arcada Sup..."
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">Valor (R$) *</label>
+                    <input
+                      type="text"
+                      value={budgetForm.amount}
+                      onChange={(e) => setBudgetForm({ ...budgetForm, amount: e.target.value })}
+                      placeholder="Ex: 350,00"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Forma de Pagamento
+                    </label>
+                    <select
+                      value={budgetForm.paymentForm}
+                      onChange={(e) =>
+                        setBudgetForm({ ...budgetForm, paymentForm: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="PIX / À vista">PIX / À vista</option>
+                      <option value="Cartão de Crédito">Cartão de Crédito</option>
+                      <option value="Parcelado">Parcelado</option>
+                      <option value="Convênio">Convênio</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">Status</label>
+                    <select
+                      value={budgetForm.status}
+                      onChange={(e) => setBudgetForm({ ...budgetForm, status: e.target.value })}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="Aberto">Em Aberto</option>
+                      <option value="Aprovado">Aprovado pelo Paciente</option>
+                      <option value="Executado">Executado</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!budgetForm.description.trim()) {
+                      toast.error("Informe a descrição do orçamento.");
+                      return;
+                    }
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "orcamento",
+                        title: `Orçamento [${budgetForm.status}] — ${budgetForm.description}`,
+                        content: `Procedimento: ${budgetForm.description}\nDente/Região: ${budgetForm.tooth || "Geral"}\nValor: R$ ${budgetForm.amount || "0,00"}\nForma de Pagamento: ${budgetForm.paymentForm}\nStatus: ${budgetForm.status}`,
+                        promoteStage: budgetForm.status === "Aprovado" ? "tratamento" : "orcamento",
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Orçamento registrado!");
+                          setBudgetForm({
+                            description: "",
+                            tooth: "",
+                            amount: "",
+                            paymentForm: "PIX / À vista",
+                            status: "Aberto",
+                          });
+                        },
+                      },
+                    );
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Salvar Orçamento
+                </button>
+              </div>
+            </div>
+
+            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Orçamentos do Paciente ({categorizedRecords.budgets.length})
+              </h3>
+              {categorizedRecords.budgets.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhum orçamento cadastrado ainda para este paciente.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {categorizedRecords.budgets.map((b) => (
+                    <div
+                      key={b.id}
+                      className="p-4 rounded-xl border border-border bg-background flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="font-bold text-foreground">{b.title}</div>
+                        <p className="text-muted-foreground whitespace-pre-line">{b.content}</p>
+                        <div className="text-[11px] text-muted-foreground font-mono pt-1">
+                          Criado em {new Date(b.record_date).toLocaleDateString("pt-BR")}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => {
+                            createClinicalRecordMutation.mutate(
+                              {
+                                record_type: "pagamento",
+                                title: `Recebimento de Orçamento — ${b.title?.replace("Orçamento ", "")}`,
+                                content: `${b.content}\nStatus Financeiro: Pago / Aprovado`,
+                                promoteStage: "tratamento",
+                              },
+                              {
+                                onSuccess: () =>
+                                  toast.success(
+                                    "Orçamento aprovado e lançado na aba Financeiro e Tratamento!",
+                                  ),
+                              },
+                            );
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer"
+                        >
+                          Aprovar & Lançar Financeiro
+                        </button>
+                        <button
+                          onClick={() => deleteClinicalRecordMutation.mutate(b.id)}
+                          className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 3: FINANCEIRO (PAGAMENTOS E LANÇAMENTOS DO PACIENTE)
+           ==================================================================== */}
+        {activeTab === "financeiro" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-emerald-600" />
+                Novo Lançamento Financeiro / Pagamento
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Descrição / Procedimento *
+                  </label>
+                  <input
+                    type="text"
+                    value={financeForm.description}
+                    onChange={(e) =>
+                      setFinanceForm({ ...financeForm, description: e.target.value })
+                    }
+                    placeholder="Ex: Consulta Particular, Restauração Dente 24, Limpeza..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">Valor (R$) *</label>
+                    <input
+                      type="text"
+                      value={financeForm.amount}
+                      onChange={(e) => setFinanceForm({ ...financeForm, amount: e.target.value })}
+                      placeholder="Ex: 250,00"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">Meio de Pgto</label>
+                    <select
+                      value={financeForm.method}
+                      onChange={(e) => setFinanceForm({ ...financeForm, method: e.target.value })}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="PIX">PIX</option>
+                      <option value="Cartão de Crédito">Cartão de Crédito</option>
+                      <option value="Cartão de Débito">Cartão de Débito</option>
+                      <option value="Dinheiro">Dinheiro</option>
+                      <option value="Convênio">Repasse Convênio</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (!financeForm.description.trim()) {
+                      toast.error("Informe a descrição do lançamento.");
+                      return;
+                    }
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "pagamento",
+                        title: `Pagamento (${financeForm.method}) — R$ ${financeForm.amount || "0,00"}`,
+                        content: `Descrição: ${financeForm.description}\nValor: R$ ${financeForm.amount || "0,00"}\nForma de Pagamento: ${financeForm.method}\nStatus: ${financeForm.status}`,
+                        promoteStage: "tratamento",
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Pagamento registrado no Financeiro do paciente!");
+                          setFinanceForm({
+                            description: "",
+                            amount: "",
+                            method: "PIX",
+                            status: "Pago",
+                          });
+                        },
+                      },
+                    );
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Registrar Recebimento
+                </button>
+              </div>
+            </div>
+
+            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Histórico Financeiro ({categorizedRecords.payments.length})
+              </h3>
+              {categorizedRecords.payments.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhum lançamento financeiro para este paciente.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {categorizedRecords.payments.map((pay) => (
+                    <div
+                      key={pay.id}
+                      className="p-4 rounded-xl border border-border bg-background flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-emerald-700 dark:text-emerald-400">
+                          {pay.title}
+                        </div>
+                        <p className="text-muted-foreground whitespace-pre-line mt-1">
+                          {pay.content}
+                        </p>
+                        <div className="text-[11px] font-mono text-muted-foreground mt-1">
+                          Data: {new Date(pay.record_date).toLocaleDateString("pt-BR")}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteClinicalRecordMutation.mutate(pay.id)}
+                        className="p-1 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 4: FOTOS (GALERIA CLÍNICA ANTES / DEPOIS)
+           ==================================================================== */}
+        {activeTab === "fotos" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Camera className="h-4 w-4 text-[#e66c2c]" />
+                Adicionar Foto Clínica / Sorriso
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Legenda / Etapa do Tratamento *
+                  </label>
+                  <input
+                    type="text"
+                    value={photoTitle}
+                    onChange={(e) => setPhotoTitle(e.target.value)}
+                    placeholder="Ex: Foto Inicial Intraoral, Pós-Clareamento..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Selecionar Imagem do Computador / Celular
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        if (typeof reader.result === "string") {
+                          setPhotoUrl(reader.result);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className="w-full text-xs"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!photoTitle.trim() && !photoUrl) {
+                      toast.error("Informe uma legenda ou selecione uma foto.");
+                      return;
+                    }
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "foto",
+                        title: photoTitle.trim() || "Foto Clínica",
+                        content: photoUrl || "Foto registrada no prontuário",
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Foto salva na galeria do paciente!");
+                          setPhotoTitle("");
+                          setPhotoUrl("");
+                        },
+                      },
+                    );
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                >
+                  Salvar Foto na Ficha
+                </button>
+              </div>
+            </div>
+            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Galeria de Fotos do Paciente ({categorizedRecords.photos.length})
+              </h3>
+              {categorizedRecords.photos.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhuma foto clínica anexada para este paciente.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {categorizedRecords.photos.map((ph) => (
+                    <div
+                      key={ph.id}
+                      className="rounded-xl border border-border overflow-hidden bg-background p-3 space-y-2"
+                    >
+                      {ph.content.startsWith("data:image") || ph.content.startsWith("http") ? (
+                        <img
+                          src={ph.content}
+                          alt={ph.title || "Foto clínica"}
+                          className="w-full h-44 object-cover rounded-lg"
+                        />
+                      ) : null}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-foreground">{ph.title}</span>
+                        <button
+                          onClick={() => deleteClinicalRecordMutation.mutate(ph.id)}
+                          className="text-muted-foreground hover:text-rose-600 cursor-pointer"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 5: PLANO E FICHA CLÍNICA (EVOLUÇÃO DE TRATAMENTO)
+           ==================================================================== */}
+        {activeTab === "plano_ficha" && (
+          <div className="space-y-5">
+            <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-[#e66c2c]" />
+                  Novo Item no Plano e Ficha Clínica
+                </h3>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    {
+                      label: "+ Evolução de Consulta",
+                      title: "Evolução Clínica",
+                      text: "Procedimento executado:\nDente / Região:\nAnestésico / Material utilizado:\nOrientações e conduta para próxima sessão:",
+                    },
+                    {
+                      label: "+ Profilaxia / Limpeza",
+                      title: "Profilaxia + Raspagem Periodontal",
+                      text: "Realizada evidenciação de placa, raspagem supragengival por ultrassom, polimento coronário com pasta profilática e aplicação tópica de flúor neutro. Orientação de higiene oral e uso de fio dental.",
+                    },
+                    {
+                      label: "+ Restauração em Resina",
+                      title: "Restauração Direta em Resina Composta",
+                      text: "Dente: \nFaces envolvidas: \nAnestesia infiltrativa + isolamento relativo. Remoção de tecido cariado, condicionamento ácido seletivo, sistema adesivo fotopolimerizável e restauração incremental em resina composta (Cor: ). Ajuste oclusal e acabamento/polimento.",
+                    },
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.label}
+                      type="button"
+                      onClick={() => {
+                        setNewEvolutionTitle(tpl.title);
+                        setNewEvolutionText(tpl.text);
+                      }}
+                      className="px-2.5 py-1 rounded-lg border border-border bg-background hover:bg-muted text-[11px] font-semibold text-foreground cursor-pointer"
+                    >
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <input
+                type="text"
+                value={newEvolutionTitle}
+                onChange={(e) => setNewEvolutionTitle(e.target.value)}
+                placeholder="Título do Procedimento / Sessão"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold"
+              />
+              <textarea
+                rows={4}
+                value={newEvolutionText}
+                onChange={(e) => setNewEvolutionText(e.target.value)}
+                placeholder="Descreva o procedimento executado na sessão, dente, materiais, intercorrências e próximo passo do plano..."
+                className="w-full rounded-xl border border-border bg-background p-3 text-xs"
+              />
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    if (!newEvolutionText.trim()) return;
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "evolucao",
+                        title: newEvolutionTitle.trim() || "Evolução Clínica",
+                        content: newEvolutionText.trim(),
+                        promoteStage: "tratamento",
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Item registrado no Plano e Ficha Clínica!");
+                          setNewEvolutionText("");
+                        },
+                      },
+                    );
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+                >
+                  Salvar na Ficha Clínica
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
+              <h3 className="text-sm font-bold text-foreground">
+                Histórico do Plano e Ficha Clínica ({categorizedRecords.evolutions.length})
+              </h3>
+              {categorizedRecords.evolutions.length === 0 ? (
+                <div className="py-10 text-center text-xs text-muted-foreground">
+                  Nenhum procedimento ou evolução clínica registrada ainda.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {categorizedRecords.evolutions.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="p-4 rounded-xl border border-border bg-background space-y-1.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground">
+                          {ev.title || "Evolução Clínica"}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground font-mono text-[11px]">
+                            {new Date(ev.record_date).toLocaleDateString("pt-BR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <button
+                            onClick={() => deleteClinicalRecordMutation.mutate(ev.id)}
+                            className="text-muted-foreground hover:text-rose-600 cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                        {ev.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 6: FICHAS ESPECIALIDADES (ENDODONTIA, ORTODONTIA, PRÓTESE, HOF...)
+           ==================================================================== */}
+        {activeTab === "fichas_especialidades" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Preencher Ficha de Especialidade
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(SPECIALTY_TEMPLATES).map(([key, spec]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setSelectedSpecialty(key);
+                      setSpecialtyText(spec.template);
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer",
+                      selectedSpecialty === key
+                        ? "bg-[#e66c2c] text-white border-[#e66c2c]"
+                        : "bg-background text-foreground border-border hover:bg-muted",
+                    )}
+                  >
+                    {spec.label.replace("Ficha de ", "")}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                rows={8}
+                value={specialtyText}
+                onChange={(e) => setSpecialtyText(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background p-3 text-xs font-mono leading-relaxed"
+              />
+              <button
+                onClick={() => {
+                  const specTitle =
+                    SPECIALTY_TEMPLATES[selectedSpecialty]?.label || "Ficha de Especialidade";
+                  createClinicalRecordMutation.mutate(
+                    {
+                      record_type: "ficha_especialidade",
+                      title: specTitle,
+                      content: specialtyText,
+                      promoteStage: "tratamento",
+                    },
+                    {
+                      onSuccess: () => toast.success(`${specTitle} salva no prontuário!`),
+                    },
+                  );
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+              >
+                Salvar Ficha de Especialidade
+              </button>
+            </div>
+
+            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Fichas de Especialidades Salvas ({categorizedRecords.specialtySheets.length})
+              </h3>
+              {categorizedRecords.specialtySheets.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhuma ficha de especialidade preenchida ainda.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {categorizedRecords.specialtySheets.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-4 rounded-xl border border-border bg-background space-y-1.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground">{s.title}</span>
+                        <span className="text-muted-foreground font-mono">
+                          {new Date(s.record_date).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground whitespace-pre-line">{s.content}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 7: ODONTOGRAMA
+           ==================================================================== */}
+        {activeTab === "odontograma" && (
+          <OdontogramView patientId={selectedPatient.id} patientName={selectedPatient.name} />
+        )}
+
+        {/* ====================================================================
+            ABA 8: ANAMNESE (QUESTIONÁRIO DE SAÚDE + TRIAGEM CONSULTÓRIO.ME)
+           ==================================================================== */}
+        {activeTab === "anamnese" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <ClipboardList className="h-4 w-4 text-[#e66c2c]" />
+                Preencher / Atualizar Anamnese Odontológica
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Sangramento gengival ao escovar?
+                  </label>
+                  <select
+                    value={anamnesisForm.bleedingGums}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, bleedingGums: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Às vezes">Às vezes</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Sensibilidade dentária?
+                  </label>
+                  <select
+                    value={anamnesisForm.sensitivity}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, sensitivity: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Alergia a algum medicamento/anestésico?
+                  </label>
+                  <select
+                    value={anamnesisForm.drugAllergy}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, drugAllergy: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Qual alergia? (se houver)
+                  </label>
+                  <input
+                    type="text"
+                    value={anamnesisForm.drugAllergyDetails}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, drugAllergyDetails: e.target.value })
+                    }
+                    placeholder="Ex: Dipirona, Penicilina, Amoxicilina..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Está grávida ou lactante?
+                  </label>
+                  <select
+                    value={anamnesisForm.pregnant}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, pregnant: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Bruxismo / Apertamento dental?
+                  </label>
+                  <select
+                    value={anamnesisForm.bruxism}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, bruxism: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  >
+                    <option value="Não">Não</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="font-semibold text-foreground block mb-1">
+                    Condições Sistêmicas (marque se houver):
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      "Hipertensão",
+                      "Diabetes",
+                      "Problema Cardíaco",
+                      "Asma / Bronquite",
+                      "Gastrite",
+                      "Problema Renal",
+                    ].map((cond) => {
+                      const active = anamnesisForm.systemicConditions.includes(cond);
+                      return (
+                        <button
+                          key={cond}
+                          type="button"
+                          onClick={() => {
+                            setAnamnesisForm((prev) => ({
+                              ...prev,
+                              systemicConditions: active
+                                ? prev.systemicConditions.filter((c) => c !== cond)
+                                : [...prev.systemicConditions, cond],
+                            }));
+                          }}
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg border text-xs font-medium cursor-pointer",
+                            active
+                              ? "bg-rose-500/15 border-rose-500/40 text-rose-700 font-semibold"
+                              : "bg-background border-border text-muted-foreground",
+                          )}
+                        >
+                          {cond}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="font-semibold text-foreground block mb-1">
+                    Medicamentos de uso contínuo / Observações de saúde
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={anamnesisForm.continuousMeds}
+                    onChange={(e) =>
+                      setAnamnesisForm({ ...anamnesisForm, continuousMeds: e.target.value })
+                    }
+                    placeholder="Liste medicamentos de uso diário ou observações importantes..."
+                    className="w-full rounded-xl border border-border bg-background p-2.5"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={async () => {
+                  const warnings: string[] = [];
+                  if (anamnesisForm.drugAllergy === "Sim") {
+                    warnings.push(
+                      `Alergia: ${anamnesisForm.drugAllergyDetails || "Medicamentosa"}`,
+                    );
+                  }
+                  if (anamnesisForm.pregnant === "Sim") warnings.push("Gestante/Lactante");
+                  warnings.push(...anamnesisForm.systemicConditions);
+                  if (anamnesisForm.bleedingGums === "Sim") warnings.push("Sangramento gengival");
+                  if (anamnesisForm.bruxism === "Sim") warnings.push("Bruxismo");
+
+                  const content = [
+                    `• Sangramento gengival: ${anamnesisForm.bleedingGums}`,
+                    `• Sensibilidade dentária: ${anamnesisForm.sensitivity}`,
+                    `• Alergia medicamentosa: ${anamnesisForm.drugAllergy} ${anamnesisForm.drugAllergyDetails ? `(${anamnesisForm.drugAllergyDetails})` : ""}`,
+                    `• Gestante / Lactante: ${anamnesisForm.pregnant}`,
+                    `• Bruxismo / Apertamento: ${anamnesisForm.bruxism}`,
+                    `• Condições sistêmicas: ${anamnesisForm.systemicConditions.join(", ") || "Nenhuma"}`,
+                    `• Medicamentos em uso / Obs: ${anamnesisForm.continuousMeds || "Nenhum"}`,
+                  ].join("\n");
+
+                  if (warnings.length > 0) {
+                    await supabase
+                      .from("patients")
+                      .update({ medical_warning: warnings.join(" | ") })
+                      .eq("id", selectedPatient.id);
+                  }
+
+                  createClinicalRecordMutation.mutate(
+                    {
+                      record_type: "formulario",
+                      title: "Anamnese Clínica (Clinicorp)",
+                      content,
+                      promoteStage:
+                        selectedPatient.funnel_stage === "triagem" ? "anamnese" : undefined,
+                    },
+                    {
+                      onSuccess: () => toast.success("Anamnese salva com sucesso!"),
+                    },
+                  );
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer"
+              >
+                Salvar Anamnese
+              </button>
+            </div>
+
+            <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Fichas de Anamnese e Triagem do Consultório.me (
+                {categorizedRecords.anamneses.length})
+              </h3>
+              {categorizedRecords.anamneses.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhuma ficha de anamnese respondida ainda para este paciente.
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                  {categorizedRecords.anamneses.map((a) => (
+                    <div
+                      key={a.id}
+                      className="p-4 rounded-xl border border-border bg-background space-y-1.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-indigo-700 dark:text-indigo-400">
+                          {a.title || "Anamnese / Triagem"}
+                        </span>
+                        <span className="font-mono text-muted-foreground">
+                          {new Date(a.record_date).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                        {a.content}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 9: PLANOS (CONVÊNIOS E PLANOS RECORRENTES)
+           ==================================================================== */}
+        {activeTab === "planos" && (
+          <div className="rounded-2xl bg-card border border-border p-6 shadow-sm space-y-4 max-w-2xl">
+            <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[#e66c2c]" />
+              Plano / Convênio Odontológico Vinculado
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-xl bg-muted/40 border border-border">
+                <span className="text-muted-foreground block">Plano / Convênio Atual</span>
+                <span className="text-base font-bold text-foreground mt-1 block">
+                  {selectedPatient.insurance || "PARTICULAR"}
+                </span>
+              </div>
+              <div className="p-4 rounded-xl bg-muted/40 border border-border">
+                <span className="text-muted-foreground block">Nº da Carteirinha / Matrícula</span>
+                <span className="text-base font-mono font-bold text-foreground mt-1 block">
+                  {selectedPatient.insurance_number || "Não informado"}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => openEditPatientModal(selectedPatient)}
+              className="px-4 py-2 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+            >
+              Alterar Plano ou Nº da Carteirinha
+            </button>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 10: DOCUMENTOS (ATESTADOS, RECEITUÁRIOS, CONTRATOS EM PDF)
+           ==================================================================== */}
+        {activeTab === "documentos" && (
+          <div className="space-y-6">
+            <DocumentGenerator
+              patientId={selectedPatient.id}
+              patientName={selectedPatient.name}
+              patientCpf={selectedPatient.cpf || undefined}
+            />
+            {categorizedRecords.documents.length > 0 && (
+              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
+                <h3 className="text-sm font-bold text-foreground">
+                  Receituários e Atestados Emitidos ({categorizedRecords.documents.length})
+                </h3>
+                <div className="space-y-2.5">
+                  {categorizedRecords.documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="p-4 rounded-xl border border-border bg-background text-xs space-y-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground">{doc.title}</span>
+                        <span className="font-mono text-muted-foreground">
+                          {new Date(doc.record_date).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground whitespace-pre-line">{doc.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 11: EXAMES (RADIOGRAFIAS, TOMOGRAFIAS E LAUDOS)
+           ==================================================================== */}
+        {activeTab === "exames" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <FileCheck className="h-4 w-4 text-[#e66c2c]" />
+                Registrar Pedido ou Laudo de Exame
+              </h3>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Tipo de Exame *
+                  </label>
+                  <input
+                    type="text"
+                    value={examTitle}
+                    onChange={(e) => setExamTitle(e.target.value)}
+                    placeholder="Ex: Radiografia Panorâmica, Periapical Dente 24, Tomografia..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Laudo / Achados Radiográficos / Indicação
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={examNotes}
+                    onChange={(e) => setExamNotes(e.target.value)}
+                    placeholder="Anote os achados do exame ou indicação clínica..."
+                    className="w-full rounded-xl border border-border bg-background p-3"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!examTitle.trim()) {
+                      toast.error("Informe o tipo de exame.");
+                      return;
+                    }
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "exame",
+                        title: `Exame: ${examTitle.trim()}`,
+                        content: examNotes.trim() || "Exame solicitado/avaliado em consulta.",
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Exame registrado no prontuário!");
+                          setExamTitle("");
+                          setExamNotes("");
+                        },
+                      },
+                    );
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                >
+                  Salvar Exame
+                </button>
+              </div>
+            </div>
+            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-foreground">
+                Exames do Paciente ({categorizedRecords.exams.length})
+              </h3>
+              {categorizedRecords.exams.length === 0 ? (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhum exame complementar registrado para este paciente.
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {categorizedRecords.exams.map((ex) => (
+                    <div
+                      key={ex.id}
+                      className="p-4 rounded-xl border border-border bg-background flex items-start justify-between text-xs"
+                    >
+                      <div>
+                        <div className="font-bold text-foreground">{ex.title}</div>
+                        <p className="text-muted-foreground mt-1 whitespace-pre-line">
+                          {ex.content}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => deleteClinicalRecordMutation.mutate(ex.id)}
+                        className="text-muted-foreground hover:text-rose-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 12: RECIBOS
+           ==================================================================== */}
+        {activeTab === "recibos" && (
+          <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-[#e66c2c]" />
+                Recibos de Pagamento do Paciente ({categorizedRecords.payments.length})
+              </h3>
+              <button
+                onClick={() => setActiveTab("financeiro")}
+                className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+              >
+                + Novo Recebimento
+              </button>
+            </div>
+            {categorizedRecords.payments.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                Nenhum recibo emitido ainda. Registre um pagamento na aba Financeiro para gerar o
+                recibo.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {categorizedRecords.payments.map((pay) => (
+                  <div
+                    key={pay.id}
+                    className="p-4 rounded-xl border border-border bg-background flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-foreground">{pay.title}</div>
+                      <p className="text-muted-foreground whitespace-pre-line mt-0.5">
+                        {pay.content}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted font-semibold cursor-pointer shrink-0"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>Imprimir Recibo</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ====================================================================
+            ABA 13: AGENDAMENTOS DO PACIENTE
+           ==================================================================== */}
+        {activeTab === "agendamentos" && (
+          <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-[#e66c2c]" />
+                Histórico de Agendamentos do Paciente ({patientAppointments.length})
+              </h3>
+              <button
+                onClick={() => setShowAppointmentModal(true)}
+                className="px-4 py-2 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Novo Agendamento</span>
+              </button>
+            </div>
+
+            {patientAppointments.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                Nenhum agendamento encontrado para este paciente.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {patientAppointments.map((appt) => (
+                  <div
+                    key={appt.id}
+                    className="p-4 rounded-xl border border-border bg-background flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-foreground">
+                        {new Date(appt.appointment_date + "T12:00:00").toLocaleDateString("pt-BR")}{" "}
+                        às {trimSeconds(appt.appointment_time)}
+                      </div>
+                      <div className="text-muted-foreground mt-0.5">{appt.service_name}</div>
+                      {appt.notes && (
+                        <div className="text-[11px] text-muted-foreground/80 mt-0.5">
+                          {appt.notes}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase border",
+                          appt.status === "confirmed"
+                            ? "bg-emerald-500/15 text-emerald-800 border-emerald-500/30"
+                            : appt.status === "pending"
+                              ? "bg-amber-500/15 text-amber-800 border-amber-500/30"
+                              : appt.status === "completed"
+                                ? "bg-primary/10 text-primary border-primary/25"
+                                : "bg-muted text-muted-foreground border-border",
+                        )}
+                      >
+                        {STATUS_LABELS[appt.status]}
+                      </span>
+                      <button
+                        onClick={async () => {
+                          const { error } = await supabase
+                            .from("appointments")
+                            .delete()
+                            .eq("id", appt.id);
+                          if (error) {
+                            toast.error("Não foi possível excluir o agendamento.");
+                            return;
+                          }
+                          toast.success("Agendamento excluído.");
+                          queryClient.invalidateQueries({
+                            queryKey: ["patient_appointments", selectedPatient.id],
+                          });
+                          queryClient.invalidateQueries({ queryKey: ["appointments"] });
+                        }}
+                        className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                        title="Excluir agendamento"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODAL: NOVO ALERTA DE RETORNO */}
+        {showReturnAlertModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={() => setShowReturnAlertModal(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-foreground">Definir Alerta de Retorno</h3>
+                <button
+                  onClick={() => setShowReturnAlertModal(false)}
+                  className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {[
+                  { label: "Daqui a 3 meses", months: 3 },
+                  { label: "Daqui a 6 meses", months: 6 },
+                  { label: "Daqui a 12 meses", months: 12 },
+                ].map((preset) => (
+                  <button
+                    key={preset.months}
+                    type="button"
+                    onClick={() => {
+                      const d = new Date();
+                      d.setMonth(d.getMonth() + preset.months);
+                      setReturnAlertForm((prev) => ({
+                        ...prev,
+                        date: d.toISOString().split("T")[0],
+                      }));
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold cursor-pointer"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Data do Retorno
+                  </label>
+                  <input
+                    type="date"
+                    value={returnAlertForm.date}
+                    onChange={(e) =>
+                      setReturnAlertForm({ ...returnAlertForm, date: e.target.value })
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-foreground block mb-1">
+                    Motivo / Observação
+                  </label>
+                  <input
+                    type="text"
+                    value={returnAlertForm.notes}
+                    onChange={(e) =>
+                      setReturnAlertForm({ ...returnAlertForm, notes: e.target.value })
+                    }
+                    placeholder="Ex: Profilaxia de 6 meses, Controle pós-operatório..."
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowReturnAlertModal(false)}
+                  className="px-4 py-2 rounded-lg border border-border text-xs font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => saveReturnAlertMutation.mutate()}
+                  className="px-5 py-2 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                >
+                  Salvar Alerta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL: ADICIONAR NOTA GERAL */}
+        {showGeneralNoteModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={() => setShowGeneralNoteModal(false)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-bold text-foreground">Adicionar Nota Geral</h3>
+                <button
+                  onClick={() => setShowGeneralNoteModal(false)}
+                  className="p-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <textarea
+                rows={4}
+                value={generalNoteText}
+                onChange={(e) => setGeneralNoteText(e.target.value)}
+                placeholder="Registre observações gerais importantes sobre este paciente..."
+                className="w-full rounded-xl border border-border bg-background p-3 text-xs"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowGeneralNoteModal(false)}
+                  className="px-4 py-2 rounded-lg border border-border text-xs font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (!generalNoteText.trim()) return;
+                    createClinicalRecordMutation.mutate(
+                      {
+                        record_type: "nota_geral",
+                        title: "Nota Geral",
+                        content: generalNoteText.trim(),
+                      },
+                      {
+                        onSuccess: () => {
+                          toast.success("Nota geral adicionada!");
+                          setShowGeneralNoteModal(false);
+                        },
+                      },
+                    );
+                  }}
+                  className="px-5 py-2 rounded-lg bg-[#e66c2c] text-white text-xs font-semibold cursor-pointer"
+                >
+                  Salvar Nota
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MODAL DE EDITAR CADASTRO COMPLETO (CLINICORP) */}
+        {patientFormMode && renderPatientModal()}
+
+        <NewAppointmentModal
+          open={showAppointmentModal}
+          onOpenChange={setShowAppointmentModal}
+          defaultPatient={selectedPatient}
+          onSuccess={() => {
+            queryClient.invalidateQueries({
+              queryKey: ["patient_appointments", selectedPatient.id],
+            });
+            queryClient.invalidateQueries({ queryKey: ["appointments"] });
+          }}
+        />
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // FUNÇÃO AUXILIAR PARA RENDERIZAR O MODAL DE CRIAR / EDITAR PACIENTE (CLINICORP)
+  // ============================================================================
+  function renderPatientModal() {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+        onClick={() => setPatientFormMode(null)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-2xl rounded-3xl bg-card border border-border p-7 shadow-bloom space-y-5 max-h-[90vh] overflow-y-auto"
+        >
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <h3 className="font-display text-2xl text-foreground">
+                {patientFormMode === "edit" ? "Editar Cadastro do Paciente" : "Novo Paciente"}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Padrão Clinicorp — Cadastro, Contato, Complemento e Alertas de Saúde.
+              </p>
+            </div>
+            <button
+              onClick={() => setPatientFormMode(null)}
+              className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+            <div className="sm:col-span-2 space-y-1">
+              <label className="font-semibold text-foreground">Nome Completo *</label>
+              <input
+                type="text"
+                value={patientForm.name}
+                onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })}
+                placeholder="Nome completo do paciente"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Apelido</label>
+              <input
+                type="text"
+                value={patientForm.nickname}
+                onChange={(e) => setPatientForm({ ...patientForm, nickname: e.target.value })}
+                placeholder="Como prefere ser chamado(a)"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Telefone / WhatsApp</label>
+              <input
+                type="text"
+                value={patientForm.phone}
+                onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
+                placeholder="(96) 99100-0000"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">CPF</label>
+              <input
+                type="text"
+                value={patientForm.cpf}
+                onChange={(e) => setPatientForm({ ...patientForm, cpf: e.target.value })}
+                placeholder="000.000.000-00"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">RG</label>
+              <input
+                type="text"
+                value={patientForm.rg}
+                onChange={(e) => setPatientForm({ ...patientForm, rg: e.target.value })}
+                placeholder="RG"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Data de Nascimento</label>
+              <input
+                type="date"
+                value={patientForm.birth_date}
+                onChange={(e) => setPatientForm({ ...patientForm, birth_date: e.target.value })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Sexo</label>
+              <select
+                value={patientForm.gender}
+                onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              >
+                <option value="">Selecione</option>
+                <option value="Feminino">Feminino</option>
+                <option value="Masculino">Masculino</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Estado civil</label>
+              <select
+                value={patientForm.marital_status}
+                onChange={(e) => setPatientForm({ ...patientForm, marital_status: e.target.value })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              >
+                <option value="">Selecione</option>
+                <option value="Solteiro(a)">Solteiro(a)</option>
+                <option value="Casado(a)">Casado(a)</option>
+                <option value="Divorciado(a)">Divorciado(a)</option>
+                <option value="Viúvo(a)">Viúvo(a)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Plano / Convênio</label>
+              <select
+                value={patientForm.insurance}
+                onChange={(e) => setPatientForm({ ...patientForm, insurance: e.target.value })}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              >
+                <option value="PARTICULAR">Particular</option>
+                <option value="REDE UNNA">Rede Unna</option>
+                <option value="ODONTOPREV">Odontoprev</option>
+                <option value="BRADESCO">Bradesco Dental</option>
+                <option value="AMIL DENTAL">Amil Dental</option>
+                <option value="SESC">SESC</option>
+                <option value="GEAP">GEAP</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Nº Plano (Carteirinha)</label>
+              <input
+                type="text"
+                value={patientForm.insurance_number}
+                onChange={(e) =>
+                  setPatientForm({ ...patientForm, insurance_number: e.target.value })
+                }
+                placeholder="Número da carteirinha"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Como conheceu?</label>
+              <input
+                type="text"
+                value={patientForm.origin}
+                onChange={(e) => setPatientForm({ ...patientForm, origin: e.target.value })}
+                placeholder="Consultório.me / Indicação / Instagram"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">E-mail</label>
+              <input
+                type="email"
+                value={patientForm.email}
+                onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })}
+                placeholder="email@exemplo.com"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Endereço</label>
+              <input
+                type="text"
+                value={patientForm.address}
+                onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
+                placeholder="Rua / Av. e Número"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">Bairro</label>
+              <input
+                type="text"
+                value={patientForm.neighborhood}
+                onChange={(e) => setPatientForm({ ...patientForm, neighborhood: e.target.value })}
+                placeholder="Bairro"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label className="font-semibold text-foreground">Observações / Responsável</label>
+              <input
+                type="text"
+                value={patientForm.notes}
+                onChange={(e) => setPatientForm({ ...patientForm, notes: e.target.value })}
+                placeholder="Nome do responsável legal ou observações gerais"
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1 pt-1">
+              <label className="font-semibold text-rose-600 flex items-center gap-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Alerta Clínico / Alergias / Condições Sistêmicas
+              </label>
+              <input
+                type="text"
+                value={patientForm.medical_warning}
+                onChange={(e) =>
+                  setPatientForm({ ...patientForm, medical_warning: e.target.value })
+                }
+                placeholder="Ex: Alergia a Dipirona, Hipertenso, Gestante..."
+                className="w-full rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setPatientFormMode(null)}
+              className="px-5 py-2.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => savePatientMutation.mutate()}
+              disabled={savePatientMutation.isPending}
+              className="px-6 py-2.5 rounded-full bg-[#e66c2c] text-white text-xs font-semibold shadow-sm hover:bg-[#d45d1e] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {savePatientMutation.isPending ? "Salvando..." : "Salvar Cadastro"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // LISTA PRINCIPAL DE PACIENTES + FUNIL DE TRIAGEM (CONSULTÓRIO.ME → CLINICORP)
+  // ============================================================================
   return (
     <div className="space-y-6">
-      {/* Seção Superior de Busca & Filtros */}
+      {/* FUNIL DE CAPTAÇÃO / TRIAGEM (CONSULTÓRIO.ME → GESTÃO CLINICORP) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {FUNNEL_STAGES.map((stage) => {
+          const isSelected = selectedFunnelStage === stage.id;
+          const count =
+            stage.id === "all"
+              ? funnelCounts.all
+              : stage.id === "triagem"
+                ? funnelCounts.triagem
+                : stage.id === "anamnese"
+                  ? funnelCounts.anamnese
+                  : stage.id === "orcamento"
+                    ? funnelCounts.orcamento
+                    : funnelCounts.tratamento;
+          return (
+            <button
+              key={stage.id}
+              onClick={() => {
+                setSelectedFunnelStage(stage.id);
+                setPage(1);
+              }}
+              className={cn(
+                "text-left p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between",
+                isSelected
+                  ? "bg-card border-[#e66c2c] ring-2 ring-[#e66c2c]/25 shadow-md"
+                  : "bg-card/80 border-border hover:border-foreground/30",
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                    stage.tone,
+                  )}
+                >
+                  {stage.badge}
+                </span>
+                <span className="font-display text-2xl font-bold text-foreground">{count}</span>
+              </div>
+              <div className="mt-2.5 text-xs font-semibold text-foreground">{stage.label}</div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* BARRA DE BUSCA GLOBAL ESTILO CLINICORP + FILTROS */}
       <div className="p-5 rounded-3xl bg-card border border-border shadow-petal space-y-4">
-        {/* Linha 1: Input de Busca + Dropdowns de Filtro + Novo Paciente */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Buscar por nome, CPF, WhatsApp, alerta médico ou # prontuário..."
+              placeholder="Encontre pacientes por nome, CPF, telefone, alerta médico ou nº prontuário..."
               value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-10 pr-9 py-2.5 rounded-2xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
             {search && (
               <button
-                onClick={() => handleSearchChange("")}
+                onClick={() => {
+                  setSearch("");
+                  setPage(1);
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
-                title="Limpar busca"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -427,15 +2977,17 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Filtro de Convênios */}
             <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2.5 py-1.5">
               <Filter className="h-3.5 w-3.5 text-muted-foreground" />
               <select
                 value={selectedInsurance}
-                onChange={(e) => handleInsuranceChange(e.target.value)}
+                onChange={(e) => {
+                  setSelectedInsurance(e.target.value);
+                  setPage(1);
+                }}
                 className="text-xs bg-transparent text-foreground focus:outline-none cursor-pointer"
               >
-                <option value="all">Todos os Convênios</option>
+                <option value="all">Todos os Planos</option>
                 <option value="PARTICULAR">Particular</option>
                 <option value="REDE UNNA">Rede Unna</option>
                 <option value="ODONTOPREV">Odontoprev</option>
@@ -444,12 +2996,14 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
               </select>
             </div>
 
-            {/* Ordenação */}
             <div className="flex items-center gap-1.5 bg-background border border-border rounded-xl px-2.5 py-1.5">
               <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
               <select
                 value={sortBy}
-                onChange={(e) => handleSortChange(e.target.value as typeof sortBy)}
+                onChange={(e) => {
+                  setSortBy(e.target.value as typeof sortBy);
+                  setPage(1);
+                }}
                 className="text-xs bg-transparent text-foreground focus:outline-none cursor-pointer"
               >
                 <option value="name_asc">Nome (A → Z)</option>
@@ -459,22 +3013,22 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
               </select>
             </div>
 
-            {/* Botão de Alerta Médico */}
             <button
-              onClick={handleToggleWarnings}
+              onClick={() => {
+                setOnlyWarnings((prev) => !prev);
+                setPage(1);
+              }}
               className={cn(
                 "px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer",
                 onlyWarnings
-                  ? "bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 shadow-sm"
+                  ? "bg-rose-500/15 border-rose-500/40 text-rose-600 shadow-sm"
                   : "bg-background border-border text-muted-foreground hover:text-foreground",
               )}
-              title="Filtrar pacientes com alertas clínicos"
             >
               <AlertTriangle className="h-3.5 w-3.5" />
               Com Alerta
             </button>
 
-            {/* Botão Limpar Filtros */}
             {isFiltered && (
               <button
                 onClick={clearAllFilters}
@@ -485,10 +3039,9 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
               </button>
             )}
 
-            {/* Botão Novo Paciente */}
             <button
               onClick={openCreatePatientModal}
-              className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold flex items-center gap-1.5 shadow-sm hover:bg-primary-deep transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               Novo Paciente
@@ -496,7 +3049,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
           </div>
         </div>
 
-        {/* Linha 2: Barra Alfabética A–Z (Índice Rápido estilo Clinicorp) */}
+        {/* Barra Alfabética A–Z */}
         <div className="pt-2 border-t border-border/50">
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mr-1 shrink-0">
@@ -507,11 +3060,14 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
               return (
                 <button
                   key={letter}
-                  onClick={() => handleLetterChange(letter)}
+                  onClick={() => {
+                    setSelectedLetter(letter);
+                    setPage(1);
+                  }}
                   className={cn(
                     "min-w-[28px] h-7 px-2 rounded-lg text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center justify-center",
                     isSelected
-                      ? "bg-primary text-primary-foreground shadow-sm scale-105"
+                      ? "bg-[#e66c2c] text-white shadow-sm scale-105"
                       : "bg-background/80 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/60",
                   )}
                 >
@@ -523,718 +3079,161 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Coluna da Esquerda: Lista de Pacientes (5 colunas) */}
-        <div className="lg:col-span-5 space-y-3">
-          <div className="flex items-center justify-between px-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              {isLoading
-                ? "Buscando..."
-                : totalCount === 0
-                  ? "Nenhum paciente"
-                  : `${totalCount} ${totalCount === 1 ? "paciente" : "pacientes"}${
-                      selectedLetter !== "Todos" ? ` com a letra "${selectedLetter}"` : ""
-                    }`}
-            </span>
-            {totalCount > 0 && (
-              <span className="text-xs text-muted-foreground font-mono">
-                Página {page} de {totalPages}
-              </span>
-            )}
-          </div>
+      {/* TABELA / LISTA DE PACIENTES LARGURA TOTAL (CLIQUE ABRE A FICHA CLINICORP COMPLETA) */}
+      <div className="rounded-3xl border border-border bg-card shadow-petal overflow-hidden">
+        <div className="px-6 py-3.5 bg-muted/40 border-b border-border flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          <span>
+            {isLoading
+              ? "Carregando pacientes..."
+              : `${totalCount} ${totalCount === 1 ? "paciente encontrado" : "pacientes encontrados"}`}
+          </span>
+          <span>
+            Página {page} de {totalPages}
+          </span>
+        </div>
 
-          <div className="divide-y divide-border/60 rounded-3xl border border-border bg-card shadow-petal max-h-[640px] overflow-y-auto">
-            {patients.length === 0 && !isLoading && (
-              <div className="p-10 text-center space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Nenhum paciente encontrado para esses filtros.
-                </p>
-                {isFiltered && (
-                  <button
-                    onClick={clearAllFilters}
-                    className="px-4 py-2 text-xs font-semibold rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-all cursor-pointer"
-                  >
-                    Mostrar todos os pacientes
-                  </button>
-                )}
-              </div>
-            )}
-
-            {patients.map((patient) => {
-              const isSelected = selectedPatient?.id === patient.id;
-              return (
+        <div className="divide-y divide-border/60">
+          {patients.length === 0 && !isLoading && (
+            <div className="p-12 text-center space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Nenhum paciente encontrado para esses filtros.
+              </p>
+              {isFiltered && (
                 <button
-                  key={patient.id}
-                  onClick={() => setSelectedPatient(patient)}
-                  className={cn(
-                    "w-full text-left p-4 transition-all flex items-center justify-between cursor-pointer",
-                    isSelected ? "bg-primary/10 border-l-4 border-l-primary" : "hover:bg-muted/40",
-                  )}
+                  onClick={clearAllFilters}
+                  className="px-4 py-2 text-xs font-semibold rounded-full bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer"
                 >
-                  <div className="space-y-1 min-w-0 pr-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-mono font-bold text-muted-foreground">
-                        #{patient.record_number || patient.id.slice(0, 4)}
-                      </span>
-                      <span className="text-sm font-semibold text-foreground truncate block">
-                        {patient.name}
-                      </span>
-                    </div>
+                  Mostrar todos os pacientes
+                </button>
+              )}
+            </div>
+          )}
 
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                      {patient.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {patient.phone}
-                        </span>
+          {patients.map((patient) => {
+            const stageObj =
+              FUNNEL_STAGES.find((s) => s.id === (patient.funnel_stage || "triagem")) ||
+              FUNNEL_STAGES[1];
+            return (
+              <div
+                key={patient.id}
+                onClick={() => {
+                  setSelectedPatient(patient);
+                  setActiveTab("visao_geral");
+                }}
+                className="px-6 py-4 hover:bg-muted/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+              >
+                <div className="space-y-1 min-w-0">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-mono font-bold text-[#e66c2c]">
+                      #{patient.record_number}
+                    </span>
+                    <span className="text-sm font-bold text-foreground">{patient.name}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                        stageObj.tone,
                       )}
-                      {patient.birth_date && (
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(patient.birth_date + "T12:00:00").toLocaleDateString("pt-BR")}
-                        </span>
-                      )}
-                      {patient.insurance && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-muted text-[10px] font-semibold uppercase">
-                          {patient.insurance}
-                        </span>
-                      )}
-                    </div>
-
+                    >
+                      {stageObj.label.replace(/^\d+\.\s*/, "")}
+                    </span>
+                    {patient.insurance && (
+                      <span className="px-2 py-0.5 rounded-md bg-muted text-[10px] font-semibold uppercase text-foreground">
+                        {patient.insurance}
+                      </span>
+                    )}
                     {patient.medical_warning && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-rose-600 bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/20">
                         <AlertTriangle className="h-3 w-3" />
                         {patient.medical_warning}
                       </span>
                     )}
                   </div>
 
-                  <ChevronRight
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform",
-                      isSelected ? "text-primary translate-x-1" : "text-muted-foreground/40",
-                    )}
-                  />
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Rodapé de Paginação */}
-          {totalCount > pageSize && (
-            <div className="flex items-center justify-between px-2 pt-2 gap-2">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="px-3 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-all"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Anterior
-                </button>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="px-3 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 cursor-pointer transition-all"
-                >
-                  Próxima
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span>Por página:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                  className="text-xs p-1 rounded-lg border border-border bg-background text-foreground cursor-pointer focus:outline-none"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Coluna da Direita: Visão 360º do Paciente Selecionado (7 colunas) */}
-        <div className="lg:col-span-7">
-          {selectedPatient ? (
-            <div className="space-y-6">
-              {/* Header do Paciente */}
-              <div className="p-6 rounded-3xl bg-card border border-border shadow-petal space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="text-xs font-mono font-bold text-primary uppercase tracking-wider">
-                      Prontuário #{selectedPatient.record_number}
-                    </span>
-                    <h3 className="font-display text-2xl text-foreground">
-                      {selectedPatient.name}
-                    </h3>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {selectedPatient.insurance && (
-                      <span className="text-xs font-semibold px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
-                        {selectedPatient.insurance}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                    {patient.phone && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {patient.phone}
                       </span>
                     )}
-                    <button
-                      onClick={() => openEditPatientModal(selectedPatient)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-background text-xs font-semibold text-foreground hover:bg-muted transition-all cursor-pointer"
-                    >
-                      <Edit className="h-3.5 w-3.5 text-primary" />
-                      <span>Editar Dados / Alerta</span>
-                    </button>
-                    <button
-                      onClick={() => setShowAppointmentModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary-deep transition-all cursor-pointer"
-                    >
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>Agendar Consulta</span>
-                    </button>
+                    {patient.cpf && <span>CPF: {patient.cpf}</span>}
+                    {patient.birth_date && (
+                      <span>
+                        Nasc:{" "}
+                        {new Date(patient.birth_date + "T12:00:00").toLocaleDateString("pt-BR")}
+                      </span>
+                    )}
+                    {patient.origin && <span>Origem: {patient.origin}</span>}
                   </div>
                 </div>
 
-                {/* Dados resumidos em cards pequenos */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
-                    <span className="text-[10px] uppercase text-muted-foreground block">
-                      Telefone
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {selectedPatient.phone || "—"}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
-                    <span className="text-[10px] uppercase text-muted-foreground block">CPF</span>
-                    <span className="font-semibold text-foreground">
-                      {selectedPatient.cpf || "—"}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
-                    <span className="text-[10px] uppercase text-muted-foreground block">
-                      Nascimento
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {selectedPatient.birth_date
-                        ? new Date(selectedPatient.birth_date + "T12:00:00").toLocaleDateString(
-                            "pt-BR",
-                          )
-                        : "—"}
-                    </span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-muted/40 border border-border/60">
-                    <span className="text-[10px] uppercase text-muted-foreground block">
-                      Cidade / UF
-                    </span>
-                    <span className="font-semibold text-foreground">
-                      {selectedPatient.neighborhood ? `${selectedPatient.neighborhood}, ` : ""}
-                      {selectedPatient.city || "Macapá"}
-                    </span>
-                  </div>
-                </div>
-
-                {(selectedPatient.address ||
-                  selectedPatient.email ||
-                  selectedPatient.insurance_number ||
-                  selectedPatient.notes) && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                    {selectedPatient.address && (
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
-                        <span className="text-[10px] uppercase text-muted-foreground block">
-                          Endereço Cadastrado
-                        </span>
-                        <span className="font-medium text-foreground">
-                          {selectedPatient.address}
-                          {selectedPatient.address_number
-                            ? `, ${selectedPatient.address_number}`
-                            : ""}
-                        </span>
-                      </div>
-                    )}
-                    {selectedPatient.email && (
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
-                        <span className="text-[10px] uppercase text-muted-foreground block">
-                          E-mail
-                        </span>
-                        <span className="font-medium text-foreground truncate block">
-                          {selectedPatient.email}
-                        </span>
-                      </div>
-                    )}
-                    {selectedPatient.insurance_number && (
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
-                        <span className="text-[10px] uppercase text-muted-foreground block">
-                          Nº Carteirinha Convênio
-                        </span>
-                        <span className="font-mono font-semibold text-foreground">
-                          {selectedPatient.insurance_number}
-                        </span>
-                      </div>
-                    )}
-                    {selectedPatient.notes && (
-                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
-                        <span className="text-[10px] uppercase text-muted-foreground block">
-                          Responsável / Observações
-                        </span>
-                        <span className="font-medium text-foreground">{selectedPatient.notes}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Alerta Médico em Destaque */}
-                {selectedPatient.medical_warning && (
-                  <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-700 dark:text-rose-300">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
-                      <span>Alerta Clínico: {selectedPatient.medical_warning}</span>
-                    </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {patient.funnel_stage === "triagem" && (
                     <button
-                      onClick={() => openEditPatientModal(selectedPatient)}
-                      className="text-[11px] underline hover:opacity-80 cursor-pointer shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateFunnelStageMutation.mutate({
+                          patientId: patient.id,
+                          stage: "tratamento",
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold cursor-pointer"
                     >
-                      Alterar
+                      Passar p/ Clinicorp
                     </button>
-                  </div>
-                )}
-
-                {/* Navegação entre Tabs Clínicas */}
-                <div className="flex flex-wrap items-center gap-3 border-b border-border pt-2">
-                  <button
-                    onClick={() => setActiveTab("prontuario")}
-                    className={cn(
-                      "pb-2.5 text-xs font-semibold tracking-tight border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
-                      activeTab === "prontuario"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    Prontuário & Consultas ({records.length + patientAppointments.length})
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab("odontograma")}
-                    className={cn(
-                      "pb-2.5 text-xs font-semibold tracking-tight border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
-                      activeTab === "odontograma"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <Smile className="h-3.5 w-3.5" />
-                    Odontograma
-                  </button>
-
-                  <button
-                    onClick={() => setActiveTab("documentos")}
-                    className={cn(
-                      "pb-2.5 text-xs font-semibold tracking-tight border-b-2 transition-all cursor-pointer flex items-center gap-1.5",
-                      activeTab === "documentos"
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Receitas & Atestados PDF
-                  </button>
-                </div>
-              </div>
-
-              {/* Conteúdo da Tab Ativa */}
-              {activeTab === "prontuario" && (
-                <div className="space-y-5">
-                  {/* Campo para Registrar Nova Evolução */}
-                  <div className="p-5 rounded-3xl bg-card border border-border shadow-petal space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                        <Plus className="h-4 w-4 text-primary" />
-                        Registrar Evolução Clínica / Anamnese
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setNewEvolutionText(
-                              "• Suas gengivas sangram facilmente? \n• Há retenção de alimentos entre os dentes? \n• Seus dentes são sensíveis? \n• Já teve reação alérgica a algum medicamento? \n• Já teve reação alérgica a algum alimento? \n• Morde lápis/caneta ou rói unhas? \n• Está grávida? \n• Enfermidades (Diabetes, Cardíaco, Asma, Hipertensão, Renal): \n• Faz uso de algum medicamento contínuo? ",
-                            )
-                          }
-                          className="px-2.5 py-1 rounded-lg border border-primary/25 bg-primary/5 hover:bg-primary/15 text-[11px] font-semibold text-primary transition-colors cursor-pointer"
-                        >
-                          + Modelo Anamnese
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setNewEvolutionText(
-                              "Sintomas relatados:\n\nProcedimento executado:\n\nMedicação prescrita / Orientações:\n\nDiagnóstico / Próxima sessão:",
-                            )
-                          }
-                          className="px-2.5 py-1 rounded-lg border border-primary/25 bg-primary/5 hover:bg-primary/15 text-[11px] font-semibold text-primary transition-colors cursor-pointer"
-                        >
-                          + Atendimento Clínico
-                        </button>
-                      </div>
-                    </div>
-                    <textarea
-                      rows={4}
-                      placeholder="Descreva o procedimento executado, queixas do paciente, anestésicos utilizados, orientações..."
-                      value={newEvolutionText}
-                      onChange={(e) => setNewEvolutionText(e.target.value)}
-                      className="w-full p-3 rounded-2xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => addEvolutionMutation.mutate()}
-                        disabled={addEvolutionMutation.isPending || !newEvolutionText.trim()}
-                        className="text-xs font-semibold px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        Salvar no Prontuário
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Consultas na Agenda (Próximas e Passadas) */}
-                  {patientAppointments.length > 0 && (
-                    <div className="space-y-2.5">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2 flex items-center gap-1.5">
-                        <Calendar className="h-3.5 w-3.5 text-primary" />
-                        Consultas na Agenda ({patientAppointments.length})
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {patientAppointments.slice(0, 8).map((appt) => (
-                          <div
-                            key={appt.id}
-                            className="p-3.5 rounded-2xl bg-card border border-border shadow-sm flex items-center justify-between gap-2"
-                          >
-                            <div className="min-w-0">
-                              <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                                <span>
-                                  {new Date(appt.appointment_date + "T12:00:00").toLocaleDateString(
-                                    "pt-BR",
-                                  )}
-                                </span>
-                                <span className="text-primary font-mono">
-                                  às {trimSeconds(appt.appointment_time)}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground truncate mt-0.5">
-                                {appt.service_name}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <span
-                                className={cn(
-                                  "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border",
-                                  appt.status === "confirmed"
-                                    ? "text-emerald-800 bg-emerald-500/15 border-emerald-600/30"
-                                    : appt.status === "pending"
-                                      ? "text-amber-800 bg-amber-500/15 border-amber-500/30"
-                                      : appt.status === "completed"
-                                        ? "text-primary bg-primary/10 border-primary/25"
-                                        : "text-muted-foreground bg-muted border-border",
-                                )}
-                              >
-                                {STATUS_LABELS[appt.status]}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  const { error } = await supabase
-                                    .from("appointments")
-                                    .delete()
-                                    .eq("id", appt.id);
-                                  if (error) {
-                                    toast.error("Não foi possível excluir o agendamento.");
-                                    return;
-                                  }
-                                  toast.success("Agendamento excluído.");
-                                  queryClient.invalidateQueries({
-                                    queryKey: ["patient_appointments", selectedPatient?.id],
-                                  });
-                                  queryClient.invalidateQueries({ queryKey: ["appointments"] });
-                                }}
-                                title="Excluir este agendamento"
-                                className="p-1 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
                   )}
-
-                  {/* Linha do Tempo de Registros Clínicos / Anamneses */}
-                  <div className="space-y-3">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">
-                      Evoluções & Fichas de Anamnese ({records.length})
-                    </h4>
-
-                    {records.length === 0 ? (
-                      <div className="p-8 rounded-3xl border border-border bg-card text-center text-xs text-muted-foreground">
-                        Nenhuma evolução ou ficha clínica registrada ainda para este paciente.
-                      </div>
-                    ) : (
-                      records.map((r) => {
-                        const badgeMap: Record<string, { label: string; cls: string }> = {
-                          formulario: {
-                            label: "Formulário / Anamnese",
-                            cls: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30",
-                          },
-                          receita: {
-                            label: "Receituário",
-                            cls: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
-                          },
-                          atestado: {
-                            label: "Atestado",
-                            cls: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
-                          },
-                          pagamento: {
-                            label: "Financeiro / Pagamento",
-                            cls: "bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/30",
-                          },
-                          sinais_vitais: {
-                            label: "Sinais Vitais",
-                            cls: "bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30",
-                          },
-                          evolucao: {
-                            label: "Evolução Clínica",
-                            cls: "bg-primary/10 text-primary border-primary/25",
-                          },
-                        };
-                        const badge = badgeMap[r.record_type] || badgeMap.evolucao;
-                        return (
-                          <div
-                            key={r.id}
-                            className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={cn(
-                                    "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
-                                    badge.cls,
-                                  )}
-                                >
-                                  {badge.label}
-                                </span>
-                                <span className="font-semibold text-foreground flex items-center gap-1.5">
-                                  <Clock className="h-3.5 w-3.5 text-primary" />
-                                  {r.title || "Evolução Clínica"}
-                                </span>
-                              </div>
-                              <span className="text-muted-foreground font-mono text-[11px]">
-                                {new Date(r.record_date).toLocaleDateString("pt-BR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
-                              {r.content}
-                            </p>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#e66c2c]">
+                    <span>Abrir Ficha Clinicorp</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
                 </div>
-              )}
-
-              {activeTab === "odontograma" && (
-                <OdontogramView patientId={selectedPatient.id} patientName={selectedPatient.name} />
-              )}
-
-              {activeTab === "documentos" && (
-                <DocumentGenerator
-                  patientId={selectedPatient.id}
-                  patientName={selectedPatient.name}
-                  patientCpf={selectedPatient.cpf || undefined}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="h-full min-h-[400px] flex flex-col items-center justify-center p-10 rounded-3xl border border-dashed border-border bg-card/40 text-center">
-              <User className="h-10 w-10 text-muted-foreground/40 mb-3" />
-              <h4 className="font-display text-xl text-foreground">Selecione um Paciente</h4>
-              <p className="text-xs text-muted-foreground max-w-sm mt-1">
-                Escolha um paciente da lista ao lado para acessar seu prontuário eletrônico,
-                odontograma interativo, histórico de consultas e emitir receitas ou atestados.
-              </p>
-            </div>
-          )}
+              </div>
+            );
+          })}
         </div>
-      </div>
 
-      {/* Modal de Criar / Editar Paciente */}
-      {patientFormMode && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-primary-deep/40 p-4 backdrop-blur-sm"
-          onClick={() => setPatientFormMode(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl rounded-3xl bg-card border border-border p-7 shadow-bloom space-y-5 max-h-[90vh] overflow-y-auto"
-          >
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="font-display text-2xl text-foreground">
-                  {patientFormMode === "edit" ? "Editar Cadastro do Paciente" : "Novo Paciente"}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Preencha os dados cadastrais e alertas clínicos de anamnese.
-                </p>
-              </div>
+        {/* Paginação */}
+        {totalCount > pageSize && (
+          <div className="px-6 py-4 bg-muted/20 border-t border-border flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => setPatientFormMode(null)}
-                className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 cursor-pointer flex items-center gap-1"
               >
-                <X className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
+                Anterior
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-foreground bg-background hover:bg-muted disabled:opacity-40 cursor-pointer flex items-center gap-1"
+              >
+                Próxima
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
-              <div className="sm:col-span-2 space-y-1">
-                <label className="font-semibold text-foreground">Nome Completo *</label>
-                <input
-                  type="text"
-                  value={patientForm.name}
-                  onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })}
-                  placeholder="Nome completo do paciente"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Telefone / WhatsApp</label>
-                <input
-                  type="text"
-                  value={patientForm.phone}
-                  onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
-                  placeholder="(96) 99100-0000"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">CPF</label>
-                <input
-                  type="text"
-                  value={patientForm.cpf}
-                  onChange={(e) => setPatientForm({ ...patientForm, cpf: e.target.value })}
-                  placeholder="000.000.000-00"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Data de Nascimento</label>
-                <input
-                  type="date"
-                  value={patientForm.birth_date}
-                  onChange={(e) => setPatientForm({ ...patientForm, birth_date: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Convênio / Plano</label>
-                <select
-                  value={patientForm.insurance}
-                  onChange={(e) => setPatientForm({ ...patientForm, insurance: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                  <option value="PARTICULAR">Particular</option>
-                  <option value="REDE UNNA">Rede Unna</option>
-                  <option value="ODONTOPREV">Odontoprev</option>
-                  <option value="BRADESCO">Bradesco Dental</option>
-                  <option value="AMIL DENTAL">Amil Dental</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">Bairro</label>
-                <input
-                  type="text"
-                  value={patientForm.neighborhood}
-                  onChange={(e) => setPatientForm({ ...patientForm, neighborhood: e.target.value })}
-                  placeholder="Ex: Central, Trem, Buritizal..."
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-foreground">E-mail</label>
-                <input
-                  type="email"
-                  value={patientForm.email}
-                  onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })}
-                  placeholder="paciente@email.com"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-              </div>
-
-              <div className="sm:col-span-2 space-y-1 pt-1">
-                <label className="font-semibold text-rose-600 flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Alerta Clínico / Alergias / Condições Sistêmicas
-                </label>
-                <input
-                  type="text"
-                  value={patientForm.medical_warning}
-                  onChange={(e) =>
-                    setPatientForm({ ...patientForm, medical_warning: e.target.value })
-                  }
-                  placeholder="Ex: Alergia a Dipirona, Hipertenso, Gestante, Pacientes Especiais..."
-                  className="w-full rounded-xl border border-rose-500/30 bg-rose-500/5 px-3.5 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-rose-500/30"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-              <button
-                type="button"
-                onClick={() => setPatientFormMode(null)}
-                className="px-5 py-2.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Por página:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="text-xs p-1.5 rounded-lg border border-border bg-background text-foreground cursor-pointer"
               >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => savePatientMutation.mutate()}
-                disabled={savePatientMutation.isPending}
-                className="px-6 py-2.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-sm hover:bg-primary-deep transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                {savePatientMutation.isPending ? "Salvando..." : "Salvar Cadastro"}
-              </button>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      <NewAppointmentModal
-        open={showAppointmentModal}
-        onOpenChange={setShowAppointmentModal}
-        defaultPatient={selectedPatient}
-        onSuccess={() => {
-          queryClient.invalidateQueries({
-            queryKey: ["patient_appointments", selectedPatient?.id],
-          });
-          queryClient.invalidateQueries({ queryKey: ["appointments"] });
-        }}
-      />
+      {patientFormMode && renderPatientModal()}
     </div>
   );
 }

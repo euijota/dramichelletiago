@@ -7,20 +7,17 @@ import { useSession } from "@/hooks/useSession";
 import { Logo } from "@/components/Logo";
 import { ExportModal } from "@/components/ExportModal";
 import { NewAppointmentModal } from "@/components/clinical/NewAppointmentModal";
-import { fetchICalFeed } from "@/lib/ical-server";
 import {
   CLINIC,
   STATUS_LABELS,
   addDays,
   buildTimeSlots,
-  buildGoogleCalendarUrl,
   formatLongDate,
   formatShortDate,
   startOfWeek,
   weekdayOf,
   toISODate,
   trimSeconds,
-  type ICSEvent,
 } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
 import { cn } from "@/lib/utils";
@@ -119,7 +116,6 @@ function Painel() {
   const { session, isAdmin, loading } = useSession();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [selected, setSelected] = useState<Appointment | null>(null);
-  const [selectedGoogle, setSelectedGoogle] = useState<ICSEvent | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
@@ -149,21 +145,6 @@ function Painel() {
       if (error) throw error;
       return data as Appointment[];
     },
-  });
-
-  const { data: googleEvents = [] } = useQuery({
-    queryKey: ["googleAgendaFeed"],
-    enabled: !!session,
-    queryFn: async () => {
-      try {
-        return await fetchICalFeed();
-      } catch (e) {
-        console.error("Google Agenda iCal fetch failed:", e);
-        return [];
-      }
-    },
-    staleTime: 0,
-    refetchInterval: 60000,
   });
 
   const { data: pending } = useQuery({
@@ -258,17 +239,11 @@ function Painel() {
   }
 
   const todayISO = toISODate(new Date());
-  const supaToday =
+  const todayCount =
     weekAppointments?.filter((a) => a.appointment_date === todayISO && a.status !== "cancelled")
       .length ?? 0;
-  const googleToday = googleEvents.filter((g) => g.date === todayISO).length;
-  const todayCount = supaToday + googleToday;
 
-  const supaConfirmedWeek = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
-  const googleWeekCount = googleEvents.filter(
-    (g) => g.date >= rangeStart && g.date <= rangeEnd,
-  ).length;
-  const confirmedCount = supaConfirmedWeek + googleWeekCount;
+  const confirmedCount = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
 
   const pendingCount = pending?.length ?? 0;
 
@@ -381,7 +356,7 @@ function Painel() {
           </h1>
         </div>
 
-        {/* Navigation Tabs (Estilo Clinicorp Solo) */}
+        {/* Navigation Tabs (Estilo Clinicorp + Funil Consultório.me) */}
         <div className="mt-8 flex flex-wrap items-center gap-3 border-b border-border pb-4">
           <button
             onClick={() => setMainTab("agenda")}
@@ -393,7 +368,7 @@ function Painel() {
             )}
           >
             <Calendar className="h-4 w-4" />
-            Agenda & Consultas
+            Agenda & Triagem (Consultório.me)
           </button>
           <button
             onClick={() => setMainTab("pacientes")}
@@ -405,7 +380,7 @@ function Painel() {
             )}
           >
             <Users className="h-4 w-4" />
-            Pacientes & Prontuários
+            Sistema Clinicorp (Funil + Prontuários)
           </button>
         </div>
 
@@ -565,30 +540,17 @@ function Painel() {
                   const isToday = iso === todayISO;
                   const supaAppointments =
                     weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
-                  const gEvents = googleEvents.filter((g) => g.date === iso);
 
-                  const combined = [
-                    ...supaAppointments.map((a) => ({
+                  const combined = supaAppointments
+                    .map((a) => ({
                       id: a.id,
                       time: trimSeconds(a.appointment_time),
                       title: a.patient_name,
                       subtitle: a.service_name,
-                      isGoogle: false,
                       status: a.status,
                       rawSupa: a,
-                      rawGoogle: null,
-                    })),
-                    ...gEvents.map((g, idx) => ({
-                      id: `gcal-${g.date}-${g.time}-${idx}`,
-                      time: g.time,
-                      title: g.summary,
-                      subtitle: "Google Agenda",
-                      isGoogle: true,
-                      status: "confirmed" as const,
-                      rawSupa: null,
-                      rawGoogle: g,
-                    })),
-                  ].sort((a, b) => a.time.localeCompare(b.time));
+                    }))
+                    .sort((a, b) => a.time.localeCompare(b.time));
 
                   return (
                     <div
@@ -643,15 +605,10 @@ function Painel() {
                         {combined.map((item) => (
                           <button
                             key={item.id}
-                            onClick={() => {
-                              if (item.rawSupa) setSelected(item.rawSupa);
-                              else if (item.rawGoogle) setSelectedGoogle(item.rawGoogle);
-                            }}
+                            onClick={() => setSelected(item.rawSupa)}
                             className={cn(
                               "group relative w-full rounded-2xl border p-3.5 text-left transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer backdrop-blur-sm",
-                              item.isGoogle
-                                ? "border-emerald-600/35 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 hover:border-emerald-600/70 hover:bg-emerald-500/15"
-                                : statusTone[item.status],
+                              statusTone[item.status],
                             )}
                           >
                             <div className="flex items-center justify-between">
@@ -659,38 +616,32 @@ function Painel() {
                                 <Clock className="h-3 w-3 text-muted-foreground" />
                                 <span>{item.time}</span>
                               </span>
-                              {item.isGoogle ? (
-                                <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-600/20">
-                                  Google
-                                </span>
-                              ) : (
+                              <span
+                                className={cn(
+                                  "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
+                                  item.status === "pending"
+                                    ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
+                                    : item.status === "confirmed"
+                                      ? "text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border-emerald-600/30"
+                                      : item.status === "completed"
+                                        ? "text-primary bg-primary/10 border-primary/25"
+                                        : "text-muted-foreground bg-muted border-border",
+                                )}
+                              >
                                 <span
                                   className={cn(
-                                    "text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
+                                    "h-1.5 w-1.5 rounded-full",
                                     item.status === "pending"
-                                      ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
+                                      ? "bg-amber-500 animate-pulse"
                                       : item.status === "confirmed"
-                                        ? "text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border-emerald-600/30"
+                                        ? "bg-emerald-500"
                                         : item.status === "completed"
-                                          ? "text-primary bg-primary/10 border-primary/25"
-                                          : "text-muted-foreground bg-muted border-border",
+                                          ? "bg-primary"
+                                          : "bg-muted-foreground",
                                   )}
-                                >
-                                  <span
-                                    className={cn(
-                                      "h-1.5 w-1.5 rounded-full",
-                                      item.status === "pending"
-                                        ? "bg-amber-500 animate-pulse"
-                                        : item.status === "confirmed"
-                                          ? "bg-emerald-500"
-                                          : item.status === "completed"
-                                            ? "bg-primary"
-                                            : "bg-muted-foreground",
-                                    )}
-                                  />
-                                  {STATUS_LABELS[item.status]}
-                                </span>
-                              )}
+                                />
+                                {STATUS_LABELS[item.status]}
+                              </span>
                             </div>
                             <span className="mt-2 block truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                               {item.title}
@@ -865,10 +816,6 @@ function Painel() {
               setMainTab("pacientes");
             }}
           />
-        )}
-
-        {selectedGoogle && (
-          <GoogleEventSheet event={selectedGoogle} onClose={() => setSelectedGoogle(null)} />
         )}
 
         {showExportModal && allAppointments && (
@@ -1462,78 +1409,6 @@ function AppointmentSheet({
         >
           Fechar
         </button>
-      </div>
-    </div>
-  );
-}
-
-function GoogleEventSheet({ event, onClose }: { event: ICSEvent; onClose: () => void }) {
-  const phoneMatch = (event.summary + " " + (event.description || "")).match(
-    /(?:\(?\d{2}\)?\s*)?\d{4,5}[-\s]?\d{4}/,
-  );
-  const rawPhone = phoneMatch ? phoneMatch[0] : "";
-  const cleanPhone = rawPhone.replace(/\D/g, "");
-  const waUrl =
-    cleanPhone && cleanPhone.length >= 8
-      ? `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(`Olá! Entrando em contato sobre o seu agendamento no consultório da Dra. Michelle Tiago marcado para ${formatLongDate(event.date)} às ${event.time}.`)}`
-      : null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-primary-deep/40 p-0 backdrop-blur-sm sm:items-center sm:p-6"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-card p-9 shadow-bloom sm:rounded-3xl"
-      >
-        <span className="inline-block rounded bg-emerald-100 dark:bg-emerald-900/60 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-          📅 Google Agenda
-        </span>
-        <h2 className="mt-4 font-display text-3xl text-foreground">{event.summary}</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {formatLongDate(event.date)} às {event.time}
-        </p>
-
-        {event.description ? (
-          <div className="mt-6 border-y border-border py-6">
-            <p className="text-kicker text-muted-foreground">Detalhes do Agendamento</p>
-            <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground bg-muted/30 p-4 rounded-xl border border-border">
-              {event.description}
-            </pre>
-          </div>
-        ) : (
-          <p className="mt-6 border-y border-border py-6 text-sm text-muted-foreground italic">
-            Sem detalhes adicionais informados.
-          </p>
-        )}
-
-        <div className="mt-8 flex flex-wrap gap-2.5">
-          <a
-            href="https://calendar.google.com"
-            target="_blank"
-            rel="noreferrer"
-            className="rounded-full bg-emerald-600 px-6 py-3 text-kicker text-white transition-silk hover:bg-emerald-700"
-          >
-            Abrir no Google Agenda
-          </a>
-          {waUrl && (
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-full border border-border px-6 py-3 text-kicker text-foreground transition-silk hover:bg-accent"
-            >
-              Falar no WhatsApp
-            </a>
-          )}
-          <button
-            onClick={onClose}
-            className="rounded-full border border-border px-6 py-3 text-kicker text-muted-foreground transition-silk hover:bg-accent"
-          >
-            Fechar
-          </button>
-        </div>
       </div>
     </div>
   );
