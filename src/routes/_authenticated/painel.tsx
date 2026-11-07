@@ -58,8 +58,14 @@ import {
   FileText,
   Ban,
   Link2,
+  Menu,
+  Search,
+  ArrowLeft,
+  DollarSign,
+  Gift,
+  HeartHandshake,
 } from "lucide-react";
-import { PatientsManager } from "@/components/clinical/PatientsManager";
+import { PatientsManager, type Patient } from "@/components/clinical/PatientsManager";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
@@ -122,8 +128,93 @@ function Painel() {
   const [newAppointmentMode, setNewAppointmentMode] = useState<"existing" | "new" | "block">(
     "existing",
   );
-  const [mainTab, setMainTab] = useState<"agenda" | "pacientes">("agenda");
+  const [mainTab, setMainTab] = useState<"agenda" | "pacientes" | "crc" | "financeiro">("agenda");
   const [selectedPatientIdForChart, setSelectedPatientIdForChart] = useState<string | null>(null);
+  const [activeChartPatient, setActiveChartPatient] = useState<Patient | null>(null);
+  const [globalSmartSearch, setGlobalSmartSearch] = useState("");
+  const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  const [crcSubTab, setCrcSubTab] = useState<
+    "confirmacoes" | "retornos" | "orcamentos" | "aniversariantes"
+  >("confirmacoes");
+
+  // Smartbar global ("Encontre pacientes ou funções do sistema")
+  const { data: globalSmartPatients = [] } = useQuery({
+    queryKey: ["global_smartbar_patients", globalSmartSearch],
+    enabled: !!session && globalSmartSearch.trim().length >= 2,
+    queryFn: async () => {
+      const term = globalSmartSearch.trim();
+      const num = parseInt(term.replace("#", ""), 10);
+      let q = supabase.from("patients").select("*");
+      if (!isNaN(num) && num > 0) {
+        q = q.or(
+          `name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,record_number.eq.${num}`,
+        );
+      } else {
+        q = q.or(`name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data } = await q.order("name").limit(8);
+      return (data || []) as Patient[];
+    },
+  });
+
+  // Dados para o módulo CRC (Alertas de Retorno e Aniversariantes)
+  const { data: returnAlertPatients = [] } = useQuery({
+    queryKey: ["crc_return_alerts"],
+    enabled: !!session && (mainTab === "crc" || mainTab === "agenda"),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("*")
+        .not("return_alert_date", "is", null)
+        .order("return_alert_date", { ascending: true })
+        .limit(50);
+      return (data || []) as Patient[];
+    },
+  });
+
+  const { data: birthdayPatients = [] } = useQuery({
+    queryKey: ["crc_birthdays"],
+    enabled: !!session && mainTab === "crc",
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("*")
+        .not("birth_date", "is", null)
+        .order("name", { ascending: true })
+        .limit(300);
+      const currentMonth = new Date().getMonth() + 1;
+      return ((data || []) as Patient[]).filter((p) => {
+        if (!p.birth_date) return false;
+        const m = parseInt(p.birth_date.split("-")[1] || "0", 10);
+        return m === currentMonth;
+      });
+    },
+  });
+
+  // Dados para Financeiro e Orçamentos da Clínica
+  const { data: clinicFinancialRecords = [] } = useQuery({
+    queryKey: ["clinic_financial_records"],
+    enabled: !!session && (mainTab === "financeiro" || mainTab === "crc"),
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clinical_records")
+        .select(
+          "id, patient_id, record_type, record_date, title, content, patients(id, name, phone, record_number)",
+        )
+        .in("record_type", ["pagamento", "orcamento"])
+        .order("record_date", { ascending: false })
+        .limit(100);
+      return (data || []) as Array<{
+        id: string;
+        patient_id: string;
+        record_type: string;
+        record_date: string;
+        title: string | null;
+        content: string;
+        patients?: { id: string; name: string; phone: string | null; record_number: number } | null;
+      }>;
+    },
+  });
 
   const weekDays = useMemo(
     () => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)),
@@ -276,125 +367,744 @@ function Painel() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur-2xl transition-all duration-300">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-          <Link
-            to="/"
-            className="transition-transform duration-300 hover:scale-105 active:scale-95"
-          >
-            <Logo />
-          </Link>
-          <div className="flex items-center gap-2.5 sm:gap-3">
+    <div className="min-h-screen bg-[#f4f5f7] dark:bg-background">
+      {/* BARRA SUPERIOR GLOBAL (#262626) — ARQUITETURA CLINICORP DA DRA. MICHELLE */}
+      <header className="sticky top-0 z-40 bg-[#262626] text-white shadow-md">
+        <div className="mx-auto flex h-16 max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6">
+          {/* Lado Esquerdo: Menu Hambúrguer (≡) + Voltar para Pacientes ou Módulos */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="relative">
+              <button
+                onClick={() => setShowHamburgerMenu((prev) => !prev)}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
+                title="Menu de módulos do sistema"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              {showHamburgerMenu && (
+                <div className="absolute left-0 top-full mt-2 w-64 rounded-2xl bg-card text-foreground border border-border shadow-2xl p-2 z-50 space-y-1">
+                  {[
+                    {
+                      id: "agenda" as const,
+                      label: "Agenda",
+                      desc: "Consultas, confirmações e bloqueios",
+                      icon: <Calendar className="h-4 w-4 text-[#e66c2c]" />,
+                    },
+                    {
+                      id: "pacientes" as const,
+                      label: "Pacientes",
+                      desc: "Prontuário completo, Odontograma e Fichas",
+                      icon: <Users className="h-4 w-4 text-[#e66c2c]" />,
+                    },
+                    {
+                      id: "crc" as const,
+                      label: "CRC — Relacionamento",
+                      desc: "Retornos, confirmações e aniversariantes",
+                      icon: <HeartHandshake className="h-4 w-4 text-[#e66c2c]" />,
+                    },
+                    {
+                      id: "financeiro" as const,
+                      label: "Financeiro",
+                      desc: "Fluxo de caixa, orçamentos e recibos",
+                      icon: <DollarSign className="h-4 w-4 text-[#e66c2c]" />,
+                    },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        setMainTab(m.id);
+                        if (m.id !== "pacientes") setActiveChartPatient(null);
+                        setShowHamburgerMenu(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-start gap-3 p-2.5 rounded-xl text-left transition-colors cursor-pointer",
+                        mainTab === m.id ? "bg-[#e66c2c]/10" : "hover:bg-muted",
+                      )}
+                    >
+                      <div className="mt-0.5">{m.icon}</div>
+                      <div>
+                        <div className="text-xs font-bold text-foreground">{m.label}</div>
+                        <div className="text-[11px] text-muted-foreground">{m.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                  <div className="border-t border-border pt-1 mt-1">
+                    <Link
+                      to="/"
+                      className="w-full flex items-center gap-2.5 p-2.5 rounded-xl text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <Globe className="h-4 w-4" />
+                      <span>Ver site institucional</span>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {mainTab === "pacientes" && activeChartPatient ? (
+              <button
+                onClick={() => {
+                  setSelectedPatientIdForChart("__close__");
+                  setActiveChartPatient(null);
+                }}
+                className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-neutral-200 hover:text-white transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Voltar para Pacientes</span>
+              </button>
+            ) : (
+              <nav className="hidden lg:flex items-center gap-1">
+                {[
+                  {
+                    id: "agenda" as const,
+                    label: "Agenda",
+                    icon: <Calendar className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: "pacientes" as const,
+                    label: "Pacientes",
+                    icon: <Users className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: "crc" as const,
+                    label: "CRC",
+                    icon: <HeartHandshake className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: "financeiro" as const,
+                    label: "Financeiro",
+                    icon: <DollarSign className="h-3.5 w-3.5" />,
+                  },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setMainTab(item.id)}
+                    className={cn(
+                      "px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer",
+                      mainTab === item.id
+                        ? "bg-[#e66c2c] text-white"
+                        : "text-neutral-300 hover:bg-neutral-800 hover:text-white",
+                    )}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+            )}
+          </div>
+
+          {/* Centro: Smartbar Global ("Encontre pacientes ou funções do sistema") */}
+          <div className="relative flex-1 max-w-xl">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+            <input
+              type="text"
+              value={globalSmartSearch}
+              onChange={(e) => setGlobalSmartSearch(e.target.value)}
+              placeholder="Encontre pacientes ou funções do sistema"
+              className="w-full rounded-lg bg-white text-neutral-900 pl-10 pr-8 py-2 text-xs font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-[#e66c2c]"
+            />
+            {globalSmartSearch && (
+              <button
+                onClick={() => setGlobalSmartSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 cursor-pointer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {globalSmartSearch.trim().length >= 2 && (
+              <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl bg-card text-foreground border border-border shadow-2xl overflow-hidden">
+                <div className="px-3.5 py-2 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b border-border">
+                  Pacientes encontrados ({globalSmartPatients.length})
+                </div>
+                {globalSmartPatients.length === 0 ? (
+                  <div className="p-4 text-xs text-muted-foreground text-center">
+                    Nenhum paciente encontrado com "{globalSmartSearch}".
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border max-h-72 overflow-y-auto">
+                    {globalSmartPatients.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setSelectedPatientIdForChart(p.id);
+                          setMainTab("pacientes");
+                          setGlobalSmartSearch("");
+                        }}
+                        className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between text-xs cursor-pointer"
+                      >
+                        <div>
+                          <span className="font-mono font-bold text-[#e66c2c]">
+                            #{p.record_number}
+                          </span>{" "}
+                          — <span className="font-semibold text-foreground">{p.name}</span>
+                        </div>
+                        <span className="text-muted-foreground">{p.phone || p.cpf || ""}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="px-3.5 py-2 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-y border-border">
+                  Atalhos do Sistema
+                </div>
+                <div className="p-2 flex flex-wrap gap-1.5">
+                  {[
+                    {
+                      label: "Agenda da Semana",
+                      action: () => {
+                        setMainTab("agenda");
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                    {
+                      label: "Lista de Pacientes",
+                      action: () => {
+                        setSelectedPatientIdForChart("__close__");
+                        setMainTab("pacientes");
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                    {
+                      label: "CRC — Alertas de Retorno",
+                      action: () => {
+                        setMainTab("crc");
+                        setCrcSubTab("retornos");
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                    {
+                      label: "Financeiro",
+                      action: () => {
+                        setMainTab("financeiro");
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                    {
+                      label: "Nova Consulta",
+                      action: () => {
+                        setShowNewAppointmentModal(true);
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                  ].map((s) => (
+                    <button
+                      key={s.label}
+                      onClick={s.action}
+                      className="px-2.5 py-1 rounded-lg bg-muted hover:bg-[#e66c2c] hover:text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Lado Direito: Ações Rápidas + Notificações + Perfil Dra. Michelle */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               onClick={() => {
                 setNewAppointmentDate(undefined);
                 setNewAppointmentMode("existing");
                 setShowNewAppointmentModal(true);
               }}
-              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-primary px-4 sm:px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] px-3 py-1.5 text-xs font-semibold text-white transition-colors cursor-pointer"
             >
-              <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
-              <span>Novo Agendamento</span>
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Nova Consulta</span>
             </button>
+
             <button
               onClick={() => {
                 setNewAppointmentDate(undefined);
                 setNewAppointmentMode("block");
                 setShowNewAppointmentModal(true);
               }}
-              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-amber-500/35 bg-amber-500/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-300 shadow-sm transition-all duration-300 hover:border-amber-500/60 hover:bg-amber-500/20 active:scale-95 md:inline-flex cursor-pointer"
+              title="Bloquear horário na agenda"
+              className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors cursor-pointer"
             >
-              <Ban className="h-3.5 w-3.5" />
-              <span>Bloquear Horário</span>
+              <Ban className="h-3.5 w-3.5 text-amber-400" />
+              <span>Bloquear</span>
             </button>
+
             <button
               onClick={() => {
                 const publicUrl = `${window.location.origin}/agendar`;
                 navigator.clipboard.writeText(publicUrl);
                 toast.success(`Link de agendamento copiado: ${publicUrl}`);
               }}
-              title="Copiar link público de agendamento online para enviar aos pacientes"
-              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-emerald-600/30 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 shadow-sm transition-all duration-300 hover:border-emerald-600/50 hover:bg-emerald-500/20 active:scale-95 lg:inline-flex cursor-pointer"
+              title="Copiar link público de agendamento online"
+              className="hidden xl:inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-800 hover:bg-neutral-700 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-colors cursor-pointer"
             >
-              <Link2 className="h-4 w-4 transition-transform duration-300 group-hover:rotate-6" />
+              <Link2 className="h-3.5 w-3.5 text-emerald-400" />
               <span>Link Online</span>
             </button>
+
             <button
-              onClick={() => setShowExportModal(true)}
-              className="group relative hidden items-center gap-2 overflow-hidden rounded-full border border-primary/25 bg-primary/8 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary shadow-sm transition-all duration-300 hover:border-primary/50 hover:bg-primary/15 hover:shadow-md hover:shadow-primary/10 active:scale-95 sm:inline-flex cursor-pointer"
+              onClick={() => {
+                setMainTab("crc");
+                setCrcSubTab("confirmacoes");
+              }}
+              title="Agendamentos aguardando confirmação e alertas CRC"
+              className="relative p-2 rounded-lg text-neutral-300 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
             >
-              <Download className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5" />
-              <span>Exportar</span>
+              <Bell className="h-4 w-4" />
+              {(pendingCount > 0 || returnAlertPatients.length > 0) && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#e66c2c] text-[10px] font-bold text-white flex items-center justify-center">
+                  {pendingCount + returnAlertPatients.length}
+                </span>
+              )}
             </button>
-            <Link
-              to="/"
-              className="group hidden items-center gap-2 rounded-full border border-border bg-card/80 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95 sm:inline-flex"
-            >
-              <Globe className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:scale-110 group-hover:text-foreground" />
-              <span>Ver site</span>
-            </Link>
+
+            {/* Perfil estilo Clinicorp */}
+            <div className="hidden sm:flex items-center gap-2.5 rounded-full bg-neutral-800 border border-neutral-700 pl-2 pr-3 py-1">
+              <div className="h-7 w-7 rounded-full bg-[#e66c2c] text-white text-xs font-bold flex items-center justify-center">
+                MT
+              </div>
+              <div className="leading-tight">
+                <div className="text-xs font-semibold text-white">Dra. Michelle Tiago</div>
+                <div className="text-[10px] text-neutral-400">Administradora</div>
+              </div>
+            </div>
+
             <button
               onClick={handleSignOut}
-              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
+              title="Sair do sistema"
+              className="p-2 rounded-lg text-neutral-400 hover:bg-neutral-800 hover:text-white transition-colors cursor-pointer"
             >
-              <span>Sair</span>
-              <LogOut className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+              <LogOut className="h-4 w-4" />
             </button>
           </div>
         </div>
+
+        {/* Sub-barra mobile para alternar entre Agenda, Pacientes, CRC e Financeiro */}
+        <div className="flex lg:hidden items-center gap-1 px-4 pb-2.5 overflow-x-auto">
+          {[
+            { id: "agenda" as const, label: "Agenda" },
+            { id: "pacientes" as const, label: "Pacientes" },
+            { id: "crc" as const, label: "CRC" },
+            { id: "financeiro" as const, label: "Financeiro" },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setMainTab(item.id)}
+              className={cn(
+                "px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap cursor-pointer",
+                mainTab === item.id ? "bg-[#e66c2c] text-white" : "bg-neutral-800 text-neutral-300",
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-12">
-        <div className="flex flex-col gap-2">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-primary">
-            <Sparkles className="h-3.5 w-3.5" />
-            Painel Clínico Integrado
-          </span>
-          <h1 className="mt-2 font-display text-4xl text-foreground lg:text-5xl">
-            Bem-vinda, <span className="font-script text-primary">Dra. Michelle</span>
-          </h1>
-        </div>
-
-        {/* Navigation Tabs (Estilo Clinicorp + Funil Consultório.me) */}
-        <div className="mt-8 flex flex-wrap items-center gap-3 border-b border-border pb-4">
-          <button
-            onClick={() => setMainTab("agenda")}
-            className={cn(
-              "px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
-              mainTab === "agenda"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
-            )}
-          >
-            <Calendar className="h-4 w-4" />
-            Agenda & Triagem (Consultório.me)
-          </button>
-          <button
-            onClick={() => setMainTab("pacientes")}
-            className={cn(
-              "px-6 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2",
-              mainTab === "pacientes"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "bg-muted/60 text-muted-foreground hover:text-foreground hover:bg-muted",
-            )}
-          >
-            <Users className="h-4 w-4" />
-            Sistema Clinicorp (Funil + Prontuários)
-          </button>
-        </div>
-
+      <main className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6">
         {mainTab === "pacientes" ? (
-          <div className="mt-8">
-            <PatientsManager
-              initialPatientId={selectedPatientIdForChart}
-              onPatientLoaded={() => setSelectedPatientIdForChart(null)}
-            />
+          <PatientsManager
+            initialPatientId={selectedPatientIdForChart}
+            onPatientLoaded={() => setSelectedPatientIdForChart(null)}
+            hideTopBar={true}
+            onSelectedPatientChange={setActiveChartPatient}
+          />
+        ) : mainTab === "crc" ? (
+          /* ====================================================================
+             MÓDULO CRC — CENTRAL DE RELACIONAMENTO COM O CLIENTE
+             ==================================================================== */
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div>
+                <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <HeartHandshake className="h-5 w-5 text-[#e66c2c]" />
+                  <span>CRC — Central de Relacionamento com o Cliente</span>
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Acompanhe confirmações pendentes, alertas de retorno, orçamentos em aberto e
+                  aniversariantes.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  {
+                    id: "confirmacoes" as const,
+                    label: "Agendamentos s/ Confirmação",
+                    count: pendingCount,
+                  },
+                  {
+                    id: "retornos" as const,
+                    label: "Alertas de Retorno",
+                    count: returnAlertPatients.length,
+                  },
+                  {
+                    id: "orcamentos" as const,
+                    label: "Orçamentos em Aberto",
+                    count: clinicFinancialRecords.filter((r) => r.record_type === "orcamento")
+                      .length,
+                  },
+                  {
+                    id: "aniversariantes" as const,
+                    label: "Aniversariantes do Mês",
+                    count: birthdayPatients.length,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setCrcSubTab(tab.id)}
+                    className={cn(
+                      "px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition-colors cursor-pointer",
+                      crcSubTab === tab.id
+                        ? "bg-[#e66c2c] text-white border-[#e66c2c]"
+                        : "bg-background text-foreground border-border hover:bg-muted",
+                    )}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.5 rounded-full text-[10px] font-bold",
+                        crcSubTab === tab.id
+                          ? "bg-white/20 text-white"
+                          : "bg-muted text-foreground",
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {crcSubTab === "confirmacoes" && (
+              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
+                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+                  Pacientes Aguardando Confirmação de Consulta ({pendingCount})
+                </div>
+                {pendingCount === 0 ? (
+                  <div className="p-10 text-center text-xs text-muted-foreground">
+                    Todas as consultas agendadas já estão confirmadas!
+                  </div>
+                ) : (
+                  pending?.map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-foreground">
+                          {appointment.patient_name}
+                        </div>
+                        <div className="text-muted-foreground mt-0.5">
+                          {appointment.service_name} ·{" "}
+                          {formatLongDate(appointment.appointment_date)} às{" "}
+                          {trimSeconds(appointment.appointment_time)}
+                        </div>
+                        <div className="text-muted-foreground mt-0.5">
+                          {appointment.patient_phone}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                          className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Confirmar</span>
+                        </button>
+                        <a
+                          href={buildWhatsAppLink(appointment)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold flex items-center gap-1"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>WhatsApp</span>
+                        </a>
+                        {appointment.patient_id && (
+                          <button
+                            onClick={() => {
+                              setSelectedPatientIdForChart(appointment.patient_id);
+                              setMainTab("pacientes");
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                          >
+                            Abrir Prontuário
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {crcSubTab === "retornos" && (
+              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
+                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+                  Pacientes com Alerta de Retorno Programado ({returnAlertPatients.length})
+                </div>
+                {returnAlertPatients.length === 0 ? (
+                  <div className="p-10 text-center text-xs text-muted-foreground">
+                    Nenhum alerta de retorno programado no momento. Defina alertas na Visão Geral do
+                    prontuário de cada paciente.
+                  </div>
+                ) : (
+                  returnAlertPatients.map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-foreground">
+                          #{p.record_number} — {p.name}
+                        </div>
+                        <div className="text-amber-700 dark:text-amber-400 font-semibold mt-0.5">
+                          Data de Retorno:{" "}
+                          {p.return_alert_date
+                            ? new Date(p.return_alert_date + "T12:00:00").toLocaleDateString(
+                                "pt-BR",
+                              )
+                            : "-"}{" "}
+                          · {p.return_alert_notes || "Retorno preventivo"}
+                        </div>
+                        <div className="text-muted-foreground mt-0.5">
+                          {p.phone || "Sem telefone"}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {p.phone && (
+                          <a
+                            href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! Aqui é do consultório da Dra. Michelle Tiago. Está chegando o período do seu retorno odontológico preventivo. Vamos agendar seu horário?`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            <span>Chamar p/ Retorno</span>
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedPatientIdForChart(p.id);
+                            setMainTab("pacientes");
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                        >
+                          Abrir Prontuário
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {crcSubTab === "orcamentos" && (
+              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
+                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+                  Orçamentos Registrados para Acompanhamento (
+                  {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length})
+                </div>
+                {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length ===
+                0 ? (
+                  <div className="p-10 text-center text-xs text-muted-foreground">
+                    Nenhum orçamento registrado ainda.
+                  </div>
+                ) : (
+                  clinicFinancialRecords
+                    .filter((r) => r.record_type === "orcamento")
+                    .map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                      >
+                        <div>
+                          <div className="text-sm font-bold text-foreground">
+                            {item.patients?.name || "Paciente"} — {item.title}
+                          </div>
+                          <div className="text-muted-foreground whitespace-pre-line mt-0.5">
+                            {item.content}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedPatientIdForChart(item.patient_id);
+                            setMainTab("pacientes");
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] text-white font-semibold cursor-pointer shrink-0"
+                        >
+                          Abrir Orçamento no Prontuário
+                        </button>
+                      </div>
+                    ))
+                )}
+              </div>
+            )}
+
+            {crcSubTab === "aniversariantes" && (
+              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
+                <div className="p-4 bg-muted/30 text-xs font-bold text-foreground flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-[#e66c2c]" />
+                  <span>Aniversariantes deste Mês ({birthdayPatients.length})</span>
+                </div>
+                {birthdayPatients.length === 0 ? (
+                  <div className="p-10 text-center text-xs text-muted-foreground">
+                    Nenhum paciente com data de nascimento neste mês.
+                  </div>
+                ) : (
+                  birthdayPatients.map((p) => (
+                    <div
+                      key={p.id}
+                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                    >
+                      <div>
+                        <div className="text-sm font-bold text-foreground">
+                          #{p.record_number} — {p.name}
+                        </div>
+                        <div className="text-muted-foreground mt-0.5">
+                          Nascimento:{" "}
+                          {p.birth_date
+                            ? new Date(p.birth_date + "T12:00:00").toLocaleDateString("pt-BR")
+                            : "-"}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {p.phone && (
+                          <a
+                            href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! 🎉 Passando para desejar um feliz aniversário, com muita saúde, alegria e motivos para sorrir! Com carinho, Dra. Michelle Barbosa Tiago.`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-3.5 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            <span>Enviar Parabéns</span>
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedPatientIdForChart(p.id);
+                            setMainTab("pacientes");
+                          }}
+                          className="px-3.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold cursor-pointer"
+                        >
+                          Abrir Prontuário
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        ) : mainTab === "financeiro" ? (
+          /* ====================================================================
+             MÓDULO FINANCEIRO DA CLÍNICA
+             ==================================================================== */
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-2xl p-5 shadow-sm">
+              <div>
+                <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-[#e66c2c]" />
+                  <span>Gestão Financeira e Faturamento da Clínica</span>
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Controle centralizado de pagamentos recebidos, orçamentos emitidos e exportação de
+                  relatórios.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="px-4 py-2 rounded-xl bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="h-4 w-4" />
+                <span>Exportar Relatório</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Pagamentos / Recibos Registrados
+                </span>
+                <div className="text-3xl font-bold text-emerald-600 mt-2">
+                  {clinicFinancialRecords.filter((r) => r.record_type === "pagamento").length}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Orçamentos e Planos Emitidos
+                </span>
+                <div className="text-3xl font-bold text-[#e66c2c] mt-2">
+                  {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-card border border-border p-5 shadow-sm">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Total de Lançamentos Financeiros
+                </span>
+                <div className="text-3xl font-bold text-foreground mt-2">
+                  {clinicFinancialRecords.length}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border">
+              <div className="p-4 bg-muted/30 text-xs font-bold text-foreground">
+                Últimas Movimentações Financeiras e Orçamentos
+              </div>
+              {clinicFinancialRecords.length === 0 ? (
+                <div className="p-10 text-center text-xs text-muted-foreground">
+                  Nenhum lançamento financeiro encontrado. Lance pagamentos ou orçamentos dentro do
+                  prontuário do paciente.
+                </div>
+              ) : (
+                clinicFinancialRecords.map((rec) => (
+                  <div
+                    key={rec.id}
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
+                            rec.record_type === "pagamento"
+                              ? "bg-emerald-500/15 text-emerald-700"
+                              : "bg-orange-500/15 text-orange-700",
+                          )}
+                        >
+                          {rec.record_type === "pagamento" ? "Recebimento" : "Orçamento"}
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {rec.patients?.name || "Paciente"} — {rec.title}
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground mt-1 whitespace-pre-line">
+                        {rec.content}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="font-mono text-muted-foreground">
+                        {new Date(rec.record_date).toLocaleDateString("pt-BR")}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setSelectedPatientIdForChart(rec.patient_id);
+                          setMainTab("pacientes");
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-[#e66c2c] cursor-pointer"
+                      >
+                        Abrir Prontuário
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         ) : (
           <>
             {/* Stats with Uiverse-inspired glassmorphic cards */}
-            <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            <div className="mt-2 grid gap-6 sm:grid-cols-3">
               {/* Card 1: Hoje */}
               <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-primary/40 hover:shadow-raised">
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-primary/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
@@ -1300,9 +2010,7 @@ function AppointmentSheet({
 
         {!isBlock && appointment.patient_phone && appointment.patient_phone !== "Não informado" && (
           <div className="mt-6 space-y-2.5">
-            <p className="text-kicker text-primary-soft">
-              Mensagens Rápidas WhatsApp (Consultório.me)
-            </p>
+            <p className="text-kicker text-primary-soft">Mensagens Rápidas WhatsApp</p>
             <div className="flex flex-wrap gap-2">
               {CONSULTORIO_ME_QUICK_TEMPLATES.map((tpl) => {
                 const dateFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR");

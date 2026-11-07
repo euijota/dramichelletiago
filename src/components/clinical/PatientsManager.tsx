@@ -128,30 +128,30 @@ const FUNNEL_STAGES = [
   {
     id: "all",
     label: "Todos os Pacientes",
-    badge: "Base Unificada",
+    badge: "Base Completa",
     tone: "bg-primary/10 text-primary border-primary/25",
   },
   {
     id: "triagem",
-    label: "1. Triagem / Leads (Consultório.me)",
-    badge: "Captação / Agendamento",
+    label: "Novos / 1ª Consulta",
+    badge: "Aguardando Avaliação",
     tone: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
   },
   {
     id: "anamnese",
-    label: "2. Ficha / Anamnese Preenchida",
-    badge: "Pronto p/ Avaliação",
+    label: "Anamnese Preenchida",
+    badge: "Ficha de Saúde OK",
     tone: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30",
   },
   {
     id: "orcamento",
-    label: "3. Orçamento em Aberto",
+    label: "Orçamento em Aberto",
     badge: "Em Negociação",
     tone: "bg-orange-500/15 text-orange-800 dark:text-orange-300 border-orange-500/30",
   },
   {
     id: "tratamento",
-    label: "4. Em Gestão no Clinicorp",
+    label: "Em Tratamento Ativo",
     badge: "Paciente Ativo",
     tone: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
   },
@@ -223,9 +223,16 @@ const ALPHABET = [
 interface PatientsManagerProps {
   initialPatientId?: string | null;
   onPatientLoaded?: () => void;
+  hideTopBar?: boolean;
+  onSelectedPatientChange?: (patient: Patient | null) => void;
 }
 
-export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsManagerProps) {
+export function PatientsManager({
+  initialPatientId,
+  onPatientLoaded,
+  hideTopBar = false,
+  onSelectedPatientChange,
+}: PatientsManagerProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [quickJumpSearch, setQuickJumpSearch] = useState("");
@@ -308,7 +315,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     marital_status: "",
     profession: "",
     email: "",
-    origin: "Consultório.me (Triagem)",
+    origin: "",
     insurance: "PARTICULAR",
     insurance_number: "",
     postal_code: "",
@@ -323,9 +330,23 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     funnel_stage: "tratamento",
   });
 
-  // Carregar paciente vindo da Agenda automaticamente
+  // Notificar barra superior global quando um paciente é aberto ou fechado
   useEffect(() => {
-    if (!initialPatientId) return;
+    if (onSelectedPatientChange) {
+      onSelectedPatientChange(selectedPatient);
+    }
+  }, [selectedPatient, onSelectedPatientChange]);
+
+  // Carregar paciente vindo da Agenda ou Smartbar automaticamente
+  useEffect(() => {
+    if (!initialPatientId) {
+      return;
+    }
+    if (initialPatientId === "__close__") {
+      setSelectedPatient(null);
+      if (onPatientLoaded) onPatientLoaded();
+      return;
+    }
     supabase
       .from("patients")
       .select("*")
@@ -338,7 +359,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
         }
         if (onPatientLoaded) onPatientLoaded();
       });
-  }, [initialPatientId]);
+  }, [initialPatientId, onPatientLoaded]);
 
   function openCreatePatientModal() {
     setPatientForm({
@@ -353,7 +374,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
       marital_status: "",
       profession: "",
       email: "",
-      origin: "Clinicorp / Painel",
+      origin: "",
       insurance: "PARTICULAR",
       insurance_number: "",
       postal_code: "",
@@ -383,7 +404,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
       marital_status: p.marital_status || "",
       profession: p.profession || "",
       email: p.email || "",
-      origin: p.origin || "Consultório.me (Triagem)",
+      origin: p.origin || "",
       insurance: p.insurance || "PARTICULAR",
       insurance_number: p.insurance_number || "",
       postal_code: p.postal_code || "",
@@ -417,7 +438,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
         marital_status: patientForm.marital_status || null,
         profession: patientForm.profession.trim() || null,
         email: patientForm.email.trim() || null,
-        origin: patientForm.origin.trim() || "Consultório.me (Triagem)",
+        origin: patientForm.origin.trim() || null,
         insurance: patientForm.insurance.trim() || "PARTICULAR",
         insurance_number: patientForm.insurance_number.trim() || null,
         postal_code: patientForm.postal_code.trim() || null,
@@ -454,7 +475,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     onSuccess: (saved) => {
       toast.success(
         patientFormMode === "edit"
-          ? "Ficha do paciente atualizada!"
+          ? "Cadastro do paciente atualizado!"
           : "Novo paciente cadastrado com sucesso!",
       );
       setSelectedPatient(saved);
@@ -467,7 +488,6 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     },
   });
 
-  // Atualizar etapa do funil (Triagem Consultório.me -> Em Gestão no Clinicorp)
   const updateFunnelStageMutation = useMutation({
     mutationFn: async ({ patientId, stage }: { patientId: string; stage: string }) => {
       const { data: updated, error } = await supabase
@@ -481,7 +501,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
     },
     onSuccess: (updated) => {
       setSelectedPatient(updated);
-      toast.success("Etapa do paciente atualizada no Clinicorp!");
+      toast.success("Status do paciente atualizado!");
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
     },
@@ -785,96 +805,113 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
 
     return (
       <div className="space-y-4">
-        {/* BARRA SUPERIOR ESCURA ESTILO CLINICORP ("<- Voltar para Pacientes" + Smartbar Global) */}
-        <div className="rounded-2xl bg-[#262626] text-white px-5 py-3.5 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        {!hideTopBar && (
+          <div className="rounded-2xl bg-[#262626] text-white px-5 py-3.5 shadow-md flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSelectedPatient(null)}
+                className="inline-flex items-center gap-2 text-sm font-medium text-neutral-200 hover:text-white transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span>Voltar para Pacientes</span>
+              </button>
+              <span className="text-neutral-600">|</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-xs font-mono text-amber-400 font-semibold">
+                  #{selectedPatient.record_number}
+                </span>
+                <span className="text-sm font-bold text-white truncate">
+                  {selectedPatient.name}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+              <input
+                type="text"
+                value={quickJumpSearch}
+                onChange={(e) => setQuickJumpSearch(e.target.value)}
+                placeholder="Encontre pacientes ou funções do sistema"
+                className="w-full rounded-lg bg-white text-neutral-900 pl-10 pr-8 py-2 text-xs font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              {quickJumpSearch && (
+                <button
+                  onClick={() => setQuickJumpSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {quickJumpSearch.trim().length >= 2 && quickJumpResults.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl bg-card border border-border shadow-xl divide-y divide-border overflow-hidden">
+                  {quickJumpResults.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        setSelectedPatient(p);
+                        setQuickJumpSearch("");
+                      }}
+                      className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between text-xs text-foreground cursor-pointer"
+                    >
+                      <div>
+                        <span className="font-bold">#{p.record_number}</span> — {p.name}
+                      </div>
+                      <span className="text-muted-foreground">{p.phone || p.cpf || ""}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowAppointmentModal(true)}
+                className="rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Novo Agendamento</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* IDENTIFICAÇÃO DO PACIENTE ATIVO */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-card border border-border shadow-sm">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSelectedPatient(null)}
-              className="inline-flex items-center gap-2 text-sm font-medium text-neutral-200 hover:text-white transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5" />
               <span>Voltar para Pacientes</span>
             </button>
-            <span className="text-neutral-600">|</span>
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-xs font-mono text-amber-400 font-semibold">
-                #{selectedPatient.record_number}
+            <span className="text-border">|</span>
+            <span className="text-xs font-mono font-bold text-[#e66c2c]">
+              Prontuário #{selectedPatient.record_number}
+            </span>
+            <span className="text-sm font-bold text-foreground">{selectedPatient.name}</span>
+            {selectedPatient.insurance && (
+              <span className="px-2 py-0.5 rounded bg-muted text-[10px] font-semibold uppercase text-foreground">
+                {selectedPatient.insurance}
               </span>
-              <span className="text-sm font-bold text-white truncate">{selectedPatient.name}</span>
-            </div>
-          </div>
-
-          {/* Barra Central "Encontre pacientes ou funções do sistema" */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-            <input
-              type="text"
-              value={quickJumpSearch}
-              onChange={(e) => setQuickJumpSearch(e.target.value)}
-              placeholder="Encontre pacientes ou funções do sistema"
-              className="w-full rounded-lg bg-white text-neutral-900 pl-10 pr-8 py-2 text-xs font-medium placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
-            {quickJumpSearch && (
-              <button
-                onClick={() => setQuickJumpSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-            {quickJumpSearch.trim().length >= 2 && quickJumpResults.length > 0 && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-xl bg-card border border-border shadow-xl divide-y divide-border overflow-hidden">
-                {quickJumpResults.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => {
-                      setSelectedPatient(p);
-                      setQuickJumpSearch("");
-                    }}
-                    className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center justify-between text-xs text-foreground cursor-pointer"
-                  >
-                    <div>
-                      <span className="font-bold">#{p.record_number}</span> — {p.name}
-                    </div>
-                    <span className="text-muted-foreground">{p.phone || p.cpf || ""}</span>
-                  </button>
-                ))}
-              </div>
             )}
           </div>
-
-          {/* Status no Funil (Triagem Consultório.me -> Clinicorp) */}
-          <div className="flex items-center gap-2 shrink-0">
-            <select
-              value={selectedPatient.funnel_stage || "triagem"}
-              onChange={(e) =>
-                updateFunnelStageMutation.mutate({
-                  patientId: selectedPatient.id,
-                  stage: e.target.value,
-                })
-              }
-              title="Etapa do paciente (Triagem Consultório.me → Gestão Clinicorp)"
-              className="rounded-lg bg-neutral-800 border border-neutral-700 text-xs font-semibold text-amber-400 px-3 py-1.5 cursor-pointer focus:outline-none"
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => openEditPatientModal(selectedPatient)}
+              className="px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
             >
-              <option value="triagem">Etapa: 1. Triagem / Lead (Consultório.me)</option>
-              <option value="anamnese">Etapa: 2. Anamnese Preenchida</option>
-              <option value="orcamento">Etapa: 3. Orçamento em Aberto</option>
-              <option value="tratamento">Etapa: 4. Paciente Ativo (Clinicorp)</option>
-            </select>
-            {selectedPatient.funnel_stage !== "tratamento" && (
-              <button
-                onClick={() =>
-                  updateFunnelStageMutation.mutate({
-                    patientId: selectedPatient.id,
-                    stage: "tratamento",
-                  })
-                }
-                className="rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <Check className="h-3.5 w-3.5" />
-                <span>Ativar no Clinicorp</span>
-              </button>
-            )}
+              <Edit className="h-3.5 w-3.5" />
+              <span>Editar Cadastro</span>
+            </button>
+            <button
+              onClick={() => setShowAppointmentModal(true)}
+              className="px-3.5 py-1.5 rounded-lg bg-[#e66c2c] hover:bg-[#d45d1e] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>Agendar Consulta</span>
+            </button>
           </div>
         </div>
 
@@ -894,7 +931,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
           </div>
         )}
 
-        {/* BARRA DE 13 ABAS DO PRONTUÁRIO CLINICORP */}
+        {/* BARRA DE 13 ABAS DO PRONTUÁRIO */}
         <div className="rounded-xl bg-card border border-border px-4 pt-2 shadow-sm overflow-x-auto">
           <div className="flex items-center gap-6 min-w-max">
             {CLINICORP_TABS.map((tab) => {
@@ -918,7 +955,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
         </div>
 
         {/* ====================================================================
-            ABA 1: VISÃO GERAL (IDÊNTICA AO PRINT DO SISTEMA.CLINICORP.COM)
+            ABA 1: VISÃO GERAL
            ==================================================================== */}
         {activeTab === "visao_geral" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
@@ -992,7 +1029,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                     { label: "Telefone", value: selectedPatient.phone || "-" },
                     {
                       label: "Como conheceu?",
-                      value: selectedPatient.origin || "Consultório.me (Triagem)",
+                      value: selectedPatient.origin || "-",
                     },
                     { label: "Plano", value: selectedPatient.insurance || "-" },
                     { label: "Nº Plano", value: selectedPatient.insurance_number || "-" },
@@ -1051,13 +1088,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                 <div className="divide-y divide-border/60 text-xs">
                   {[
                     { label: "Nº Prontuário", value: `#${selectedPatient.record_number}` },
-                    {
-                      label: "ID Triagem (Consultório.me)",
-                      value: selectedPatient.legacy_patient_id
-                        ? String(selectedPatient.legacy_patient_id)
-                        : "-",
-                    },
-                    { label: "Etapa Atual", value: currentStageObj.label },
+                    { label: "Status Clínico", value: currentStageObj.label },
                     { label: "Profissão", value: selectedPatient.profession || "-" },
                     {
                       label: "Alerta Clínico",
@@ -2141,7 +2172,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                   createClinicalRecordMutation.mutate(
                     {
                       record_type: "formulario",
-                      title: "Anamnese Clínica (Clinicorp)",
+                      title: "Anamnese Clínica",
                       content,
                       promoteStage:
                         selectedPatient.funnel_stage === "triagem" ? "anamnese" : undefined,
@@ -2159,8 +2190,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
 
             <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-foreground">
-                Fichas de Anamnese e Triagem do Consultório.me (
-                {categorizedRecords.anamneses.length})
+                Histórico de Anamnese do Paciente ({categorizedRecords.anamneses.length})
               </h3>
               {categorizedRecords.anamneses.length === 0 ? (
                 <div className="py-12 text-center text-xs text-muted-foreground">
@@ -2677,7 +2707,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                 {patientFormMode === "edit" ? "Editar Cadastro do Paciente" : "Novo Paciente"}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Padrão Clinicorp — Cadastro, Contato, Complemento e Alertas de Saúde.
+                Cadastro, Contato, Complemento e Alertas de Saúde.
               </p>
             </div>
             <button
@@ -2811,7 +2841,7 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                 type="text"
                 value={patientForm.origin}
                 onChange={(e) => setPatientForm({ ...patientForm, origin: e.target.value })}
-                placeholder="Consultório.me / Indicação / Instagram"
+                placeholder="Indicação / Instagram / Google / Site"
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
               />
             </div>
@@ -3168,22 +3198,21 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {patient.funnel_stage === "triagem" && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        updateFunnelStageMutation.mutate({
-                          patientId: patient.id,
-                          stage: "tratamento",
-                        });
-                      }}
-                      className="px-3 py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold cursor-pointer"
+                  {patient.phone && (
+                    <a
+                      href={`https://wa.me/55${patient.phone.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-2.5 py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                      title="Conversar no WhatsApp"
                     >
-                      Passar p/ Clinicorp
-                    </button>
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">WhatsApp</span>
+                    </a>
                   )}
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#e66c2c]">
-                    <span>Abrir Ficha Clinicorp</span>
+                    <span>Abrir Prontuário</span>
                     <ChevronRight className="h-4 w-4" />
                   </span>
                 </div>
