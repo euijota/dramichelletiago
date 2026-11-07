@@ -798,6 +798,37 @@ export function PatientsManager({
     },
   });
 
+  const deletePatientMutation = useMutation({
+    mutationFn: async (patientId: string) => {
+      const { error } = await supabase.from("patients").delete().eq("id", patientId);
+      if (error) throw error;
+      return patientId;
+    },
+    onSuccess: (deletedId) => {
+      toast.success("Paciente excluído com sucesso.");
+      if (selectedPatient?.id === deletedId) {
+        setSelectedPatient(null);
+      }
+      setPatientFormMode(null);
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+      queryClient.invalidateQueries({ queryKey: ["patients_quick_jump"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao excluir paciente: ${err.message}`);
+    },
+  });
+
+  function handleConfirmDeletePatient(patient: Patient, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    const ok = window.confirm(
+      `Tem certeza que deseja excluir o paciente "${patient.name}" (Prontuário #${patient.record_number})?\n\nEsta ação removerá o cadastro e o prontuário permanentemente.`,
+    );
+    if (ok) {
+      deletePatientMutation.mutate(patient.id);
+    }
+  }
+
   function clearAllFilters() {
     setSearch("");
     setSelectedInsurance("all");
@@ -925,6 +956,15 @@ export function PatientsManager({
             >
               <Edit className="h-3.5 w-3.5" />
               <span>Editar Cadastro</span>
+            </button>
+            <button
+              onClick={(e) => handleConfirmDeletePatient(selectedPatient, e)}
+              disabled={deletePatientMutation.isPending}
+              className="px-3 py-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Excluir Paciente"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Excluir Paciente</span>
             </button>
             <button
               onClick={() => setShowAppointmentModal(true)}
@@ -3282,23 +3322,38 @@ export function PatientsManager({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-            <button
-              type="button"
-              onClick={() => setPatientFormMode(null)}
-              className="px-5 py-2.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={() => savePatientMutation.mutate()}
-              disabled={savePatientMutation.isPending}
-              className="px-6 py-2.5 rounded-full bg-[#e66c2c] text-white text-xs font-semibold shadow-sm hover:bg-[#d45d1e] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {savePatientMutation.isPending ? "Salvando..." : "Salvar Cadastro"}
-            </button>
+          <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-border">
+            <div>
+              {patientFormMode === "edit" && selectedPatient && (
+                <button
+                  type="button"
+                  onClick={(e) => handleConfirmDeletePatient(selectedPatient, e)}
+                  disabled={deletePatientMutation.isPending}
+                  className="px-4 py-2.5 rounded-full border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Excluir Paciente</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPatientFormMode(null)}
+                className="px-5 py-2.5 rounded-full border border-border text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => savePatientMutation.mutate()}
+                disabled={savePatientMutation.isPending}
+                className="px-6 py-2.5 rounded-full bg-[#e66c2c] text-white text-xs font-semibold shadow-sm hover:bg-[#d45d1e] transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {savePatientMutation.isPending ? "Salvando..." : "Salvar Cadastro"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -3588,6 +3643,15 @@ export function PatientsManager({
                       <span className="hidden md:inline">WhatsApp</span>
                     </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => handleConfirmDeletePatient(patient, e)}
+                    disabled={deletePatientMutation.isPending}
+                    className="p-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer disabled:opacity-50"
+                    title="Excluir Paciente"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#e66c2c]">
                     <span>Abrir Prontuário</span>
                     <ChevronRight className="h-4 w-4" />
