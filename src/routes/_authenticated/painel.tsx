@@ -963,7 +963,10 @@ function Painel() {
                       <div className="flex flex-wrap items-center gap-2">
                         {p.phone && (
                           <a
-                            href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! Aqui é do consultório da Dra. Michelle Tiago. Está chegando o período do seu retorno odontológico preventivo. Vamos agendar seu horário?`)}`}
+                            href={buildWhatsAppWebUrl(
+                              p.phone,
+                              `Olá ${p.name}! Aqui é do consultório da Dra. Michelle Tiago. Está chegando o período do seu retorno odontológico preventivo. Vamos agendar seu horário?`,
+                            )}
                             target="_blank"
                             rel="noreferrer"
                             className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
@@ -1060,7 +1063,10 @@ function Painel() {
                       <div className="flex items-center gap-2">
                         {p.phone && (
                           <a
-                            href={`https://wa.me/55${p.phone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${p.name}! 🎉 Passando para desejar um feliz aniversário, com muita saúde, alegria e motivos para sorrir! Com carinho, Dra. Michelle Barbosa Tiago.`)}`}
+                            href={buildWhatsAppWebUrl(
+                              p.phone,
+                              `Olá ${p.name}! 🎉 Passando para desejar um feliz aniversário, com muita saúde, alegria e motivos para sorrir! Com carinho, Dra. Michelle Barbosa Tiago.`,
+                            )}
                             target="_blank"
                             rel="noreferrer"
                             className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
@@ -1954,6 +1960,13 @@ function whatsappNumber(phone: string) {
   return digits.length > 11 ? digits : `55${digits}`;
 }
 
+function buildWhatsAppWebUrl(phone: string, message?: string) {
+  const num = whatsappNumber(phone);
+  return message
+    ? `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(message)}`
+    : `https://web.whatsapp.com/send?phone=${num}`;
+}
+
 function buildReminderLink(appointment: Appointment) {
   return buildWhatsAppReminderUrl(appointment.patient_phone, {
     patientName: appointment.patient_name,
@@ -1965,7 +1978,7 @@ function buildReminderLink(appointment: Appointment) {
 
 function buildWhatsAppLink(appointment: Appointment) {
   const message = `Olá, ${appointment.patient_name}! Aqui é do consultório da ${CLINIC.shortName}. Sua consulta de ${appointment.service_name} está confirmada para ${formatLongDate(appointment.appointment_date)} às ${trimSeconds(appointment.appointment_time)}. Até lá!`;
-  return `https://wa.me/${whatsappNumber(appointment.patient_phone)}?text=${encodeURIComponent(message)}`;
+  return buildWhatsAppWebUrl(appointment.patient_phone, message);
 }
 
 const CONSULTORIO_ME_QUICK_TEMPLATES = [
@@ -2107,7 +2120,7 @@ function AppointmentSheet({
               {CONSULTORIO_ME_QUICK_TEMPLATES.map((tpl) => {
                 const dateFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR");
                 const msg = tpl.build(appointment.patient_name, dateFormatted, time);
-                const url = `https://wa.me/${whatsappNumber(appointment.patient_phone)}?text=${encodeURIComponent(msg)}`;
+                const url = buildWhatsAppWebUrl(appointment.patient_phone, msg);
                 return (
                   <a
                     key={tpl.id}

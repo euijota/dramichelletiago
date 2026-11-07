@@ -1136,7 +1136,7 @@ export function PatientsManager({
                   {selectedPatient.phone && (
                     <div className="pt-3">
                       <a
-                        href={`https://wa.me/55${selectedPatient.phone.replace(/\D/g, "")}`}
+                        href={`https://web.whatsapp.com/send?phone=55${selectedPatient.phone.replace(/\D/g, "")}`}
                         target="_blank"
                         rel="noreferrer"
                         className="w-full py-2 rounded-lg border border-emerald-600/30 bg-emerald-500/10 text-emerald-700 font-semibold flex items-center justify-center gap-1.5 hover:bg-emerald-500/20 transition-colors"
@@ -3636,7 +3636,7 @@ export function PatientsManager({
                 <div className="flex items-center gap-2 shrink-0">
                   {patient.phone && (
                     <a
-                      href={`https://wa.me/55${patient.phone.replace(/\D/g, "")}`}
+                      href={`https://web.whatsapp.com/send?phone=55${patient.phone.replace(/\D/g, "")}`}
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}

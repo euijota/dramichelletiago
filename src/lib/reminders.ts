@@ -62,7 +62,8 @@ export function buildEmailReminderMessage(data: ReminderData): string {
 export function buildWhatsAppReminderUrl(phone: string, data: ReminderData): string {
   const message = buildWhatsAppReminderMessage(data);
   const cleanPhone = phone.replace(/\D/g, ""); // Remove non-digits
-  return `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+  const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
+  return `https://web.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`;
 }
 
 /**
