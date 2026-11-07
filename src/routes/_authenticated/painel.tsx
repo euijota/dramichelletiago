@@ -1219,6 +1219,45 @@ function buildWhatsAppLink(appointment: Appointment) {
   return `https://wa.me/${whatsappNumber(appointment.patient_phone)}?text=${encodeURIComponent(message)}`;
 }
 
+const CONSULTORIO_ME_QUICK_TEMPLATES = [
+  {
+    id: "lembrete_adulto",
+    label: "Lembrete Adulto",
+    build: (name: string, dateStr: string, timeStr: string) =>
+      `Olá *${name}*, passando para lembrar da sua consulta, ${dateStr} às ${timeStr}.\n\n*OBSERVAÇÕES IMPORTANTES*\n• É importante que vocês cheguem no seu horário agendado.⏰\n• Caso não puder comparecer avisar com pelo menos 3h de antecedência.\n\nNosso endereço: ${CLINIC.name} — ${CLINIC.addressLine}, ${CLINIC.cityState}.`,
+  },
+  {
+    id: "lembrete_kids",
+    label: "Lembrete Kids",
+    build: (name: string, dateStr: string, timeStr: string) =>
+      `Olá, passando para lembrar da consulta do(a) *${name}*, ${dateStr} às ${timeStr}.\n\n*OBSERVAÇÕES IMPORTANTES*\n• É importante que vocês cheguem no seu horário agendado.⏰\n• Caso não puder comparecer avisar com pelo menos 3h de antecedência.\n\nNosso endereço: ${CLINIC.name} — ${CLINIC.addressLine}, ${CLINIC.cityState}.`,
+  },
+  {
+    id: "consulta_okay",
+    label: "Consulta Okay",
+    build: (name: string, dateStr: string, timeStr: string) =>
+      `Olá, a consulta do(a) *${name}* foi agendada com sucesso, será no *${dateStr} às ${timeStr}* !!\n\nNão se esqueça de chegar com _*alguns minutos de antecedência do horário agendado*_\n\nCaso não puder comparecer ou precisar reagendar a consulta, por favor entre em contato o mais breve possível.\n\nDesde já agradecemos por sua confiança no nosso serviço!!\n\n*${CLINIC.shortName}*`,
+  },
+  {
+    id: "retorno",
+    label: "Retorno",
+    build: (name: string, dateStr: string, timeStr: string) =>
+      `Olá, a consulta do(a) *${name}* foi agendada com sucesso, será *${dateStr}* às *${timeStr}* !!\n\nCaso não puder comparecer ou precisar reagendar a consulta, por favor entre em contato o mais breve possível.\n\nDesde já agradecemos por sua confiança no nosso serviço!!\n\n*${CLINIC.shortName}*`,
+  },
+  {
+    id: "remarcar_18",
+    label: "Remarcar pós 18h",
+    build: (name: string, dateStr: string, timeStr: string) =>
+      `Olá, tudo bem?☺️\n\nPassando para informá-lo(a) que a nossa clínica precisou alterar os protocolos referente ao seu horário de funcionamento. Por questões de segurança as atividades estarão sendo encerradas às 18h00.\n\nEntão diante do informado a consulta do(a) *${name}* será remarcada para *${dateStr}* às *${timeStr}*.\n\nAguardaremos a sua confirmação.😉✅\n\nObrigado pela sua compreensão.`,
+  },
+  {
+    id: "cancelamento_manutencao",
+    label: "Cancelamento (Manutenção)",
+    build: (name: string) =>
+      `Olá, a consulta do(a) *${name}* infelizmente será desmarcada, a clínica irá fazer manutenção dos equipamentos externos (compressores, bombas de sucção e troca de mangueiras de ar).\n\nEntraremos em contato em breve informando a nova data da consulta.\n\nDesde já agradecemos por sua compreensão.\n\n*${CLINIC.shortName}*`,
+  },
+];
+
 function AppointmentSheet({
   appointment,
   onClose,
@@ -1311,6 +1350,33 @@ function AppointmentSheet({
             </select>
           </div>
         </div>
+
+        {!isBlock && appointment.patient_phone && appointment.patient_phone !== "Não informado" && (
+          <div className="mt-6 space-y-2.5">
+            <p className="text-kicker text-primary-soft">
+              Mensagens Rápidas WhatsApp (Consultório.me)
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {CONSULTORIO_ME_QUICK_TEMPLATES.map((tpl) => {
+                const dateFormatted = new Date(date + "T12:00:00").toLocaleDateString("pt-BR");
+                const msg = tpl.build(appointment.patient_name, dateFormatted, time);
+                const url = `https://wa.me/${whatsappNumber(appointment.patient_phone)}?text=${encodeURIComponent(msg)}`;
+                return (
+                  <a
+                    key={tpl.id}
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-colors"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    <span>{tpl.label}</span>
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="mt-9 flex flex-wrap gap-2.5">
           <button

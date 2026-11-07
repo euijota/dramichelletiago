@@ -739,6 +739,55 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                   </div>
                 </div>
 
+                {(selectedPatient.address ||
+                  selectedPatient.email ||
+                  selectedPatient.insurance_number ||
+                  selectedPatient.notes) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    {selectedPatient.address && (
+                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
+                        <span className="text-[10px] uppercase text-muted-foreground block">
+                          Endereço Cadastrado
+                        </span>
+                        <span className="font-medium text-foreground">
+                          {selectedPatient.address}
+                          {selectedPatient.address_number
+                            ? `, ${selectedPatient.address_number}`
+                            : ""}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.email && (
+                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
+                        <span className="text-[10px] uppercase text-muted-foreground block">
+                          E-mail
+                        </span>
+                        <span className="font-medium text-foreground truncate block">
+                          {selectedPatient.email}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.insurance_number && (
+                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
+                        <span className="text-[10px] uppercase text-muted-foreground block">
+                          Nº Carteirinha Convênio
+                        </span>
+                        <span className="font-mono font-semibold text-foreground">
+                          {selectedPatient.insurance_number}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.notes && (
+                      <div className="p-2.5 rounded-xl bg-muted/30 border border-border/50">
+                        <span className="text-[10px] uppercase text-muted-foreground block">
+                          Responsável / Observações
+                        </span>
+                        <span className="font-medium text-foreground">{selectedPatient.notes}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Alerta Médico em Destaque */}
                 {selectedPatient.medical_warning && (
                   <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs font-semibold text-rose-700 dark:text-rose-300">
@@ -934,31 +983,70 @@ export function PatientsManager({ initialPatientId, onPatientLoaded }: PatientsM
                         Nenhuma evolução ou ficha clínica registrada ainda para este paciente.
                       </div>
                     ) : (
-                      records.map((r) => (
-                        <div
-                          key={r.id}
-                          className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2"
-                        >
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-foreground flex items-center gap-1.5">
-                              <Clock className="h-3.5 w-3.5 text-primary" />
-                              {r.title || "Evolução Clínica"}
-                            </span>
-                            <span className="text-muted-foreground font-mono text-[11px]">
-                              {new Date(r.record_date).toLocaleDateString("pt-BR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
+                      records.map((r) => {
+                        const badgeMap: Record<string, { label: string; cls: string }> = {
+                          formulario: {
+                            label: "Formulário / Anamnese",
+                            cls: "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/30",
+                          },
+                          receita: {
+                            label: "Receituário",
+                            cls: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
+                          },
+                          atestado: {
+                            label: "Atestado",
+                            cls: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
+                          },
+                          pagamento: {
+                            label: "Financeiro / Pagamento",
+                            cls: "bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/30",
+                          },
+                          sinais_vitais: {
+                            label: "Sinais Vitais",
+                            cls: "bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-500/30",
+                          },
+                          evolucao: {
+                            label: "Evolução Clínica",
+                            cls: "bg-primary/10 text-primary border-primary/25",
+                          },
+                        };
+                        const badge = badgeMap[r.record_type] || badgeMap.evolucao;
+                        return (
+                          <div
+                            key={r.id}
+                            className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border",
+                                    badge.cls,
+                                  )}
+                                >
+                                  {badge.label}
+                                </span>
+                                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-primary" />
+                                  {r.title || "Evolução Clínica"}
+                                </span>
+                              </div>
+                              <span className="text-muted-foreground font-mono text-[11px]">
+                                {new Date(r.record_date).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
+                              {r.content}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
-                            {r.content}
-                          </p>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>

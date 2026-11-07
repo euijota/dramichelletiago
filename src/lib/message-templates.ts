@@ -185,7 +185,7 @@ Obrigada pela confiança!
   },
 ];
 
-/** Render template with variables */
+/** Render template with variables (supports both {{var}} and Consultório.me [var] syntax) */
 export function renderTemplate(
   template: string,
   vars: TemplateVariables | Record<string, string>,
@@ -197,6 +197,25 @@ export function renderTemplate(
     const placeholder = new RegExp(`\\{\\{${key}\\}\\}`, "g");
     result = result.replace(placeholder, value ?? "");
   });
+
+  // Consultório.me legacy bracket placeholders from messages_170952.json
+  const v = vars as Record<string, string | undefined>;
+  const cmeMap: Array<[RegExp, string]> = [
+    [/\[\*?paciente-nome\*?\]/gi, v.patient_name ?? ""],
+    [/\[\*?paciente-completo\*?\]/gi, v.patient_name ?? ""],
+    [/\[\*?data-agendamento\*?\]/gi, v.appointment_date_formatted ?? v.appointment_date ?? ""],
+    [/\[\*?hora-agendamento\*?\]/gi, v.appointment_time ?? ""],
+    [/\[link-confirmação\]/gi, v.confirmation_link ?? "https://dramichelletiago.com.br/agendar"],
+    [/\[\*?profissional-nome\s*\*?\]/gi, v.clinic_short_name ?? "Dra. Michelle Tiago"],
+    [/\[clínica-nome\]/gi, v.clinic_name ?? "Consultório Dra. Michelle Tiago"],
+    [/\[clínica-endereço\]/gi, v.clinic_address ?? ""],
+    [/\[clínica-localidade\]/gi, "Macapá - AP"],
+    [/\[form::ckrmwdthrkctpid::\]/gi, "https://dramichelletiago.com.br/agendar"],
+    [/\[form::ckrmwdtcssmtpid::\]/gi, "https://dramichelletiago.com.br/agendar"],
+  ];
+  for (const [regex, replacement] of cmeMap) {
+    result = result.replace(regex, replacement);
+  }
 
   // Handle {{#if variable}}...{{/if}} blocks
   result = result.replace(/\{\{#if\s+(\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, key, content) => {
