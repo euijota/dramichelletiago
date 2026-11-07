@@ -329,7 +329,11 @@ function Painel() {
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
   }
 
-  async function updateAppointment(id: string, patch: Partial<Appointment>) {
+  async function updateAppointment(
+    id: string,
+    patch: Partial<Appointment>,
+    notifyAppointment?: Appointment,
+  ) {
     const { error } = await supabase.from("appointments").update(patch).eq("id", id);
     if (error) {
       if (error.code === "23505") {
@@ -339,7 +343,26 @@ function Painel() {
       toast.error("Não foi possível salvar a alteração.");
       return;
     }
-    toast.success("Agenda atualizada.");
+
+    if (
+      patch.status === "confirmed" &&
+      notifyAppointment &&
+      notifyAppointment.service_name !== "Bloqueio de Agenda" &&
+      notifyAppointment.patient_phone &&
+      notifyAppointment.patient_phone !== "Não informado"
+    ) {
+      const updatedAppt: Appointment = {
+        ...notifyAppointment,
+        ...patch,
+      };
+      window.open(buildWhatsAppLink(updatedAppt), "_blank", "noopener,noreferrer");
+      toast.success(
+        `Consulta confirmada! Abrindo WhatsApp para enviar a confirmação para ${updatedAppt.patient_name}.`,
+      );
+    } else {
+      toast.success("Agenda atualizada.");
+    }
+
     setSelected(null);
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
   }
@@ -869,11 +892,13 @@ function Painel() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <button
-                          onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                          onClick={() =>
+                            updateAppointment(appointment.id, { status: "confirmed" }, appointment)
+                          }
                           className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1.5"
                         >
                           <Check className="h-3.5 w-3.5" />
-                          <span>Confirmar Consulta</span>
+                          <span>Confirmar e Avisar no WhatsApp</span>
                         </button>
                         <a
                           href={buildWhatsAppLink(appointment)}
@@ -1523,11 +1548,13 @@ function Painel() {
 
                     <div className="flex flex-wrap items-center gap-2.5">
                       <button
-                        onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                        onClick={() =>
+                          updateAppointment(appointment.id, { status: "confirmed" }, appointment)
+                        }
                         className="group inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
                       >
                         <Check className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-125" />
-                        <span>Confirmar</span>
+                        <span>Confirmar e Avisar</span>
                       </button>
                       <a
                         href={buildWhatsAppLink(appointment)}
@@ -1989,7 +2016,7 @@ function AppointmentSheet({
 }: {
   appointment: Appointment;
   onClose: () => void;
-  onSave: (id: string, patch: Partial<Appointment>) => void;
+  onSave: (id: string, patch: Partial<Appointment>, notifyAppointment?: Appointment) => void;
   onDelete: (id: string) => void;
   onOpenChart: (patientId: string) => void;
 }) {
@@ -2101,11 +2128,15 @@ function AppointmentSheet({
         <div className="mt-9 flex flex-wrap gap-2.5">
           <button
             onClick={() =>
-              onSave(appointment.id, {
-                appointment_date: date,
-                appointment_time: time,
-                status: "confirmed",
-              })
+              onSave(
+                appointment.id,
+                {
+                  appointment_date: date,
+                  appointment_time: time,
+                  status: "confirmed",
+                },
+                appointment,
+              )
             }
             className="rounded-full bg-primary px-6 py-3 text-kicker text-primary-foreground transition-silk hover:bg-primary-deep cursor-pointer"
           >
