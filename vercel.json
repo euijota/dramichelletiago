@@ -1,6 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
+  "redirects": [
+    {
+      "source": "/login",
+      "destination": "/auth",
+      "permanent": false
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/24h-reminders",
