@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getAppointmentByToken,
   confirmAppointmentByToken,
@@ -45,6 +45,7 @@ export const Route = createFileRoute("/confirmar/$token")({
 function ConfirmAppointment() {
   const { token } = Route.useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [showConfirmation, setShowConfirmation] = useState(false);
 
   const {
@@ -61,6 +62,7 @@ function ConfirmAppointment() {
     onSuccess: () => {
       toast.success("Agendamento confirmado com sucesso!");
       setShowConfirmation(true);
+      queryClient.invalidateQueries({ queryKey: ["appointment", token] });
     },
     onError: (error: Error) => {
       toast.error(error.message || "Erro ao confirmar agendamento");

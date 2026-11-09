@@ -230,6 +230,7 @@ function Painel() {
   const { data: weekAppointments } = useQuery({
     queryKey: ["appointments", rangeStart, rangeEnd],
     enabled: !!session,
+    refetchInterval: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
@@ -245,6 +246,7 @@ function Painel() {
   const { data: pending } = useQuery({
     queryKey: ["appointments", "pending"],
     enabled: !!session,
+    refetchInterval: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
@@ -262,6 +264,7 @@ function Painel() {
   const { data: reminders } = useQuery({
     queryKey: ["appointments", "reminders", tomorrowISO],
     enabled: isAdmin,
+    refetchInterval: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
@@ -277,6 +280,7 @@ function Painel() {
   const { data: allAppointments } = useQuery({
     queryKey: ["appointments", "all"],
     enabled: isAdmin,
+    refetchInterval: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("appointments")
@@ -287,7 +291,7 @@ function Painel() {
     },
   });
 
-  // Alerta em tempo real no painel quando um novo agendamento online chega
+  // Alerta em tempo real no painel quando um agendamento chega ou é confirmado/cancelado
   useEffect(() => {
     if (!session) return;
 
@@ -295,21 +299,41 @@ function Painel() {
       .channel("painel-realtime-appointments")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "appointments" },
+        { event: "*", schema: "public", table: "appointments" },
         (payload) => {
-          const novo = payload.new as Partial<Appointment>;
           queryClient.invalidateQueries({ queryKey: ["appointments"] });
           queryClient.invalidateQueries({ queryKey: ["patients"] });
 
-          if (novo?.patient_name) {
-            const dataBr = novo.appointment_date
-              ? novo.appointment_date.split("-").reverse().join("/")
-              : "";
-            const horaBr = (novo.appointment_time || "").slice(0, 5);
-            toast.success(`🦷 Novo agendamento online: ${novo.patient_name}`, {
-              description: `${dataBr} às ${horaBr} · ${novo.service_name || "Consulta"}`,
-              duration: 10000,
-            });
+          if (payload.eventType === "INSERT") {
+            const novo = payload.new as Partial<Appointment>;
+            if (novo?.patient_name) {
+              const dataBr = novo.appointment_date
+                ? novo.appointment_date.split("-").reverse().join("/")
+                : "";
+              const horaBr = (novo.appointment_time || "").slice(0, 5);
+              toast.success(`🦷 Novo agendamento online: ${novo.patient_name}`, {
+                description: `${dataBr} às ${horaBr} · ${novo.service_name || "Consulta"}`,
+                duration: 10000,
+              });
+            }
+          } else if (payload.eventType === "UPDATE") {
+            const updated = payload.new as Partial<Appointment>;
+            const old = payload.old as Partial<Appointment>;
+            if (updated?.status === "confirmed" && old?.status !== "confirmed") {
+              const dataBr = updated.appointment_date
+                ? updated.appointment_date.split("-").reverse().join("/")
+                : "";
+              const horaBr = (updated.appointment_time || "").slice(0, 5);
+              toast.success(`✅ Consulta confirmada pelo paciente: ${updated.patient_name}`, {
+                description: `${dataBr} às ${horaBr} · Confirmada no link de presença!`,
+                duration: 10000,
+              });
+            } else if (updated?.status === "cancelled" && old?.status !== "cancelled") {
+              toast.error(`❌ Consulta cancelada pelo paciente: ${updated.patient_name}`, {
+                description: `O horário foi liberado na agenda.`,
+                duration: 10000,
+              });
+            }
           }
         },
       )

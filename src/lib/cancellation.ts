@@ -100,7 +100,15 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
     }
 
     if (appointment.status === "confirmed") {
-      throw new Error("Este agendamento já foi confirmado anteriormente.");
+      return {
+        success: true,
+        alreadyConfirmed: true,
+        appointment: {
+          date: appointment.appointment_date,
+          time: appointment.appointment_time,
+          name: appointment.patient_name,
+        },
+      };
     }
 
     if (appointment.status === "completed") {
@@ -117,18 +125,25 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
       throw new Error("Não é possível confirmar um agendamento que já passou.");
     }
 
-    // Update appointment status
-    const { error: updateError } = await supabaseAdmin
-      .from("appointments")
-      .update({
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", appointmentId);
+    // Update appointment status: Try RPC first (SECURITY DEFINER), fallback to direct update
+    const { error: rpcError } = await supabaseAdmin.rpc("confirm_appointment_by_id", {
+      p_appointment_id: appointmentId,
+    });
 
-    if (updateError) {
-      throw new Error(`Erro ao confirmar agendamento: ${updateError.message}`);
+    if (rpcError) {
+      console.warn("[confirmAppointmentByToken] RPC fallback to direct update:", rpcError.message);
+      const { error: updateError } = await supabaseAdmin
+        .from("appointments")
+        .update({
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", appointmentId);
+
+      if (updateError) {
+        throw new Error(`Erro ao confirmar agendamento: ${updateError.message}`);
+      }
     }
 
     // TODO: Send notification to dentist via WhatsApp/Email about confirmation
@@ -181,22 +196,30 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
       throw new Error("Não é possível cancelar um agendamento que já passou.");
     }
 
-    // Update appointment status
-    const notesUpdate = data.reason
-      ? `[CANCELADO] Motivo: ${data.reason}`
-      : "[CANCELADO] Sem motivo informado";
+    // Update appointment status: Try RPC first (SECURITY DEFINER), fallback to direct update
+    const { error: rpcError } = await supabaseAdmin.rpc("cancel_appointment_by_id", {
+      p_appointment_id: appointmentId,
+      p_reason: data.reason || "Cancelado pelo paciente via link de confirmação",
+    });
 
-    const { error: updateError } = await supabaseAdmin
-      .from("appointments")
-      .update({
-        status: "cancelled",
-        notes: notesUpdate,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", appointmentId);
+    if (rpcError) {
+      console.warn("[cancelAppointmentByToken] RPC fallback to direct update:", rpcError.message);
+      const notesUpdate = data.reason
+        ? `[CANCELADO] Motivo: ${data.reason}`
+        : "[CANCELADO] Sem motivo informado";
 
-    if (updateError) {
-      throw new Error(`Erro ao cancelar agendamento: ${updateError.message}`);
+      const { error: updateError } = await supabaseAdmin
+        .from("appointments")
+        .update({
+          status: "cancelled",
+          notes: notesUpdate,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", appointmentId);
+
+      if (updateError) {
+        throw new Error(`Erro ao cancelar agendamento: ${updateError.message}`);
+      }
     }
 
     // TODO: Send notification to dentist via WhatsApp/Email
