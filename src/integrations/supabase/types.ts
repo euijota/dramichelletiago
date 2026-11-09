@@ -8,6 +8,119 @@ export type Database = {
   };
   public: {
     Tables: {
+      inventory_products: {
+        Row: {
+          id: string;
+          code: string | null;
+          name: string;
+          category: string;
+          unit: string;
+          current_quantity: number;
+          min_quantity: number;
+          ideal_quantity: number;
+          unit_cost: number | null;
+          supplier: string | null;
+          batch_number: string | null;
+          expiration_date: string | null;
+          location: string | null;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          code?: string | null;
+          name: string;
+          category: string;
+          unit?: string;
+          current_quantity?: number;
+          min_quantity?: number;
+          ideal_quantity?: number;
+          unit_cost?: number | null;
+          supplier?: string | null;
+          batch_number?: string | null;
+          expiration_date?: string | null;
+          location?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          code?: string | null;
+          name?: string;
+          category?: string;
+          unit?: string;
+          current_quantity?: number;
+          min_quantity?: number;
+          ideal_quantity?: number;
+          unit_cost?: number | null;
+          supplier?: string | null;
+          batch_number?: string | null;
+          expiration_date?: string | null;
+          location?: string | null;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      inventory_transactions: {
+        Row: {
+          id: string;
+          product_id: string;
+          transaction_type: "entrada" | "saida" | "ajuste";
+          quantity: number;
+          previous_quantity: number | null;
+          new_quantity: number | null;
+          unit_cost: number | null;
+          reason: string;
+          patient_id: string | null;
+          responsible: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          product_id: string;
+          transaction_type: string;
+          quantity: number;
+          previous_quantity?: number | null;
+          new_quantity?: number | null;
+          unit_cost?: number | null;
+          reason: string;
+          patient_id?: string | null;
+          responsible?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          product_id?: string;
+          transaction_type?: string;
+          quantity?: number;
+          previous_quantity?: number | null;
+          new_quantity?: number | null;
+          unit_cost?: number | null;
+          reason?: string;
+          patient_id?: string | null;
+          responsible?: string | null;
+          notes?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_products";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       appointments: {
         Row: {
           appointment_date: string;

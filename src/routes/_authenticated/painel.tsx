@@ -64,8 +64,10 @@ import {
   DollarSign,
   Gift,
   HeartHandshake,
+  Package,
 } from "lucide-react";
 import { PatientsManager, type Patient } from "@/components/clinical/PatientsManager";
+import { InventoryManager } from "@/components/clinical/InventoryManager";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
@@ -128,7 +130,9 @@ function Painel() {
   const [newAppointmentMode, setNewAppointmentMode] = useState<"existing" | "new" | "block">(
     "existing",
   );
-  const [mainTab, setMainTab] = useState<"agenda" | "pacientes" | "crc" | "financeiro">("agenda");
+  const [mainTab, setMainTab] = useState<"agenda" | "pacientes" | "crc" | "financeiro" | "estoque">(
+    "agenda",
+  );
   const [selectedPatientIdForChart, setSelectedPatientIdForChart] = useState<string | null>(null);
   const [activeChartPatient, setActiveChartPatient] = useState<Patient | null>(null);
   const [globalSmartSearch, setGlobalSmartSearch] = useState("");
@@ -472,6 +476,12 @@ function Painel() {
                       desc: "Fluxo de caixa, orçamentos e recibos",
                       icon: <DollarSign className="h-4 w-4 text-primary" />,
                     },
+                    {
+                      id: "estoque" as const,
+                      label: "Estoque",
+                      desc: "Materiais, compras, validades e reposição",
+                      icon: <Package className="h-4 w-4 text-primary" />,
+                    },
                   ].map((m) => (
                     <button
                       key={m.id}
@@ -556,6 +566,11 @@ function Painel() {
                     id: "financeiro" as const,
                     label: "Financeiro",
                     icon: <DollarSign className="h-3.5 w-3.5" />,
+                  },
+                  {
+                    id: "estoque" as const,
+                    label: "Estoque",
+                    icon: <Package className="h-3.5 w-3.5" />,
                   },
                 ].map((item) => (
                   <button
@@ -661,6 +676,13 @@ function Painel() {
                       label: "Acessar Financeiro",
                       action: () => {
                         setMainTab("financeiro");
+                        setGlobalSmartSearch("");
+                      },
+                    },
+                    {
+                      label: "Controle de Estoque",
+                      action: () => {
+                        setMainTab("estoque");
                         setGlobalSmartSearch("");
                       },
                     },
@@ -771,6 +793,7 @@ function Painel() {
             { id: "pacientes" as const, label: "Pacientes" },
             { id: "crc" as const, label: "CRC" },
             { id: "financeiro" as const, label: "Financeiro" },
+            { id: "estoque" as const, label: "Estoque" },
           ].map((item) => (
             <button
               key={item.id}
@@ -1205,6 +1228,11 @@ function Painel() {
               )}
             </div>
           </div>
+        ) : mainTab === "estoque" ? (
+          /* ====================================================================
+             MÓDULO DE CONTROLE DE ESTOQUE E MATERIAIS CLÍNICOS
+             ==================================================================== */
+          <InventoryManager />
         ) : (
           <>
             {/* Stats with Uiverse-inspired glassmorphic cards */}

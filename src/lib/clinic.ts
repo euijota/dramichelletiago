@@ -11,6 +11,8 @@ export const CLINIC = {
   whatsapp: "5596981111157",
   email: "dramichellebarbosatiago@gmail.com",
   address: "Travessa Joaquim Pinheiro Borges, 964 — Alvorada, Macapá/AP",
+  addressLine: "Travessa Joaquim Pinheiro Borges, 964 — Alvorada",
+  cityState: "Macapá/AP",
   city: "Macapá, Amapá",
   hours: "Seg, ter e qui das 15h às 18h · Qua, sex e sáb das 9h às 12h",
 } as const;
