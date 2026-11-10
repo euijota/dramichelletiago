@@ -4,11 +4,11 @@
 
 ## Rodada 1
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage7_design_r1` | completed | 0 | 0 | 0 |
-| `egm_stage7_structural_r1` | completed | 0 | 0 | 0 |
-| `egm_stage7_style_r1` | completed | 0 | 0 | 1 |
+| Revisor                    | Estado    | Blocker | Major | Nit |
+| -------------------------- | --------- | ------- | ----- | --- |
+| `egm_stage7_design_r1`     | completed | 0       | 0     | 0   |
+| `egm_stage7_structural_r1` | completed | 0       | 0     | 0   |
+| `egm_stage7_style_r1`      | completed | 0       | 0     | 1   |
 
 **style-1-1 — Nit — linha original 255 — DROP:** a frase final sobre risco zero do WhatsApp e ausência de garantia de notificação repete ressalvas de outros trechos, sem nomear nova decisão operacional. Sugestão: retirar apenas essa frase, preservando o motivo da rejeição e as verificações no local apropriado. Classificado PROPOSE FIX e aplicado sob a orientação do autor de seguir as opções recomendadas. Resolução em [goldfish_review_report.md](goldfish_review_report.md).
 
@@ -20,11 +20,11 @@ Os três subagentes foram iniciados com `fork_turns: none`, leram suas personas,
 
 ## Rodada 2
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage7_design_r2` | completed | 0 | 0 | 0 |
-| `egm_stage7_structural_r2` | completed | 0 | 0 | 0 |
-| `egm_stage7_style_r2` | completed | 0 | 0 | 0 |
+| Revisor                    | Estado    | Blocker | Major | Nit |
+| -------------------------- | --------- | ------- | ----- | --- |
+| `egm_stage7_design_r2`     | completed | 0       | 0     | 0   |
+| `egm_stage7_structural_r2` | completed | 0       | 0     | 0   |
+| `egm_stage7_style_r2`      | completed | 0       | 0     | 0   |
 
 Os três novos subagentes com `fork_turns: none` concluíram o escopo 1–292, aplicando suas personas e os padrões apropriados. Confirmaram leitura do contexto e referências aprovadas. Não encontraram novos achados. Mantêm-se os limites de inspeção estática e de ausência de grafo utilizável.
 

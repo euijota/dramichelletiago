@@ -147,3 +147,47 @@ describe("Cancellation Business Logic", () => {
     expect(longReason.length).toBeGreaterThan(500);
   });
 });
+
+describe("Token Cryptographic Security & Anti-Forgery", () => {
+  it("should reject forged tokens with fabricated signature", () => {
+    const fakePayload =
+      "v2.550e8400-e29b-41d4-a716-446655440000.confirm.9999999999999.nonce.fakesig";
+    const forgedToken = Buffer.from(fakePayload).toString("base64url");
+    const extracted = validateAppointmentToken(forgedToken);
+    expect(extracted).toBeNull();
+  });
+
+  it("should enforce purpose separation (confirm token cannot cancel)", () => {
+    const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
+    const confirmToken = generateAppointmentToken(appointmentId, "confirm");
+
+    // Cannot be validated for cancel purpose
+    const extractedForCancel = validateAppointmentToken(confirmToken, "cancel");
+    expect(extractedForCancel).toBeNull();
+
+    // But valid for confirm purpose
+    const extractedForConfirm = validateAppointmentToken(confirmToken, "confirm");
+    expect(extractedForConfirm).toBe(appointmentId);
+  });
+
+  it("should reject expired tokens", () => {
+    const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
+    // Generate token with negative expiry days (-1 day = already expired)
+    const expiredToken = generateAppointmentToken(appointmentId, "confirm", -1);
+    const extracted = validateAppointmentToken(expiredToken);
+    expect(extracted).toBeNull();
+  });
+
+  it("should detect tampered appointmentId in valid token", () => {
+    const originalId = "550e8400-e29b-41d4-a716-446655440000";
+    const validToken = generateAppointmentToken(originalId, "confirm");
+    const decoded = Buffer.from(validToken, "base64url").toString("utf-8");
+
+    // Replace ID with another ID without changing signature
+    const tamperedPayload = decoded.replace(originalId, "99999999-e29b-41d4-a716-446655440000");
+    const tamperedToken = Buffer.from(tamperedPayload).toString("base64url");
+
+    const result = validateAppointmentToken(tamperedToken);
+    expect(result).toBeNull();
+  });
+});

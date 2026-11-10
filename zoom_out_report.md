@@ -1,11 +1,11 @@
 # EGM — Etapa 5: revisão inicial da arquitetura
 
-* **Data:** 2026-11-09
-* **Modo:** revisão completa interativa, com pausa entre etapas
-* **Alvo:** [Sistema de notificações clínicas](docs/designs/sistema-de-notificacoes-clinicas.md)
-* **Escopo:** documento completo, 442 linhas; especificação nas linhas 1–292 e implementação nas linhas 293–442
-* **Situação:** etapa 5 concluída após a única reavaliação; achados corrigidos; encaminhado à etapa 6
-* **Resultado desta etapa:** 1 Major e 1 Nit; nenhum Blocker identificado no escopo estratégico avaliado
+- **Data:** 2026-11-09
+- **Modo:** revisão completa interativa, com pausa entre etapas
+- **Alvo:** [Sistema de notificações clínicas](docs/designs/sistema-de-notificacoes-clinicas.md)
+- **Escopo:** documento completo, 442 linhas; especificação nas linhas 1–292 e implementação nas linhas 293–442
+- **Situação:** etapa 5 concluída após a única reavaliação; achados corrigidos; encaminhado à etapa 6
+- **Resultado desta etapa:** 1 Major e 1 Nit; nenhum Blocker identificado no escopo estratégico avaliado
 
 ## Achados do revisor de arquitetura
 
@@ -51,8 +51,8 @@ Esse resultado não elimina o ZO-01: os revisores avaliaram vetores diferentes. 
 
 Foram executados dois subagentes distintos, ambos com `fork_turns: none`:
 
-* `egm_stage5_zoom_out`: persona `agents/zoom_out.md` e padrão `resources/document_standards/zoom-out-standard.md` da instalação EGM.
-* `egm_stage5_inventive`: persona `agents/inventive_catalyst.md` e o mesmo padrão.
+- `egm_stage5_zoom_out`: persona `agents/zoom_out.md` e padrão `resources/document_standards/zoom-out-standard.md` da instalação EGM.
+- `egm_stage5_inventive`: persona `agents/inventive_catalyst.md` e o mesmo padrão.
 
 Ambos concluíram a leitura do alvo e devolveram suas análises antes da elaboração deste relatório. Nenhuma conclusão anterior ou histórico da conversa foi fornecido no pedido de revisão. O filesystem é compartilhado; a exclusão automática de instruções `AGENTS.md` pelo host não foi testada e não é alegada como garantia de isolamento.
 

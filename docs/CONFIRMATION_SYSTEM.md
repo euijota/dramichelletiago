@@ -15,18 +15,22 @@ Sistema de confirmação via link para pacientes confirmarem suas consultas de f
 ## Fluxo de uso
 
 ### 1. Paciente agenda consulta
+
 - Sistema gera automaticamente 2 tokens:
   - **Token de confirmação** (para confirmar)
   - **Token de cancelamento** (para cancelar)
 
 ### 2. Paciente recebe notificação
+
 Email/WhatsApp contém:
+
 ```
 ✅ Link de confirmação: https://dramichelletiago.vercel.app/confirmar/ABC123
 🔗 Link de cancelamento: https://dramichelletiago.vercel.app/cancelar/XYZ789
 ```
 
 ### 3. Confirmação pelo paciente
+
 - Clica no link de confirmação
 - Visualiza detalhes da consulta
 - Clica em "Confirmar Consulta"
@@ -34,6 +38,7 @@ Email/WhatsApp contém:
 - `confirmed_at` registra timestamp
 
 ### 4. Feedback visual
+
 - **Agendamento pendente**: Botão "Confirmar Consulta" ativo
 - **Já confirmado**: Badge verde "Agendamento já confirmado"
 - **Cancelado**: Badge amarelo "Agendamento cancelado"
@@ -42,6 +47,7 @@ Email/WhatsApp contém:
 ## Estrutura técnica
 
 ### Migration
+
 ```sql
 -- supabase/migrations/20260806171500_add_confirmation_tracking.sql
 ALTER TABLE appointments
@@ -51,23 +57,27 @@ ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ DEFAULT NULL;
 ### Funções principais
 
 **`generateAppointmentToken(appointmentId)`**
+
 - Gera token base64url seguro
 - Mesmo sistema usado para cancelamento
 - Formato: `base64url(appointmentId:randomSecret)`
 
 **`confirmAppointmentByToken(token)`**
+
 - Valida token
 - Verifica status do agendamento
 - Atualiza para `confirmed` + `confirmed_at`
 - Retorna sucesso ou erro
 
 **`getAppointmentByToken(token)`**
+
 - Busca detalhes do agendamento pelo token
 - Usado para preview antes de confirmar
 
 ### Rota
 
 **`/confirmar/:token`** (`src/routes/confirmar/$token.tsx`)
+
 - Interface visual com dados da consulta
 - Estados: loading, não encontrado, cancelado, já confirmado, pendente, sucesso
 - Design consistente com `/cancelar/:token`
@@ -83,9 +93,8 @@ const confirmationLink = confirmationToken
   ? `https://dramichelletiago.vercel.app/confirmar/${confirmationToken}`
   : "";
 
-const messageText = 
-  `✅ Link de confirmação: ${confirmationLink}\n` +
-  `🔗 Link de cancelamento: ${cancellationLink}`;
+const messageText =
+  `✅ Link de confirmação: ${confirmationLink}\n` + `🔗 Link de cancelamento: ${cancellationLink}`;
 ```
 
 ### Google Agenda
@@ -107,7 +116,7 @@ o Vercel antes de reimplantar o site. Nunca coloque o segredo na URL ou no repos
 Para mensagens WhatsApp, adicione o link de confirmação:
 
 ```typescript
-const message = 
+const message =
   `Olá! Sua consulta foi agendada.\n\n` +
   `📅 Data: ${data.appointmentDate}\n` +
   `⏰ Horário: ${data.appointmentTime}\n\n` +
@@ -118,6 +127,7 @@ const message =
 ## Testes
 
 63 testes passando, incluindo:
+
 - Geração de tokens
 - Validação de tokens
 - URL safety (base64url)

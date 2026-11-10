@@ -6,10 +6,10 @@
 
 O subagente `egm_stage8_zoom_out`, com `fork_turns: none`, leu o alvo, sua persona e o padrão Zoom Out, o contexto aprovado, as seis referências e os relatórios das etapas 5, 6 e 7. Concluiu que as correções permanecem coerentes com a necessidade original:
 
-* A retirada de credenciais dos avisos auxiliares resolve a fronteira de distribuição sem exigir substituição dos serviços antigos.
-* O processador com check-ins elimina o caminho separado de saúde, mantendo detecção externa de ausência e explicitando o custo das chamadas ociosas.
-* O diagrama distingue a transação que cria o evento do cron que aciona seu processamento.
-* Persistência, reservas e idempotência respondem a requisitos de recuperação e concorrência; não foram identificadas abstrações especulativas no escopo.
+- A retirada de credenciais dos avisos auxiliares resolve a fronteira de distribuição sem exigir substituição dos serviços antigos.
+- O processador com check-ins elimina o caminho separado de saúde, mantendo detecção externa de ausência e explicitando o custo das chamadas ociosas.
+- O diagrama distingue a transação que cria o evento do cron que aciona seu processamento.
+- Persistência, reservas e idempotência respondem a requisitos de recuperação e concorrência; não foram identificadas abstrações especulativas no escopo.
 
 Foram pesquisados componentes existentes em fontes locais: autorização administrativa, mensagens e datas, Realtime/toasts, integração Resend atual e dependência Sentry. Não foi encontrado equivalente completo dos componentes novos nas buscas delimitadas. Não se recomenda reutilizar sem adaptação o transporte atual, que não oferece o contrato de timeout, resposta e idempotência requerido.
 

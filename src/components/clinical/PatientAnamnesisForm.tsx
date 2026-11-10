@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface PatientAnamnesisFormProps {
+  token?: string | null;
   patientId?: string | null;
   appointmentId?: string | null;
   protocol?: string | null;
@@ -33,6 +34,7 @@ export interface PatientAnamnesisFormProps {
 }
 
 export function PatientAnamnesisForm({
+  token,
   patientId,
   appointmentId,
   protocol,
@@ -84,6 +86,7 @@ export function PatientAnamnesisForm({
     try {
       const result = await submitPatientAnamnesis({
         data: {
+          token: token || undefined,
           patientId: patientId || undefined,
           appointmentId: appointmentId || undefined,
           protocol: protocol || undefined,

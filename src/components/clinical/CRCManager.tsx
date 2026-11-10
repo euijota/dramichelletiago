@@ -815,12 +815,24 @@ export function CRCManager({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      {/* Botão de Envio de Lembrete c/ Registro */}
+                      {/* Botão de Envio de Lembrete: Abre o WhatsApp sem marcar automaticamente */}
                       <a
                         href={reminderUrl}
                         target="_blank"
                         rel="noreferrer"
-                        onClick={() => markReminderSentMutation.mutate(appointment)}
+                        onClick={() => {
+                          if (!appointment.reminder_sent_at) {
+                            toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
+                              description:
+                                "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
+                              action: {
+                                label: "Marcar como Enviado",
+                                onClick: () => markReminderSentMutation.mutate(appointment),
+                              },
+                              duration: 10000,
+                            });
+                          }
+                        }}
                         className={cn(
                           "min-h-10 px-4 py-2 rounded-full font-semibold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer",
                           appointment.reminder_sent_at
@@ -831,10 +843,31 @@ export function CRCManager({
                         <Send className="h-3.5 w-3.5" />
                         <span>
                           {appointment.reminder_sent_at
-                            ? "Reenviar Link"
+                            ? "Abrir no WhatsApp"
                             : "Enviar Link de Confirmação"}
                         </span>
                       </a>
+
+                      {/* Botão Explícito para Marcar/Desmarcar Lembrete Enviado */}
+                      {appointment.reminder_sent_at ? (
+                        <span
+                          title={`Enviado em ${new Date(appointment.reminder_sent_at).toLocaleString("pt-BR")}`}
+                          className="min-h-10 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-1"
+                        >
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>Lembrete Enviado</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => markReminderSentMutation.mutate(appointment)}
+                          title="Registrar que o lembrete foi enviado no WhatsApp"
+                          className="min-h-10 px-3 py-1.5 rounded-full border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          <span>Marcar Enviado</span>
+                        </button>
+                      )}
 
                       {/* Confirmar Presença */}
                       <button

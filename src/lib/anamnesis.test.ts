@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   extractClinicalWarnings,
   formatAnamnesisContent,
+  maskName,
+  maskPhone,
+  maskEmail,
   DEFAULT_ANAMNESIS_ANSWERS,
   type AnamnesisAnswers,
 } from "./anamnesis";
+import { generateAnamnesisToken, validateAnamnesisToken } from "./anamnesis-server";
 
 describe("anamnesis pure utilities", () => {
   it("extracts no warnings when patient has healthy answers", () => {
@@ -71,5 +75,68 @@ describe("anamnesis pure utilities", () => {
     expect(content).toContain(
       "• Observações complementares: Paciente prefere anestesia sem vasoconstritor se possível",
     );
+  });
+});
+
+describe("PII Masking & Privacy Protection", () => {
+  it("masks patient full names protecting privacy", () => {
+    expect(maskName("Livia Marie Bonfim")).toBe("L***a M***e B****m");
+    expect(maskName("Ana")).toBe("A*a");
+    expect(maskName("")).toBe("");
+  });
+
+  it("masks phone numbers showing only last 4 digits", () => {
+    expect(maskPhone("(96) 98140-7223")).toBe("(96) *****-7223");
+    expect(maskPhone("96981407223")).toBe("(96) *****-7223");
+    expect(maskPhone("981407223")).toBe("*****-7223");
+    expect(maskPhone("")).toBe("");
+  });
+
+  it("masks email addresses", () => {
+    expect(maskEmail("paciente@gmail.com")).toBe("p****e@g***l.com");
+    expect(maskEmail("")).toBe("");
+  });
+});
+
+describe("Anamnesis Cryptographic Token Security", () => {
+  it("generates and validates an authentic anamnesis token", () => {
+    const patientId = "patient-uuid-1234";
+    const appointmentId = "appt-uuid-5678";
+    const protocol = "AG-TEST";
+
+    const token = generateAnamnesisToken({ patientId, appointmentId, protocol });
+    expect(token).toBeTruthy();
+
+    const verified = validateAnamnesisToken(token);
+    expect(verified).not.toBeNull();
+    expect(verified?.patientId).toBe(patientId);
+    expect(verified?.appointmentId).toBe(appointmentId);
+    expect(verified?.protocol).toBe(protocol);
+  });
+
+  it("rejects forged anamnesis tokens", () => {
+    const fakePayload = "v1.patient-123.appt-456.AG-TEST.9999999999999.nonce.fakesig";
+    const forgedToken = Buffer.from(fakePayload).toString("base64url");
+    const verified = validateAnamnesisToken(forgedToken);
+    expect(verified).toBeNull();
+  });
+
+  it("rejects expired anamnesis tokens", () => {
+    const token = generateAnamnesisToken({
+      patientId: "patient-123",
+      expiryDays: -1, // already expired
+    });
+    const verified = validateAnamnesisToken(token);
+    expect(verified).toBeNull();
+  });
+
+  it("detects tampered patientId in valid anamnesis token", () => {
+    const token = generateAnamnesisToken({ patientId: "victim-id" });
+    const decoded = Buffer.from(token, "base64url").toString("utf-8");
+    const tampered = decoded.replace("victim-id", "attacker-id");
+    const tamperedToken = Buffer.from(tampered).toString("base64url");
+
+    const verified = validateAnamnesisToken(tamperedToken);
+    expect(verified).toBeNull();
   });
 });

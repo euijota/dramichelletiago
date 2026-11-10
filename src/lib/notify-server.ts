@@ -80,6 +80,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     let patientId: string | null = null;
     let cancellationToken = "";
     let confirmationToken = "";
+    let anamnesisToken = "";
     let durationMinutes = 60;
 
     try {
@@ -189,6 +190,16 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
         const { generateAppointmentToken } = await import("@/lib/cancellation");
         cancellationToken = generateAppointmentToken(appointmentId, "cancel");
         confirmationToken = generateAppointmentToken(appointmentId, "confirm");
+
+        // Generate cryptographically signed anamnesis token
+        if (patientId) {
+          const { generateAnamnesisToken } = await import("@/lib/anamnesis-server");
+          anamnesisToken = generateAnamnesisToken({
+            patientId,
+            appointmentId,
+            protocol: data.protocol,
+          });
+        }
 
         console.log("[saveAppointmentAndNotify] Appointment saved, ID:", appointmentId);
       } else if (error.code === "23505") {
@@ -448,5 +459,8 @@ Aguardamos você! 🦷
       protocol: data.protocol,
       patientId,
       appointmentId,
+      confirmationToken,
+      cancellationToken,
+      anamnesisToken,
     };
   });

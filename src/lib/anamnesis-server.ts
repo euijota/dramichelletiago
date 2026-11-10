@@ -1,8 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import crypto from "node:crypto";
 import {
   extractClinicalWarnings,
   formatAnamnesisContent,
+  maskName,
+  maskPhone,
+  maskEmail,
   type AnamnesisAnswers,
 } from "@/lib/anamnesis";
 import { toISODate } from "@/lib/clinic";
@@ -10,7 +14,93 @@ import type { Database, Json } from "@/integrations/supabase/types";
 
 type PatientUpdate = Database["public"]["Tables"]["patients"]["Update"];
 
+function getAnamnesisSecret(): string {
+  return (
+    process.env.APPOINTMENT_TOKEN_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    "dramichelle-anamnesis-secret-salt-2026"
+  );
+}
+
+/**
+ * Gera um token criptografado HMAC-SHA256 para comprovar posse e autorização
+ * sobre o preenchimento de anamnese de um paciente/agendamento específico.
+ * Formato: v1.<patientId>.<appointmentId>.<protocol>.<expiresAt>.<nonce>.<sig>
+ */
+export function generateAnamnesisToken({
+  patientId,
+  appointmentId,
+  protocol,
+  expiryDays = 30,
+}: {
+  patientId: string;
+  appointmentId?: string | null;
+  protocol?: string | null;
+  expiryDays?: number;
+}): string {
+  const secret = getAnamnesisSecret();
+  const expiresAt = Date.now() + expiryDays * 24 * 60 * 60 * 1000;
+  const nonce = crypto.randomBytes(12).toString("base64url");
+  const appt = appointmentId || "none";
+  const proto = protocol || "none";
+
+  const dataToSign = `anamnese:v1:${patientId}:${appt}:${proto}:${expiresAt}:${nonce}`;
+  const sig = crypto.createHmac("sha256", secret).update(dataToSign).digest("base64url");
+
+  const payload = `v1.${patientId}.${appt}.${proto}.${expiresAt}.${nonce}.${sig}`;
+  return Buffer.from(payload).toString("base64url");
+}
+
+/**
+ * Valida a assinatura HMAC e expiração do token de anamnese em tempo constante.
+ * Retorna os dados comprovados ou null se o token for forjado/expirado.
+ */
+export function validateAnamnesisToken(token: string): {
+  patientId: string;
+  appointmentId: string | null;
+  protocol: string | null;
+} | null {
+  try {
+    if (!token || typeof token !== "string") return null;
+    let decoded = "";
+    try {
+      decoded = Buffer.from(token, "base64url").toString("utf-8");
+    } catch {
+      return null;
+    }
+
+    if (!decoded.startsWith("v1.")) return null;
+
+    const parts = decoded.split(".");
+    if (parts.length !== 7) return null;
+
+    const [, patientId, appt, proto, expStr, nonce, sig] = parts;
+    if (!patientId || !appt || !proto || !expStr || !nonce || !sig) return null;
+
+    const expiresAt = Number(expStr);
+    if (isNaN(expiresAt) || Date.now() > expiresAt) return null;
+
+    const secret = getAnamnesisSecret();
+    const dataToSign = `anamnese:v1:${patientId}:${appt}:${proto}:${expStr}:${nonce}`;
+    const expected = crypto.createHmac("sha256", secret).update(dataToSign).digest("base64url");
+
+    const expectedBuf = Buffer.from(expected);
+    const actualBuf = Buffer.from(sig);
+    if (expectedBuf.length !== actualBuf.length) return null;
+    if (!crypto.timingSafeEqual(expectedBuf, actualBuf)) return null;
+
+    return {
+      patientId,
+      appointmentId: appt === "none" ? null : appt,
+      protocol: proto === "none" ? null : proto,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const anamnesisSubmissionSchema = z.object({
+  token: z.string().optional().nullable(),
   patientId: z.string().optional().nullable(),
   appointmentId: z.string().optional().nullable(),
   protocol: z.string().optional().nullable(),
@@ -54,76 +144,59 @@ const anamnesisSubmissionSchema = z.object({
 export type AnamnesisSubmissionInput = z.infer<typeof anamnesisSubmissionSchema>;
 
 /**
- * Server function pública para submissão do formulário de anamnese pré-atendimento.
- * Permite que pacientes que acabaram de agendar (ou abriram via link do WhatsApp)
- * preencham seu histórico de saúde com segurança e integração total com o prontuário.
+ * Server function segura para submissão do formulário de anamnese pré-atendimento.
+ *
+ * REGRAS CRÍTICAS DE AUTORIZAÇÃO:
+ * 1. Para alterar prontuário ou alertas clínicos de um paciente existente,
+ *    É OBRIGATÓRIO fornecer um `token` criptograficamente válido (HMAC-SHA256).
+ * 2. Submissões sem token NUNCA alteram pacientes existentes nem buscam por semelhança de telefone/nome.
+ *    Em vez disso, criam um registro avulso isolado com flag 'não verificado'.
  */
 export const submitPatientAnamnesis = createServerFn({ method: "POST" })
   .validator((data: unknown) => anamnesisSubmissionSchema.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    let resolvedPatientId: string | null = data.patientId || null;
+    let isIdentityVerified = false;
+    let targetPatientId: string | null = null;
+    let targetAppointmentId: string | null = data.appointmentId || null;
+    let targetProtocol: string | null = data.protocol || null;
 
-    // 1. Tenta resolver o paciente pelo protocolo do agendamento se não tiver ID direto
-    if (!resolvedPatientId && data.protocol) {
-      const cleanProto = data.protocol.trim();
-      const { data: appt } = await supabaseAdmin
-        .from("appointments")
-        .select("id, patient_id, patient_name, patient_phone")
-        .ilike("notes", `%[${cleanProto}]%`)
-        .limit(1)
-        .maybeSingle();
-
-      if (appt?.patient_id) {
-        resolvedPatientId = appt.patient_id;
+    // 1. Verificação Criptográfica via Token
+    if (data.token) {
+      const verified = validateAnamnesisToken(data.token);
+      if (verified) {
+        isIdentityVerified = true;
+        targetPatientId = verified.patientId;
+        if (verified.appointmentId) targetAppointmentId = verified.appointmentId;
+        if (verified.protocol) targetProtocol = verified.protocol;
+      } else {
+        throw new Error(
+          "Token de segurança da anamnese é inválido ou expirou. Por favor, acerte seu agendamento ou solicite novo link.",
+        );
       }
     }
 
-    // 2. Tenta resolver pelo telefone ou nome
-    if (!resolvedPatientId && data.patientPhone) {
-      const cleanPhone = data.patientPhone.replace(/\D/g, "");
-      if (cleanPhone.length >= 8) {
-        const last8 = cleanPhone.slice(-8);
-        const { data: pByPhone } = await supabaseAdmin
-          .from("patients")
-          .select("id")
-          .ilike("phone", `%${last8}%`)
-          .limit(1)
-          .maybeSingle();
-        if (pByPhone) resolvedPatientId = pByPhone.id;
-      }
-    }
-
-    if (!resolvedPatientId && data.patientName?.trim()) {
-      const { data: pByName } = await supabaseAdmin
-        .from("patients")
-        .select("id")
-        .ilike("name", data.patientName.trim())
-        .limit(1)
-        .maybeSingle();
-      if (pByName) resolvedPatientId = pByName.id;
-    }
-
-    // 3. Se ainda assim não encontrar, auto-cria o paciente
-    if (!resolvedPatientId) {
-      const fallbackName = data.patientName?.trim() || "Paciente Agendamento Online";
-      const { data: created, error: createErr } = await supabaseAdmin
+    // 2. Submissão avulsa (sem token comprovado): NÃO toca em pacientes existentes
+    if (!isIdentityVerified) {
+      const safeName = data.patientName?.trim() || "Paciente Não Identificado (Web)";
+      const { data: createdPatient, error: createErr } = await supabaseAdmin
         .from("patients")
         .insert({
-          name: fallbackName,
+          name: safeName,
           phone: data.patientPhone?.trim() || null,
           email: data.patientEmail?.trim() || null,
-          origin: "Anamnese Pré-Atendimento Online",
-          funnel_stage: "anamnese",
+          origin: "Anamnese Web (Avulsa - Não Verificada)",
+          notes:
+            "Atenção: Formulário preenchido via web sem link autenticado de agendamento. Conferir dados antes do atendimento presencial.",
         })
         .select("id")
         .single();
 
-      if (createErr || !created) {
-        throw new Error("Não foi possível identificar ou registrar o paciente no prontuário.");
+      if (createErr || !createdPatient) {
+        throw new Error("Falha ao registrar formulário de pré-atendimento.");
       }
-      resolvedPatientId = created.id;
+      targetPatientId = createdPatient.id;
     }
 
     const answers = data.answers as AnamnesisAnswers;
@@ -131,19 +204,22 @@ export const submitPatientAnamnesis = createServerFn({ method: "POST" })
     const content = formatAnamnesisContent(answers);
     const today = toISODate(new Date());
 
-    // 4. Salva o registro clínico no prontuário (clinical_records)
+    // 3. Salva o registro clínico no prontuário (clinical_records)
     const { error: recordError } = await supabaseAdmin.from("clinical_records").insert({
-      patient_id: resolvedPatientId,
+      patient_id: targetPatientId!,
       record_type: "formulario",
       record_date: today,
-      title: "Anamnese Pré-Atendimento Online (Clinicorp)",
+      title: isIdentityVerified
+        ? "Anamnese Pré-Atendimento Online (Verificada)"
+        : "Anamnese Pré-Atendimento Online (Pendente de Verificação)",
       content,
       metadata: {
         submitted_at: new Date().toISOString(),
-        protocol: data.protocol || null,
-        appointment_id: data.appointmentId || null,
+        is_verified: isIdentityVerified,
+        protocol: targetProtocol,
+        appointment_id: targetAppointmentId,
         answers: answers as unknown as Record<string, unknown>,
-        source: "formulario_pre_atendimento",
+        source: isIdentityVerified ? "agendamento_autenticado" : "formulario_publico_avulso",
       } as unknown as Json,
     });
 
@@ -152,51 +228,131 @@ export const submitPatientAnamnesis = createServerFn({ method: "POST" })
       throw new Error(`Erro ao salvar prontuário: ${recordError.message}`);
     }
 
-    // 5. Atualiza o cadastro do paciente: alertas clínicos e avanço no funil (triagem -> anamnese)
-    const patientUpdates: PatientUpdate = {
-      funnel_stage: "anamnese",
-    };
+    // 4. Somente atualiza medical_warning e promove no funil se a identidade estiver COMPROVADA
+    if (isIdentityVerified && targetPatientId) {
+      const patientUpdates: PatientUpdate = {
+        funnel_stage: "anamnese",
+      };
 
-    if (warnings.length > 0) {
-      // Mescla com alertas já existentes se houver
-      const { data: currentPatient } = await supabaseAdmin
-        .from("patients")
-        .select("medical_warning")
-        .eq("id", resolvedPatientId)
-        .single();
+      if (warnings.length > 0) {
+        const { data: currentPatient } = await supabaseAdmin
+          .from("patients")
+          .select("medical_warning")
+          .eq("id", targetPatientId)
+          .single();
 
-      const existingWarning = currentPatient?.medical_warning?.trim() || "";
-      const existingList = existingWarning ? existingWarning.split(" | ").map((s) => s.trim()) : [];
-      const mergedWarnings = Array.from(new Set([...existingList, ...warnings]));
-      patientUpdates.medical_warning = mergedWarnings.join(" | ");
+        const existingWarning = currentPatient?.medical_warning?.trim() || "";
+        const existingList = existingWarning
+          ? existingWarning.split(" | ").map((s) => s.trim())
+          : [];
+        const mergedWarnings = Array.from(new Set([...existingList, ...warnings]));
+        patientUpdates.medical_warning = mergedWarnings.join(" | ");
+      }
+
+      await supabaseAdmin.from("patients").update(patientUpdates).eq("id", targetPatientId);
     }
-
-    await supabaseAdmin.from("patients").update(patientUpdates).eq("id", resolvedPatientId);
 
     return {
       success: true,
-      patientId: resolvedPatientId,
+      patientId: targetPatientId,
+      isVerified: isIdentityVerified,
       warningsCount: warnings.length,
-      protocol: data.protocol || null,
+      protocol: targetProtocol,
     };
   });
 
 /**
- * Consulta informações de agendamento por protocolo para pré-preenchimento
- * da página pública `/anamnese?protocolo=...`.
+ * Consulta segura por Token Criptográfico (URL com ?token=...)
  */
-export const getAnamnesisInfoByProtocol = createServerFn({ method: "GET" })
-  .validator((protocol: string) => z.string().min(3).parse(protocol))
-  .handler(async ({ data: protocol }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const cleanProto = protocol.trim();
+export const getAnamnesisInfoByToken = createServerFn({ method: "GET" })
+  .validator((token: string) => z.string().min(10).parse(token))
+  .handler(async ({ data: token }) => {
+    const verified = validateAnamnesisToken(token);
+    if (!verified) {
+      return { found: false, error: "Token inválido ou expirado." };
+    }
 
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: patient } = await supabaseAdmin
+      .from("patients")
+      .select("id, name, phone, email")
+      .eq("id", verified.patientId)
+      .maybeSingle();
+
+    let apptData: {
+      id: string;
+      service_name: string;
+      appointment_date: string;
+      appointment_time: string;
+    } | null = null;
+
+    if (verified.appointmentId) {
+      const { data: appt } = await supabaseAdmin
+        .from("appointments")
+        .select("id, service_name, appointment_date, appointment_time")
+        .eq("id", verified.appointmentId)
+        .maybeSingle();
+      if (appt) apptData = appt;
+    }
+
+    // Checa se já existe anamnese registrada
+    let alreadySubmitted = false;
+    const { data: records } = await supabaseAdmin
+      .from("clinical_records")
+      .select("id")
+      .eq("patient_id", verified.patientId)
+      .eq("record_type", "formulario")
+      .limit(1);
+
+    if (records && records.length > 0) {
+      alreadySubmitted = true;
+    }
+
+    return {
+      found: true,
+      isVerified: true,
+      token,
+      protocol: verified.protocol,
+      appointment: {
+        id: apptData?.id || verified.appointmentId,
+        patientId: verified.patientId,
+        patientName: patient?.name || "Paciente",
+        patientPhone: patient?.phone || null,
+        patientEmail: patient?.email || null,
+        serviceName: apptData?.service_name || "Consulta Odontológica",
+        date: apptData?.appointment_date || null,
+        time: apptData?.appointment_time || null,
+      },
+      alreadySubmitted,
+    };
+  });
+
+const protocolLookupSchema = z.object({
+  protocol: z
+    .string()
+    .regex(/^AG-[A-Z0-9]{4,10}$/i, "Protocolo inválido (formato esperado: AG-XXXX)"),
+  phoneDigits4: z.string().length(4).optional(),
+});
+
+/**
+ * Consulta de anamnese por protocolo com proteção anti-vazamento de PII.
+ * Sem confirmação dos 4 dígitos finais do telefone, retorna apenas dados mascarados.
+ */
+export const getAnamnesisInfoByProtocol = createServerFn({ method: "POST" })
+  .validator((input) => protocolLookupSchema.parse(input))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const cleanProto = data.protocol.trim().toUpperCase();
+
+    // Busca exata pelo identificador [AG-XXXX] nas observações
+    const targetTag = `[${cleanProto}]`;
     const { data: appt, error } = await supabaseAdmin
       .from("appointments")
       .select(
         "id, patient_id, patient_name, patient_phone, patient_email, service_name, appointment_date, appointment_time, notes",
       )
-      .ilike("notes", `%[${cleanProto}]%`)
+      .ilike("notes", `%${targetTag}%`)
       .limit(1)
       .maybeSingle();
 
@@ -204,34 +360,54 @@ export const getAnamnesisInfoByProtocol = createServerFn({ method: "GET" })
       return { found: false, protocol: cleanProto };
     }
 
-    // Checa se já tem anamnese registrada para este paciente / agendamento
-    let alreadySubmitted = false;
-    if (appt.patient_id) {
-      const { data: records } = await supabaseAdmin
-        .from("clinical_records")
-        .select("id, created_at")
-        .eq("patient_id", appt.patient_id)
-        .eq("record_type", "formulario")
-        .limit(1);
+    const cleanPhone = (appt.patient_phone || "").replace(/\D/g, "");
+    const actualLast4 = cleanPhone.length >= 4 ? cleanPhone.slice(-4) : "";
 
-      if (records && records.length > 0) {
-        alreadySubmitted = true;
-      }
+    // Se o paciente enviou os 4 dígitos finais para desbloquear a sessão:
+    if (data.phoneDigits4 && actualLast4 && data.phoneDigits4 === actualLast4) {
+      // Gera token autenticado para este agendamento
+      const authToken = generateAnamnesisToken({
+        patientId: appt.patient_id || appt.id,
+        appointmentId: appt.id,
+        protocol: cleanProto,
+      });
+
+      return {
+        found: true,
+        isVerified: true,
+        token: authToken,
+        protocol: cleanProto,
+        appointment: {
+          id: appt.id,
+          patientId: appt.patient_id,
+          patientName: appt.patient_name,
+          patientPhone: appt.patient_phone,
+          patientEmail: appt.patient_email,
+          serviceName: appt.service_name,
+          date: appt.appointment_date,
+          time: appt.appointment_time,
+        },
+        alreadySubmitted: false,
+      };
     }
 
+    // Se NÃO passou verificação de telefone: retorna estritamente DADOS MASCARADOS para proteger PII
     return {
       found: true,
+      isVerified: false,
       protocol: cleanProto,
+      requiresPhoneVerification: true,
+      phoneHint: actualLast4 ? `final ****-${actualLast4}` : undefined,
       appointment: {
         id: appt.id,
-        patientId: appt.patient_id,
-        patientName: appt.patient_name,
-        patientPhone: appt.patient_phone,
-        patientEmail: appt.patient_email,
+        patientId: null, // Oculto sem verificação
+        patientName: maskName(appt.patient_name),
+        patientPhone: maskPhone(appt.patient_phone),
+        patientEmail: maskEmail(appt.patient_email),
         serviceName: appt.service_name,
         date: appt.appointment_date,
         time: appt.appointment_time,
       },
-      alreadySubmitted,
+      alreadySubmitted: false,
     };
   });

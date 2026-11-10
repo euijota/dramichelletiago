@@ -4,11 +4,11 @@
 
 ## Rodada 1
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage9_readiness_r1` | completed | 0 | 3 | 0 |
-| `egm_stage9_codebase_r1` | completed | 0 | 3 | 0 |
-| `egm_stage9_style_r1` | completed | 0 | 0 | 0 |
+| Revisor                   | Estado    | Blocker | Major | Nit |
+| ------------------------- | --------- | ------- | ----- | --- |
+| `egm_stage9_readiness_r1` | completed | 0       | 3     | 0   |
+| `egm_stage9_codebase_r1`  | completed | 0       | 3     | 0   |
+| `egm_stage9_style_r1`     | completed | 0       | 0     | 0   |
 
 Rodada não limpa, antes de qualquer correção. Os seis achados brutos correspondem a cinco ações, com sobreposição na persistência do motivo do cancelamento.
 
@@ -46,17 +46,17 @@ Os três revisores foram executados em contextos novos com `fork_turns: none`, l
 
 ## Rodada 2
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage9_readiness_r2` | completed | 0 | 2 | 0 |
-| `egm_stage9_codebase_r2` | completed | 0 | 0 | 0 |
-| `egm_stage9_style_r2` | completed | 0 | 0 | 1 |
+| Revisor                   | Estado    | Blocker | Major | Nit |
+| ------------------------- | --------- | ------- | ----- | --- |
+| `egm_stage9_readiness_r2` | completed | 0       | 2     | 0   |
+| `egm_stage9_codebase_r2`  | completed | 0       | 0     | 0   |
+| `egm_stage9_style_r2`     | completed | 0       | 0     | 1   |
 
 Rodada não limpa, decidida antes das correções. Os contratos anteriores resolveram os achados do comparador de código; surgiram as lacunas adicionais abaixo.
 
-* **readiness-2-1 — Major — linhas 321, 365, 404, 414:** definir cabeçalho/formato do segredo, corpo, limite de bytes, códigos de validação e contagens de resposta do endpoint, mais timeout explícito do `pg_net`, cujo padrão documentado é 2 segundos e não comporta o orçamento de 20 segundos do processador.
-* **readiness-2-2 — Major — linhas 325, 343, 360–362, 380–387, 412, 440:** definir precedência e critérios objetivos para `healthy/delayed/failed`, tradução a check-ins Sentry, resultado incerto sem próximo horário, erros de configuração/banco, leases vencidas e esperas legítimas.
-* **style-2-1 — Nit — linha 393 — CALIBRATE:** esclarecer que o limite de três avisos se refere à rodada de busca, não à consulta clínica.
+- **readiness-2-1 — Major — linhas 321, 365, 404, 414:** definir cabeçalho/formato do segredo, corpo, limite de bytes, códigos de validação e contagens de resposta do endpoint, mais timeout explícito do `pg_net`, cujo padrão documentado é 2 segundos e não comporta o orçamento de 20 segundos do processador.
+- **readiness-2-2 — Major — linhas 325, 343, 360–362, 380–387, 412, 440:** definir precedência e critérios objetivos para `healthy/delayed/failed`, tradução a check-ins Sentry, resultado incerto sem próximo horário, erros de configuração/banco, leases vencidas e esperas legítimas.
+- **style-2-1 — Nit — linha 393 — CALIBRATE:** esclarecer que o limite de três avisos se refere à rodada de busca, não à consulta clínica.
 
 Classificação de resolução: PROPOSE FIX para os três. Autorização documental pela orientação de seguir o recomendado. As referências de leitura passaram a incluir a captura de cabeçalhos Vercel; todos os revisores confirmaram leitura das sete fontes e suas personas. Mantêm-se os limites estáticos.
 
@@ -64,11 +64,11 @@ Classificação de resolução: PROPOSE FIX para os três. Autorização documen
 
 Escopo atualizado: linhas 293–540.
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage9_readiness_r3` | completed | 0 | 0 | 0 |
-| `egm_stage9_codebase_r3` | completed | 0 | 0 | 0 |
-| `egm_stage9_style_r3` | completed após uma nova tentativa | 0 | 0 | 0 |
+| Revisor                   | Estado                            | Blocker | Major | Nit |
+| ------------------------- | --------------------------------- | ------- | ----- | --- |
+| `egm_stage9_readiness_r3` | completed                         | 0       | 0     | 0   |
+| `egm_stage9_codebase_r3`  | completed                         | 0       | 0     | 0   |
+| `egm_stage9_style_r3`     | completed após uma nova tentativa | 0       | 0     | 0   |
 
 Prontidão e detalhes de código concluíram sem novos achados, após ler personas, padrão, alvo, fontes e sete referências. O revisor de estilo falhou por limite de uso antes de entregar relatório; essa falha não conta como revisão limpa nem como zero achados. Foi solicitada uma única nova tentativa conforme a regra do EGM. A nova tentativa concluiu a leitura e retornou zero achados acionáveis. Os limites de escopo e execução continuam os mesmos. Rodada 3 limpa: primeira rodada limpa da etapa 9; falta a segunda consecutiva para declarar convergência.
 
@@ -76,11 +76,11 @@ Prontidão e detalhes de código concluíram sem novos achados, após ler person
 
 Escopo relido: linhas 293–540.
 
-| Revisor | Estado | Blocker | Major | Nit |
-| --- | --- | --- | --- | --- |
-| `egm_stage9_readiness_r4` | completed | 0 | 0 | 0 |
-| `egm_stage9_codebase_r4` | completed | 0 | 0 | 0 |
-| `egm_stage9_style_r4` | completed | 0 | 0 | 0 |
+| Revisor                   | Estado    | Blocker | Major | Nit |
+| ------------------------- | --------- | ------- | ----- | --- |
+| `egm_stage9_readiness_r4` | completed | 0       | 0     | 0   |
+| `egm_stage9_codebase_r4`  | completed | 0       | 0     | 0   |
+| `egm_stage9_style_r4`     | completed | 0       | 0     | 0   |
 
 Três novos contextos `fork_turns: none` concluíram os escopos, personas e padrões aplicáveis, com fontes e sete referências aprovadas. Nenhum achado acionável foi retornado. A verificação de código incluiu consumidores dos tokens/helpers, autenticação, schema, configuração, testes e telemetria; não foram confundidos arquivos futuros com referências existentes.
 

@@ -93,6 +93,7 @@ export function BookingModal({
     patientId?: string | null;
     appointmentId?: string | null;
     serviceName?: string;
+    token?: string | null;
   } | null>(null);
   const [showAnamnesisForm, setShowAnamnesisForm] = useState(false);
 
@@ -426,13 +427,16 @@ export function BookingModal({
         patientId: (result as any).patientId || null,
         appointmentId: (result as any).appointmentId || null,
         serviceName,
+        token: (result as any).anamnesisToken || null,
       };
       setConfirmedBooking(confirmed);
       toast.success("Solicitação de agendamento realizada com sucesso!");
       setIsSubmitting(false);
 
       // Notificação imediata: abre WhatsApp da Dra. Michelle com os dados do agendamento
-      const anamnesisUrl = `https://dramichelletiago.com.br/anamnese?protocolo=${protocol}`;
+      const anamnesisUrl = (result as any).anamnesisToken
+        ? `https://dramichelletiago.com.br/anamnese?token=${(result as any).anamnesisToken}&protocolo=${protocol}`
+        : `https://dramichelletiago.com.br/anamnese?protocolo=${protocol}`;
       const dentistMsg = encodeURIComponent(
         `🦷 *NOVO AGENDAMENTO RECEBIDO*\n\n` +
           `📌 Protocolo: ${protocol}\n` +
@@ -474,7 +478,11 @@ export function BookingModal({
           `👤 Paciente: ${confirmedBooking.name}\n` +
           `📞 Telefone: ${confirmedBooking.phone}\n` +
           `💳 Atendimento: ${attendanceType === "convenio" ? healthPlan : "Particular"}\n` +
-          `📋 Ficha Pré-Atendimento: https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`,
+          `📋 Ficha Pré-Atendimento: ${
+            confirmedBooking.token
+              ? `https://dramichelletiago.com.br/anamnese?token=${confirmedBooking.token}&protocolo=${confirmedBooking.protocol}`
+              : `https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`
+          }`,
       )
     : "";
 
@@ -523,6 +531,7 @@ export function BookingModal({
               </Button>
             </div>
             <PatientAnamnesisForm
+              token={confirmedBooking.token}
               patientId={confirmedBooking.patientId}
               appointmentId={confirmedBooking.appointmentId}
               protocol={confirmedBooking.protocol}
@@ -576,7 +585,11 @@ export function BookingModal({
                   <ClipboardList className="w-4 h-4" /> Preencher Ficha Agora (2 min)
                 </Button>
                 <a
-                  href={`https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`}
+                  href={
+                    confirmedBooking.token
+                      ? `https://dramichelletiago.com.br/anamnese?token=${confirmedBooking.token}&protocolo=${confirmedBooking.protocol}`
+                      : `https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`
+                  }
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center rounded-full border border-border bg-background px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted text-center"

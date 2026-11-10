@@ -16,9 +16,9 @@ Não identifiquei achados **Blocker** ou **Major** de compreensão. As distinç�
 
 ## Read evidence
 
-* Persona lida integralmente: `/Users/ij/.gemini/config/plugins/egm/agents/comprehension.md`.
-* Documento-alvo lido integralmente: `/Users/ij/dramichelletiago/docs/designs/sistema-de-notificacoes-clinicas.md`, linhas **1–446**. A saída inicial truncada foi complementada por leituras segmentadas que cobriram integralmente **1–149**, **150–292**, **293–379** e **380–446**.
-* Escopos considerados: **FeatureRange 1–292** e **DetailedRange 293–446**. Consultei o restante do próprio documento antes de considerar possíveis lacunas.
+- Persona lida integralmente: `/Users/ij/.gemini/config/plugins/egm/agents/comprehension.md`.
+- Documento-alvo lido integralmente: `/Users/ij/dramichelletiago/docs/designs/sistema-de-notificacoes-clinicas.md`, linhas **1–446**. A saída inicial truncada foi complementada por leituras segmentadas que cobriram integralmente **1–149**, **150–292**, **293–379** e **380–446**.
+- Escopos considerados: **FeatureRange 1–292** e **DetailedRange 293–446**. Consultei o restante do próprio documento antes de considerar possíveis lacunas.
 
 ## Limites
 

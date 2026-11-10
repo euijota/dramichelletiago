@@ -14,6 +14,7 @@ Sistema completo para exportar relatórios da agenda em PDF, Excel e CSV.
 ## Formatos disponíveis
 
 ### PDF
+
 - Layout profissional com logo e cores da marca
 - Tabela formatada com todas as consultas
 - Cabeçalho com período e estatísticas
@@ -21,6 +22,7 @@ Sistema completo para exportar relatórios da agenda em PDF, Excel e CSV.
 - Biblioteca: `jspdf` + `jspdf-autotable`
 
 ### Excel (XLSX)
+
 - Planilha principal com todos os dados
 - Planilha "Resumo" com estatísticas
 - Colunas com largura ajustada
@@ -28,6 +30,7 @@ Sistema completo para exportar relatórios da agenda em PDF, Excel e CSV.
 - Biblioteca: `xlsx`
 
 ### CSV
+
 - Formato universal para importação em outros sistemas
 - Compatível com Excel, Google Sheets, etc.
 - Todas as colunas de dados
@@ -49,6 +52,7 @@ Sistema completo para exportar relatórios da agenda em PDF, Excel e CSV.
 ### Filtros
 
 **Período**
+
 ```typescript
 {
   startDate: "2026-08-01", // Agendamentos a partir desta data
@@ -57,50 +61,55 @@ Sistema completo para exportar relatórios da agenda em PDF, Excel e CSV.
 ```
 
 **Status** (múltipla seleção)
+
 ```typescript
 {
-  status: ["pending", "confirmed"] // Apenas pendentes e confirmados
+  status: ["pending", "confirmed"]; // Apenas pendentes e confirmados
 }
 ```
 
 **Busca textual** (case-insensitive)
+
 ```typescript
 {
-  searchTerm: "Maria" // Busca em nome, telefone, email, serviço
+  searchTerm: "Maria"; // Busca em nome, telefone, email, serviço
 }
 ```
 
 **Combinação de filtros**
+
 ```typescript
 const filters = {
   startDate: "2026-08-01",
   endDate: "2026-08-31",
   status: ["confirmed", "completed"],
-  searchTerm: "Limpeza"
+  searchTerm: "Limpeza",
 };
 ```
 
 ## Estrutura de dados
 
 ### AppointmentExport
+
 ```typescript
 interface AppointmentExport {
   id: string;
-  appointment_date: string;      // ISO format: YYYY-MM-DD
-  appointment_time: string;      // HH:MM:SS
+  appointment_date: string; // ISO format: YYYY-MM-DD
+  appointment_time: string; // HH:MM:SS
   patient_name: string;
   patient_phone: string;
   patient_email: string;
   service_name: string;
   status: "pending" | "confirmed" | "cancelled" | "completed";
   notes: string | null;
-  created_at: string;            // ISO timestamp
+  created_at: string; // ISO timestamp
 }
 ```
 
 ## API
 
 ### `filterAppointments(appointments, filters)`
+
 Aplica filtros aos agendamentos.
 
 ```typescript
@@ -108,11 +117,12 @@ import { filterAppointments } from "@/lib/export";
 
 const filtered = filterAppointments(allAppointments, {
   startDate: "2026-08-01",
-  status: ["confirmed"]
+  status: ["confirmed"],
 });
 ```
 
 ### `exportToPDF(appointments, filters)`
+
 Exporta para PDF e inicia download.
 
 ```typescript
@@ -120,12 +130,13 @@ import { exportToPDF } from "@/lib/export";
 
 exportToPDF(allAppointments, {
   startDate: "2026-08-01",
-  endDate: "2026-08-31"
+  endDate: "2026-08-31",
 });
 // Baixa: agenda_2026-08-06.pdf
 ```
 
 ### `exportToExcel(appointments, filters)`
+
 Exporta para Excel (XLSX) e inicia download.
 
 ```typescript
@@ -136,6 +147,7 @@ exportToExcel(allAppointments);
 ```
 
 ### `exportToCSV(appointments, filters)`
+
 Exporta para CSV e inicia download.
 
 ```typescript
@@ -150,6 +162,7 @@ exportToCSV(allAppointments);
 ### Colunas incluídas
 
 **PDF**:
+
 - Data (DD/MM/YYYY)
 - Hora (HH:MM)
 - Paciente
@@ -158,6 +171,7 @@ exportToCSV(allAppointments);
 - Status
 
 **Excel/CSV** (completo):
+
 - Data
 - Hora
 - Paciente
@@ -180,39 +194,44 @@ exportToCSV(allAppointments);
 ## Exemplos de uso
 
 ### Relatório mensal
+
 ```typescript
 exportToPDF(allAppointments, {
   startDate: "2026-08-01",
-  endDate: "2026-08-31"
+  endDate: "2026-08-31",
 });
 ```
 
 ### Apenas consultas confirmadas
+
 ```typescript
 exportToExcel(allAppointments, {
-  status: ["confirmed"]
+  status: ["confirmed"],
 });
 ```
 
 ### Buscar paciente específico
+
 ```typescript
 exportToCSV(allAppointments, {
-  searchTerm: "Maria Silva"
+  searchTerm: "Maria Silva",
 });
 ```
 
 ### Relatório trimestral de concluídos
+
 ```typescript
 exportToPDF(allAppointments, {
   startDate: "2026-06-01",
   endDate: "2026-08-31",
-  status: ["completed"]
+  status: ["completed"],
 });
 ```
 
 ## Personalização
 
 ### Alterar cores do PDF
+
 Edite em `src/lib/export.ts`:
 
 ```typescript
@@ -223,6 +242,7 @@ headStyles: {
 ```
 
 ### Adicionar logo no PDF
+
 ```typescript
 // Após criar o jsPDF:
 const logo = "data:image/png;base64,..."; // Base64 da logo
@@ -230,11 +250,13 @@ doc.addImage(logo, "PNG", 14, 10, 30, 30);
 ```
 
 ### Customizar colunas
+
 Modifique os arrays `tableData` em `exportToPDF()` ou os objetos de dados em `exportToExcel()`.
 
 ## Testes
 
 79 testes passando, incluindo:
+
 - ✅ Filtros por data (início, fim, range)
 - ✅ Filtros por status (único, múltiplo)
 - ✅ Busca textual (nome, telefone, email, serviço)

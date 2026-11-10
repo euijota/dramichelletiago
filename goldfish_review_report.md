@@ -8,19 +8,19 @@
 
 ## ZO-01 — egm-zoom-out — Major
 
-* **Escopo original:** linhas 130–142 e 348.
-* **Discrepância:** substituir o gerador sem modificar os avisos existentes continua distribuindo as credenciais pelos serviços antigos, em conflito com a fronteira descrita no documento.
-* **AI Suggestion:** PROPOSE FIX.
-* **Justificativa:** a leitura de `notify-server.ts`, linhas 224–337, confirma a inclusão de links no texto e nos payloads dos canais existentes.
-* **Alteração:** a recepção autorizada emite o link para envio assistido ao paciente. O fluxo de novo agendamento deixa de gerar e transmitir links de ação nos serviços auxiliares; preserva o aviso de novo agendamento e o acesso autenticado ao painel. Esclarecer que o WhatsApp destinado ao paciente é um canal deliberado de distribuição, distinto de telemetria e retransmissão auxiliar. Atualizar contratos, lista de arquivos, testes e ativação.
+- **Escopo original:** linhas 130–142 e 348.
+- **Discrepância:** substituir o gerador sem modificar os avisos existentes continua distribuindo as credenciais pelos serviços antigos, em conflito com a fronteira descrita no documento.
+- **AI Suggestion:** PROPOSE FIX.
+- **Justificativa:** a leitura de `notify-server.ts`, linhas 224–337, confirma a inclusão de links no texto e nos payloads dos canais existentes.
+- **Alteração:** a recepção autorizada emite o link para envio assistido ao paciente. O fluxo de novo agendamento deixa de gerar e transmitir links de ação nos serviços auxiliares; preserva o aviso de novo agendamento e o acesso autenticado ao painel. Esclarecer que o WhatsApp destinado ao paciente é um canal deliberado de distribuição, distinto de telemetria e retransmissão auxiliar. Atualizar contratos, lista de arquivos, testes e ativação.
 
 ## ZO-02 — egm-zoom-out — Nit
 
-* **Escopo original:** linhas 197, 325, 336, 347 e 382.
-* **Discrepância:** economia não quantificada de chamadas ociosas adiciona job, endpoint e segredo de saúde.
-* **AI Suggestion:** PROPOSE FIX.
-* **Justificativa:** os check-ins podem integrar o próprio processamento periódico; o detector de ausência continua no Sentry, fora do processo observado.
-* **Alteração:** executar o processador a cada 30 segundos inclusive com fila vazia; nele consultar a saúde da fila e emitir check-ins. Remover do plano o job, endpoint e segredo exclusivos de saúde. Manter validação de cotas e teste de ausência do executor. O custo aceito é maior número de invocações ociosas, ainda por verificar no ambiente.
+- **Escopo original:** linhas 197, 325, 336, 347 e 382.
+- **Discrepância:** economia não quantificada de chamadas ociosas adiciona job, endpoint e segredo de saúde.
+- **AI Suggestion:** PROPOSE FIX.
+- **Justificativa:** os check-ins podem integrar o próprio processamento periódico; o detector de ausência continua no Sentry, fora do processo observado.
+- **Alteração:** executar o processador a cada 30 segundos inclusive com fila vazia; nele consultar a saúde da fila e emitir check-ins. Remover do plano o job, endpoint e segredo exclusivos de saúde. Manter validação de cotas e teste de ausência do executor. O custo aceito é maior número de invocações ociosas, ainda por verificar no ambiente.
 
 ## Resultado do revisor inventive-catalyst
 

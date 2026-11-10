@@ -74,6 +74,54 @@ export const DEFAULT_ANAMNESIS_ANSWERS: AnamnesisAnswers = {
 };
 
 /**
+ * Mascara nomes de pacientes para consultas públicas, prevenindo vazamento de PII.
+ * Ex: "Livia Marie Bonfim" -> "L**a M***e B****m"
+ */
+export function maskName(name: string | null | undefined): string {
+  if (!name) return "";
+  const parts = name.trim().split(/\s+/);
+  return parts
+    .map((p) => {
+      if (p.length <= 2) return p;
+      return `${p[0]}${"*".repeat(Math.max(1, p.length - 2))}${p[p.length - 1]}`;
+    })
+    .join(" ");
+}
+
+/**
+ * Mascara números de telefone para proteção da privacidade em consultas públicas.
+ * Ex: "(96) 98140-7223" -> "(96) *****-7223"
+ */
+export function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "";
+  const clean = phone.replace(/\D/g, "");
+  if (clean.length < 8) return "***";
+  const last4 = clean.slice(-4);
+  const ddd = clean.length >= 10 ? `(${clean.slice(0, 2)}) ` : "";
+  return `${ddd}*****-${last4}`;
+}
+
+/**
+ * Mascara e-mails para proteção de PII.
+ * Ex: "contato@exemplo.com.br" -> "c***o@e***.com.br"
+ */
+export function maskEmail(email: string | null | undefined): string {
+  if (!email || !email.includes("@")) return "";
+  const [local, domain] = email.trim().split("@");
+  const maskedLocal =
+    local.length <= 2
+      ? `${local[0]}***`
+      : `${local[0]}${"*".repeat(Math.min(4, local.length - 2))}${local[local.length - 1]}`;
+  const domainParts = domain.split(".");
+  const maskedDomainMain =
+    domainParts[0].length <= 2
+      ? domainParts[0]
+      : `${domainParts[0][0]}***${domainParts[0][domainParts[0].length - 1]}`;
+  const restDomain = domainParts.slice(1).join(".");
+  return `${maskedLocal}@${maskedDomainMain}${restDomain ? `.${restDomain}` : ""}`;
+}
+
+/**
  * Extrai alertas médicos clínicos críticos com base no questionário padrão Clinicorp.
  * Alertas gerados são gravados na coluna `medical_warning` do paciente para visualização rápida no prontuário.
  */

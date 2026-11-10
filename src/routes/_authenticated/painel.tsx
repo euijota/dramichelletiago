@@ -61,6 +61,7 @@ import {
   Menu,
   Search,
   ArrowLeft,
+  ArrowRight,
   DollarSign,
   Gift,
   HeartHandshake,
@@ -151,6 +152,10 @@ function Painel() {
   const [crcSubTab, setCrcSubTab] = useState<
     "confirmacoes" | "retornos" | "orcamentos" | "aniversariantes"
   >("confirmacoes");
+  const [agendaPendingDayFilter, setAgendaPendingDayFilter] = useState<"amanha" | "hoje">(() => {
+    const hour = new Date().getHours();
+    return hour >= 14 ? "amanha" : "hoje";
+  });
 
   // Smartbar global ("Encontre pacientes ou funções do sistema")
   const { data: globalSmartPatients = [] } = useQuery({
@@ -436,6 +441,12 @@ function Painel() {
 
   const pendingCount = pending?.length ?? 0;
   const pendingTodayCount = pending?.filter((a) => a.appointment_date === todayISO).length ?? 0;
+  const pendingTomorrowCount =
+    pending?.filter((a) => a.appointment_date === tomorrowISO).length ?? 0;
+  const targetPendingDateISO = agendaPendingDayFilter === "hoje" ? todayISO : tomorrowISO;
+  const agendaPendingList = useMemo(() => {
+    return (pending ?? []).filter((a) => a.appointment_date === targetPendingDateISO);
+  }, [pending, targetPendingDateISO]);
 
   if (loading) {
     return (
@@ -1285,7 +1296,19 @@ function Painel() {
                       href={buildReminderLink(appointment)}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={() => markReminderSent(appointment)}
+                      onClick={() => {
+                        if (!appointment.reminder_sent_at) {
+                          toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
+                            description:
+                              "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
+                            action: {
+                              label: "Marcar como Enviado",
+                              onClick: () => markReminderSent(appointment),
+                            },
+                            duration: 10000,
+                          });
+                        }
+                      }}
                       className={cn(
                         "group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm",
                         appointment.reminder_sent_at
@@ -1295,7 +1318,7 @@ function Painel() {
                     >
                       <MessageCircle className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
                       <span>
-                        {appointment.reminder_sent_at ? "Enviar novamente" : "Enviar lembrete"}
+                        {appointment.reminder_sent_at ? "Abrir WhatsApp" : "Enviar lembrete"}
                       </span>
                     </a>
                   </div>
@@ -1306,77 +1329,160 @@ function Painel() {
             {/* Pending queue */}
 
             <section className="mt-20">
-              <h2 className="font-display text-3xl text-foreground">
-                Consultas Agendadas (Aguardando confirmação 1 dia antes)
-              </h2>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Quando o paciente agenda pelo site, a consulta entra como <strong>Agendado</strong>.
-                Um dia antes, clique em <strong>Enviar Link de Confirmação</strong> para ele
-                escolher entre Confirmar, Reagendar ou Cancelar.
-              </p>
-
-              <div className="mt-8 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
-                {pendingCount === 0 && (
-                  <p className="p-10 text-center text-sm text-muted-foreground">
-                    Nenhuma consulta aguardando confirmação. Tudo em dia.
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="font-display text-3xl text-foreground">
+                    Consultas Agendadas (Aguardando confirmação)
+                  </h2>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Envie o link de confirmação pelo WhatsApp para que o paciente confirme ou
+                    remarque com 1 clique.
                   </p>
-                )}
-                {pending?.map((appointment) => (
-                  <div
-                    key={appointment.id}
-                    className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAgendaPendingDayFilter("amanha")}
+                    className={cn(
+                      "min-h-9 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                      agendaPendingDayFilter === "amanha"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                    )}
                   >
-                    <div>
-                      <p className="font-display text-2xl text-foreground">
-                        {appointment.patient_name}
-                      </p>
-                      <p className="mt-1.5 text-sm text-muted-foreground">
-                        {appointment.service_name} · {formatLongDate(appointment.appointment_date)}{" "}
-                        às {trimSeconds(appointment.appointment_time)}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground/80">
-                        {appointment.patient_phone} ·{" "}
-                        {appointment.patient_email ?? "E-mail não informado"}
-                      </p>
-                    </div>
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    <span>Amanhã ({pendingTomorrowCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setAgendaPendingDayFilter("hoje")}
+                    className={cn(
+                      "min-h-9 px-4 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5",
+                      agendaPendingDayFilter === "hoje"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                    )}
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>Hoje ({pendingTodayCount})</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMainTab("crc");
+                      setCrcSubTab("confirmacoes");
+                    }}
+                    className="min-h-9 px-3.5 py-1.5 rounded-full border border-border bg-background text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Ver no CRC</span>
+                    <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <a
-                        href={buildReminderLink(appointment)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => markReminderSent(appointment)}
-                        className="group inline-flex items-center gap-1.5 rounded-full bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-all duration-300 hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20 active:scale-95"
-                      >
-                        <Send className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-110" />
-                        <span>Enviar Link de Confirmação</span>
-                      </a>
-                      <button
-                        onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
-                        className="group inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 active:scale-95"
-                      >
-                        <Check className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-125" />
-                        <span>Marcar Confirmado</span>
-                      </button>
-                      <a
-                        href={buildWhatsAppLink(appointment)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95"
-                      >
-                        <MessageCircle className="h-3.5 w-3.5 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
-                        <span>WhatsApp</span>
-                      </a>
-                      <button
-                        onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
-                        className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-all duration-300 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95"
-                      >
-                        <X className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-90" />
-                        <span>Cancelar</span>
-                      </button>
+              <div className="mt-6 divide-y divide-border rounded-2xl border border-border bg-card shadow-petal">
+                {agendaPendingList.length === 0 ? (
+                  <p className="p-10 text-center text-sm text-muted-foreground">
+                    Nenhuma consulta aguardando confirmação para{" "}
+                    {agendaPendingDayFilter === "hoje" ? "hoje" : "amanhã"}. Tudo em dia.
+                  </p>
+                ) : (
+                  agendaPendingList.map((appointment) => (
+                    <div
+                      key={appointment.id}
+                      className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="font-display text-2xl text-foreground">
+                          {appointment.patient_name}
+                        </p>
+                        <p className="mt-1.5 text-sm text-muted-foreground">
+                          {appointment.service_name} ·{" "}
+                          {formatLongDate(appointment.appointment_date)} às{" "}
+                          {trimSeconds(appointment.appointment_time)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground/80">
+                          {appointment.patient_phone} ·{" "}
+                          {appointment.patient_email ?? "E-mail não informado"}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <a
+                          href={buildReminderLink(appointment)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => {
+                            if (!appointment.reminder_sent_at) {
+                              toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
+                                description:
+                                  "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
+                                action: {
+                                  label: "Marcar como Enviado",
+                                  onClick: () => markReminderSent(appointment),
+                                },
+                                duration: 10000,
+                              });
+                            }
+                          }}
+                          className={cn(
+                            "group inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm cursor-pointer",
+                            appointment.reminder_sent_at
+                              ? "border border-border bg-card text-foreground hover:bg-accent hover:border-foreground/30"
+                              : "bg-primary text-primary-foreground hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20",
+                          )}
+                        >
+                          <Send className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-110" />
+                          <span>
+                            {appointment.reminder_sent_at
+                              ? "Abrir no WhatsApp"
+                              : "Enviar Link de Confirmação"}
+                          </span>
+                        </a>
+
+                        {appointment.reminder_sent_at ? (
+                          <span
+                            title={`Enviado em ${new Date(appointment.reminder_sent_at).toLocaleString("pt-BR")}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-xs font-semibold text-emerald-800 dark:text-emerald-300"
+                          >
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>Enviado</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => markReminderSent(appointment)}
+                            className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3.5 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                            <span>Marcar Enviado</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
+                          className="group inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-white shadow-sm transition-all duration-300 hover:bg-emerald-700 active:scale-95 cursor-pointer"
+                        >
+                          <Check className="h-3.5 w-3.5 transition-transform duration-300 group-hover:scale-125" />
+                          <span>Confirmar</span>
+                        </button>
+                        <a
+                          href={buildWhatsAppLink(appointment)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-foreground shadow-sm transition-all duration-300 hover:border-foreground/30 hover:bg-accent active:scale-95"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600 transition-transform duration-300 group-hover:scale-110" />
+                          <span>WhatsApp</span>
+                        </a>
+                        <button
+                          onClick={() => updateAppointment(appointment.id, { status: "cancelled" })}
+                          className="group inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-all duration-300 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive active:scale-95 cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5 transition-transform duration-300 group-hover:rotate-90" />
+                          <span>Cancelar</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </section>
 

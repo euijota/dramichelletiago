@@ -41,6 +41,7 @@ SELECT cron.schedule(
 ```
 
 **Ajuste o horário conforme necessário:**
+
 - `0 12 * * *` = 09:00 horário de Macapá (UTC-3)
 - `0 9 * * *` = 06:00 horário de Macapá (UTC-3)
 - `0 15 * * *` = 12:00 horário de Macapá (UTC-3)
@@ -79,12 +80,14 @@ curl -X POST \
 ## Logs e Monitoramento
 
 Ver logs no dashboard do Supabase:
+
 - Edge Functions → send-reminders → Logs
 - Ou via CLI: `supabase functions logs send-reminders`
 
 ## Integração WhatsApp Business API
 
 ⚠️ **Pendente**: O envio via WhatsApp está preparado mas requer integração com:
+
 - [Twilio WhatsApp Business API](https://www.twilio.com/whatsapp)
 - [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api)
 
@@ -93,18 +96,21 @@ Substituir a seção `sendWhatsAppReminder` no `index.ts` com chamada real à AP
 ## Estrutura da Migration
 
 A tabela `appointments` possui:
+
 - `reminder_sent_at TIMESTAMPTZ` - timestamp do envio do lembrete
 - Index otimizado: `idx_appointments_reminder_lookup` para queries eficientes
 
 ## Troubleshooting
 
 **Lembretes não estão sendo enviados:**
+
 1. Verificar se o cron job está ativo: `SELECT * FROM cron.job;`
 2. Verificar logs da função
 3. Confirmar timezone: UTC-3 (Macapá) = UTC-3h
 4. Testar manualmente via curl
 
 **Emails não chegam:**
+
 1. Verificar configuração do Formspree
 2. Verificar email do paciente no banco de dados
 3. Checar spam/lixeira do email de destino
