@@ -68,6 +68,8 @@ import {
 } from "lucide-react";
 import { PatientsManager, type Patient } from "@/components/clinical/PatientsManager";
 import { InventoryManager } from "@/components/clinical/InventoryManager";
+import { CRCManager } from "@/components/clinical/CRCManager";
+import { buildWhatsAppUniversalUrl } from "@/lib/crc";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
@@ -137,6 +139,15 @@ function Painel() {
   const [activeChartPatient, setActiveChartPatient] = useState<Patient | null>(null);
   const [globalSmartSearch, setGlobalSmartSearch] = useState("");
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  const [selectedPatientForNewAppt, setSelectedPatientForNewAppt] = useState<{
+    id: string;
+    name: string;
+    phone: string | null;
+    email: string | null;
+    cpf: string | null;
+    insurance: string | null;
+    record_number: number;
+  } | null>(null);
   const [crcSubTab, setCrcSubTab] = useState<
     "confirmacoes" | "retornos" | "orcamentos" | "aniversariantes"
   >("confirmacoes");
@@ -248,12 +259,15 @@ function Painel() {
     enabled: !!session,
     refetchInterval: 10_000,
     queryFn: async () => {
+      const todayISO = toISODate(new Date());
       const { data, error } = await supabase
         .from("appointments")
         .select(APPOINTMENT_FIELDS)
         .eq("status", "pending")
+        .gte("appointment_date", todayISO)
         .order("appointment_date")
-        .limit(20);
+        .order("appointment_time")
+        .limit(100);
       if (error) throw error;
       return data as Appointment[];
     },
@@ -421,6 +435,7 @@ function Painel() {
   const confirmedCount = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
 
   const pendingCount = pending?.length ?? 0;
+  const pendingTodayCount = pending?.filter((a) => a.appointment_date === todayISO).length ?? 0;
 
   if (loading) {
     return (
@@ -776,14 +791,14 @@ function Painel() {
                 setMainTab("crc");
                 setCrcSubTab("confirmacoes");
               }}
-              aria-label="Notificações e confirmações pendentes"
-              title="Agendamentos aguardando confirmação e alertas CRC"
+              aria-label="Notificações e confirmações pendentes de hoje"
+              title="Agendamentos aguardando confirmação hoje e alertas CRC"
               className="relative h-11 w-11 flex items-center justify-center rounded-full text-white/90 hover:bg-white/12 hover:text-white transition-colors cursor-pointer"
             >
               <Bell className="h-4 w-4" />
-              {(pendingCount > 0 || returnAlertPatients.length > 0) && (
+              {(pendingTodayCount > 0 || returnAlertPatients.length > 0) && (
                 <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-[11px] font-bold text-neutral-950 flex items-center justify-center shadow-sm">
-                  {pendingCount + returnAlertPatients.length}
+                  {pendingTodayCount + returnAlertPatients.length}
                 </span>
               )}
             </button>
@@ -844,308 +859,17 @@ function Painel() {
             onSelectedPatientChange={setActiveChartPatient}
           />
         ) : mainTab === "crc" ? (
-          /* ====================================================================
-             MÓDULO CRC — CENTRAL DE RELACIONAMENTO COM O CLIENTE
-             ==================================================================== */
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border rounded-3xl p-6 shadow-petal">
-              <div>
-                <h1 className="font-display text-2xl font-normal text-foreground flex items-center gap-2.5">
-                  <HeartHandshake className="h-5 w-5 text-primary" />
-                  <span>CRC — Central de Relacionamento com o Paciente</span>
-                </h1>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  Acompanhe confirmações pendentes, alertas de retorno, orçamentos em aberto e
-                  aniversariantes do mês.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  {
-                    id: "confirmacoes" as const,
-                    label: "Agendamentos s/ Confirmação",
-                    count: pendingCount,
-                  },
-                  {
-                    id: "retornos" as const,
-                    label: "Alertas de Retorno",
-                    count: returnAlertPatients.length,
-                  },
-                  {
-                    id: "orcamentos" as const,
-                    label: "Orçamentos em Aberto",
-                    count: clinicFinancialRecords.filter((r) => r.record_type === "orcamento")
-                      .length,
-                  },
-                  {
-                    id: "aniversariantes" as const,
-                    label: "Aniversariantes do Mês",
-                    count: birthdayPatients.length,
-                  },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setCrcSubTab(tab.id)}
-                    className={cn(
-                      "min-h-11 px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-2 border transition-all cursor-pointer",
-                      crcSubTab === tab.id
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                        : "bg-background text-foreground border-border hover:bg-accent/60",
-                    )}
-                  >
-                    <span>{tab.label}</span>
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded-full text-[11px] font-bold",
-                        crcSubTab === tab.id
-                          ? "bg-white/20 text-white"
-                          : "bg-muted text-foreground",
-                      )}
-                    >
-                      {tab.count}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {crcSubTab === "confirmacoes" && (
-              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
-                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Pacientes Aguardando Confirmação de Consulta ({pendingCount})
-                </div>
-                {pendingCount === 0 ? (
-                  <div className="p-10 text-center text-sm text-muted-foreground">
-                    Todas as consultas agendadas já estão confirmadas!
-                  </div>
-                ) : (
-                  pending?.map((appointment) => (
-                    <div
-                      key={appointment.id}
-                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
-                    >
-                      <div>
-                        <div className="text-sm font-bold text-foreground">
-                          {appointment.patient_name}
-                        </div>
-                        <div className="text-muted-foreground mt-0.5">
-                          {appointment.service_name} ·{" "}
-                          {formatLongDate(appointment.appointment_date)} às{" "}
-                          {trimSeconds(appointment.appointment_time)}
-                        </div>
-                        <div className="text-muted-foreground mt-0.5">
-                          {appointment.patient_phone}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <a
-                          href={buildReminderLink(appointment)}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => markReminderSent(appointment)}
-                          className="min-h-10 px-4 py-2 rounded-full bg-primary text-primary-foreground font-semibold hover:bg-primary-deep cursor-pointer flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          <span>Enviar Link de Confirmação (1 dia antes)</span>
-                        </a>
-                        <button
-                          onClick={() => updateAppointment(appointment.id, { status: "confirmed" })}
-                          className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer flex items-center gap-1.5"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                          <span>Marcar Confirmado</span>
-                        </button>
-                        <a
-                          href={buildWhatsAppLink(appointment)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="min-h-10 px-4 py-2 rounded-full border border-border bg-background hover:bg-accent font-semibold flex items-center gap-1.5"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>Conversar no WhatsApp</span>
-                        </a>
-                        {appointment.patient_id && (
-                          <button
-                            onClick={() => {
-                              setSelectedPatientIdForChart(appointment.patient_id);
-                              setMainTab("pacientes");
-                            }}
-                            className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 font-semibold text-primary cursor-pointer"
-                          >
-                            Abrir Prontuário
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {crcSubTab === "retornos" && (
-              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
-                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Pacientes com Alerta de Retorno Programado ({returnAlertPatients.length})
-                </div>
-                {returnAlertPatients.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-muted-foreground">
-                    Nenhum alerta de retorno programado no momento. Defina alertas na Visão Geral do
-                    prontuário de cada paciente.
-                  </div>
-                ) : (
-                  returnAlertPatients.map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
-                    >
-                      <div>
-                        <div className="text-sm font-bold text-foreground">
-                          #{p.record_number} — {p.name}
-                        </div>
-                        <div className="text-amber-700 dark:text-amber-400 font-semibold mt-0.5">
-                          Data de Retorno:{" "}
-                          {p.return_alert_date
-                            ? new Date(p.return_alert_date + "T12:00:00").toLocaleDateString(
-                                "pt-BR",
-                              )
-                            : "-"}{" "}
-                          · {p.return_alert_notes || "Retorno preventivo"}
-                        </div>
-                        <div className="text-muted-foreground mt-0.5">
-                          {p.phone || "Sem telefone"}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {p.phone && (
-                          <a
-                            href={buildWhatsAppWebUrl(
-                              p.phone,
-                              `Olá ${p.name}! Aqui é do consultório da Dra. Michelle Tiago. Está chegando o período do seu retorno odontológico preventivo. Vamos agendar seu horário?`,
-                            )}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            <span>Chamar p/ Retorno</span>
-                          </a>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedPatientIdForChart(p.id);
-                            setMainTab("pacientes");
-                          }}
-                          className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 font-semibold text-primary cursor-pointer"
-                        >
-                          Abrir Prontuário
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {crcSubTab === "orcamentos" && (
-              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
-                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Orçamentos Registrados para Acompanhamento (
-                  {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length})
-                </div>
-                {clinicFinancialRecords.filter((r) => r.record_type === "orcamento").length ===
-                0 ? (
-                  <div className="p-10 text-center text-sm text-muted-foreground">
-                    Nenhum orçamento registrado ainda.
-                  </div>
-                ) : (
-                  clinicFinancialRecords
-                    .filter((r) => r.record_type === "orcamento")
-                    .map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
-                      >
-                        <div>
-                          <div className="text-sm font-bold text-foreground">
-                            {item.patients?.name || "Paciente"} — {item.title}
-                          </div>
-                          <div className="text-muted-foreground whitespace-pre-line mt-0.5">
-                            {item.content}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSelectedPatientIdForChart(item.patient_id);
-                            setMainTab("pacientes");
-                          }}
-                          className="min-h-10 px-4 py-2 rounded-full bg-primary hover:bg-primary-deep text-primary-foreground font-semibold cursor-pointer shrink-0"
-                        >
-                          Abrir Orçamento no Prontuário
-                        </button>
-                      </div>
-                    ))
-                )}
-              </div>
-            )}
-
-            {crcSubTab === "aniversariantes" && (
-              <div className="rounded-3xl border border-border bg-card shadow-petal divide-y divide-border overflow-hidden">
-                <div className="p-4 px-6 bg-muted/30 text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                  <Gift className="h-4 w-4 text-primary" />
-                  <span>Aniversariantes deste Mês ({birthdayPatients.length})</span>
-                </div>
-                {birthdayPatients.length === 0 ? (
-                  <div className="p-10 text-center text-sm text-muted-foreground">
-                    Nenhum paciente com data de nascimento neste mês.
-                  </div>
-                ) : (
-                  birthdayPatients.map((p) => (
-                    <div
-                      key={p.id}
-                      className="p-5 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs"
-                    >
-                      <div>
-                        <div className="text-sm font-bold text-foreground">
-                          #{p.record_number} — {p.name}
-                        </div>
-                        <div className="text-muted-foreground mt-0.5">
-                          Nascimento:{" "}
-                          {p.birth_date
-                            ? new Date(p.birth_date + "T12:00:00").toLocaleDateString("pt-BR")
-                            : "-"}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {p.phone && (
-                          <a
-                            href={buildWhatsAppWebUrl(
-                              p.phone,
-                              `Olá ${p.name}! 🎉 Passando para desejar um feliz aniversário, com muita saúde, alegria e motivos para sorrir! Com carinho, Dra. Michelle Barbosa Tiago.`,
-                            )}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="min-h-10 px-4 py-2 rounded-full bg-emerald-600 text-white font-semibold flex items-center gap-1.5"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                            <span>Enviar Parabéns</span>
-                          </a>
-                        )}
-                        <button
-                          onClick={() => {
-                            setSelectedPatientIdForChart(p.id);
-                            setMainTab("pacientes");
-                          }}
-                          className="min-h-10 px-4 py-2 rounded-full border border-primary/25 bg-primary/8 hover:bg-primary/15 text-primary font-semibold cursor-pointer"
-                        >
-                          Abrir Prontuário
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <CRCManager
+            initialSubTab={crcSubTab}
+            onOpenPatientChart={(patientId) => {
+              setSelectedPatientIdForChart(patientId);
+              setMainTab("pacientes");
+            }}
+            onScheduleAppointment={(patient) => {
+              setSelectedPatientForNewAppt(patient);
+              setShowNewAppointmentModal(true);
+            }}
+          />
         ) : mainTab === "financeiro" ? (
           /* ====================================================================
              MÓDULO FINANCEIRO DA CLÍNICA
@@ -1704,9 +1428,13 @@ function Painel() {
 
         <NewAppointmentModal
           open={showNewAppointmentModal}
-          onOpenChange={setShowNewAppointmentModal}
+          onOpenChange={(open) => {
+            setShowNewAppointmentModal(open);
+            if (!open) setSelectedPatientForNewAppt(null);
+          }}
           defaultDate={newAppointmentDate}
           defaultMode={newAppointmentMode}
+          defaultPatient={selectedPatientForNewAppt}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["appointments"] });
           }}
@@ -2033,10 +1761,7 @@ function whatsappNumber(phone: string) {
 }
 
 function buildWhatsAppWebUrl(phone: string, message?: string) {
-  const num = whatsappNumber(phone);
-  return message
-    ? `https://web.whatsapp.com/send?phone=${num}&text=${encodeURIComponent(message)}`
-    : `https://web.whatsapp.com/send?phone=${num}`;
+  return buildWhatsAppUniversalUrl(phone, message);
 }
 
 function buildReminderLink(appointment: Appointment) {

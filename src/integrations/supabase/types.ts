@@ -763,6 +763,11 @@ export type Database = {
           rg: string | null;
           state: string | null;
           updated_at: string;
+          nickname?: string | null;
+          return_alert_date?: string | null;
+          return_alert_notes?: string | null;
+          funnel_stage?: string | null;
+          clinicorp_id?: string | null;
         };
         Insert: {
           address?: string | null;
@@ -793,6 +798,11 @@ export type Database = {
           rg?: string | null;
           state?: string | null;
           updated_at?: string;
+          nickname?: string | null;
+          return_alert_date?: string | null;
+          return_alert_notes?: string | null;
+          funnel_stage?: string | null;
+          clinicorp_id?: string | null;
         };
         Update: {
           address?: string | null;
@@ -823,6 +833,11 @@ export type Database = {
           rg?: string | null;
           state?: string | null;
           updated_at?: string;
+          nickname?: string | null;
+          return_alert_date?: string | null;
+          return_alert_notes?: string | null;
+          funnel_stage?: string | null;
+          clinicorp_id?: string | null;
         };
         Relationships: [];
       };

@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AgendarRouteImport } from './routes/agendar'
+import { Route as AnamneseRouteImport } from './routes/anamnese'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as PrivacidadeRouteImport } from './routes/privacidade'
@@ -33,6 +34,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AgendarRoute = AgendarRouteImport.update({
   id: '/agendar',
   path: '/agendar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AnamneseRoute = AnamneseRouteImport.update({
+  id: '/anamnese',
+  path: '/anamnese',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -79,6 +85,7 @@ const ConfirmarTokenRoute = ConfirmarTokenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agendar': typeof AgendarRoute
+  '/anamnese': typeof AnamneseRoute
   '/auth': typeof AuthRoute
   '/contato': typeof ContatoRoute
   '/privacidade': typeof PrivacidadeRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agendar': typeof AgendarRoute
+  '/anamnese': typeof AnamneseRoute
   '/auth': typeof AuthRoute
   '/contato': typeof ContatoRoute
   '/privacidade': typeof PrivacidadeRoute
@@ -105,6 +113,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/agendar': typeof AgendarRoute
+  '/anamnese': typeof AnamneseRoute
   '/auth': typeof AuthRoute
   '/contato': typeof ContatoRoute
   '/privacidade': typeof PrivacidadeRoute
@@ -119,6 +128,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agendar'
+    | '/anamnese'
     | '/auth'
     | '/contato'
     | '/privacidade'
@@ -131,6 +141,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agendar'
+    | '/anamnese'
     | '/auth'
     | '/contato'
     | '/privacidade'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/agendar'
+    | '/anamnese'
     | '/auth'
     | '/contato'
     | '/privacidade'
@@ -158,6 +170,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AgendarRoute: typeof AgendarRoute
+  AnamneseRoute: typeof AnamneseRoute
   AuthRoute: typeof AuthRoute
   ContatoRoute: typeof ContatoRoute
   PrivacidadeRoute: typeof PrivacidadeRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/agendar'
       fullPath: '/agendar'
       preLoaderRoute: typeof AgendarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/anamnese': {
+      id: '/anamnese'
+      path: '/anamnese'
+      fullPath: '/anamnese'
+      preLoaderRoute: typeof AnamneseRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -264,6 +284,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AgendarRoute: AgendarRoute,
+  AnamneseRoute: AnamneseRoute,
   AuthRoute: AuthRoute,
   ContatoRoute: ContatoRoute,
   PrivacidadeRoute: PrivacidadeRoute,

@@ -77,6 +77,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     // 1. Save via supabaseAdmin (service role)
     let dbSaved = false;
     let appointmentId = "";
+    let patientId: string | null = null;
     let cancellationToken = "";
     let confirmationToken = "";
     let durationMinutes = 60;
@@ -85,7 +86,6 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
       // Auto-link appointment to public.patients
-      let patientId: string | null = null;
       try {
         const cleanPhone = (data.patientPhone || "").replace(/\D/g, "");
         let matchedPatient: {
@@ -442,5 +442,11 @@ Aguardamos você! 🦷
       }
     }
 
-    return { success: true, dbSaved, protocol: data.protocol };
+    return {
+      success: true,
+      dbSaved,
+      protocol: data.protocol,
+      patientId,
+      appointmentId,
+    };
   });

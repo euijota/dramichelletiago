@@ -32,12 +32,14 @@ import {
   ShieldCheck,
   CalendarCheck,
   AlertCircle,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, buildGoogleCalendarUrl } from "@/lib/clinic";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { generateBookingProtocol, normalizePatientEmail } from "@/lib/booking";
+import { PatientAnamnesisForm } from "@/components/clinical/PatientAnamnesisForm";
 
 interface BookingModalProps {
   open?: boolean;
@@ -88,7 +90,11 @@ export function BookingModal({
     time: string;
     name: string;
     phone: string;
+    patientId?: string | null;
+    appointmentId?: string | null;
+    serviceName?: string;
   } | null>(null);
+  const [showAnamnesisForm, setShowAnamnesisForm] = useState(false);
 
   // Generates 60 available days (skipping Sundays)
   useEffect(() => {
@@ -417,12 +423,16 @@ export function BookingModal({
         time: selectedSlot,
         name: patientName.trim(),
         phone: patientPhone.trim(),
+        patientId: (result as any).patientId || null,
+        appointmentId: (result as any).appointmentId || null,
+        serviceName,
       };
       setConfirmedBooking(confirmed);
       toast.success("Solicitação de agendamento realizada com sucesso!");
       setIsSubmitting(false);
 
       // Notificação imediata: abre WhatsApp da Dra. Michelle com os dados do agendamento
+      const anamnesisUrl = `https://dramichelletiago.com.br/anamnese?protocolo=${protocol}`;
       const dentistMsg = encodeURIComponent(
         `🦷 *NOVO AGENDAMENTO RECEBIDO*\n\n` +
           `📌 Protocolo: ${protocol}\n` +
@@ -430,6 +440,7 @@ export function BookingModal({
           `📞 Telefone: ${patientPhone.trim()}\n` +
           `📅 Data: ${selectedDay.fullFormatted} às ${selectedSlot}\n` +
           `💼 Serviço: ${serviceName}\n` +
+          `📋 Ficha: ${anamnesisUrl}\n` +
           `📝 Obs: ${notes.trim() || "Nenhuma"}`,
       );
       window.open(`https://wa.me/${CLINIC.whatsapp}?text=${dentistMsg}`, "_blank");
@@ -445,6 +456,7 @@ export function BookingModal({
 
   function handleReset() {
     setConfirmedBooking(null);
+    setShowAnamnesisForm(false);
     setSelectedSlot(null);
     setPatientName("");
     setPatientPhone("");
@@ -461,7 +473,8 @@ export function BookingModal({
           `📅 Data/Hora: ${confirmedBooking.dateFormatted} às ${confirmedBooking.time}\n` +
           `👤 Paciente: ${confirmedBooking.name}\n` +
           `📞 Telefone: ${confirmedBooking.phone}\n` +
-          `💳 Atendimento: ${attendanceType === "convenio" ? healthPlan : "Particular"}`,
+          `💳 Atendimento: ${attendanceType === "convenio" ? healthPlan : "Particular"}\n` +
+          `📋 Ficha Pré-Atendimento: https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`,
       )
     : "";
 
@@ -491,59 +504,120 @@ export function BookingModal({
 
       {/* Confirmation Screen */}
       {confirmedBooking ? (
-        <div className="p-8 text-center space-y-6">
-          <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl">
-            <CheckCircle2 className="w-10 h-10 text-emerald-600" />
-          </div>
-
-          <div>
-            <h3 className="font-display text-2xl text-foreground font-medium">
-              Sua solicitação foi registrada
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">Guarde o seu código de protocolo:</p>
-            <div className="inline-block bg-muted text-foreground font-mono font-bold text-lg px-4 py-2 rounded-xl mt-3 border border-border">
-              {confirmedBooking.protocol}
+        showAnamnesisForm ? (
+          <div className={`p-6 space-y-4 ${inline ? "" : "max-h-[78vh] overflow-y-auto"}`}>
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-5 w-5 text-primary" />
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  Ficha de Pré-Atendimento Online
+                </h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAnamnesisForm(false)}
+                className="text-xs text-muted-foreground cursor-pointer"
+              >
+                Voltar
+              </Button>
             </div>
+            <PatientAnamnesisForm
+              patientId={confirmedBooking.patientId}
+              appointmentId={confirmedBooking.appointmentId}
+              protocol={confirmedBooking.protocol}
+              patientName={confirmedBooking.name}
+              patientPhone={confirmedBooking.phone}
+              defaultReason={confirmedBooking.serviceName}
+              onCancel={() => setShowAnamnesisForm(false)}
+              inline={true}
+            />
           </div>
+        ) : (
+          <div className="p-8 text-center space-y-6">
+            <div className="mx-auto w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+            </div>
 
-          <div className="bg-accent/40 p-4 rounded-2xl border border-border text-sm text-foreground space-y-1">
-            <p className="font-semibold text-[#90464f]">Consulta marcada para:</p>
-            <p className="text-base font-medium">
-              {confirmedBooking.dateFormatted} às {confirmedBooking.time}
-            </p>
-          </div>
+            <div>
+              <h3 className="font-display text-2xl text-foreground font-medium">
+                Sua solicitação foi registrada
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Guarde o seu código de protocolo:
+              </p>
+              <div className="inline-block bg-muted text-foreground font-mono font-bold text-lg px-4 py-2 rounded-xl mt-3 border border-border">
+                {confirmedBooking.protocol}
+              </div>
+            </div>
 
-          <Button
-            onClick={() =>
-              window.open(`https://wa.me/${CLINIC.whatsapp}?text=${waMessage}`, "_blank")
-            }
-            className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-full py-6 text-base font-bold shadow-md transition-silk gap-2"
-          >
-            <Send className="w-5 h-5" /> Enviar Confirmação pelo WhatsApp
-          </Button>
+            <div className="bg-accent/40 p-4 rounded-2xl border border-border text-sm text-foreground space-y-1">
+              <p className="font-semibold text-[#90464f]">Consulta marcada para:</p>
+              <p className="text-base font-medium">
+                {confirmedBooking.dateFormatted} às {confirmedBooking.time}
+              </p>
+            </div>
 
-          {selectedDay && (
+            {/* Card Destaque: Ficha de Pré-Atendimento (Anamnese) */}
+            <div className="rounded-3xl border-2 border-primary/30 bg-primary/5 p-5 text-left space-y-3 shadow-petal">
+              <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider">
+                <ClipboardList className="h-4 w-4" />
+                <span>Ficha de Saúde Pré-Atendimento (Anamnese)</span>
+              </div>
+              <p className="text-xs text-foreground/80 leading-relaxed">
+                Adiantar suas respostas economiza tempo na sua consulta e permite que a Dra.
+                Michelle planeje o atendimento ideal com base no seu histórico médico.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <Button
+                  onClick={() => setShowAnamnesisForm(true)}
+                  className="flex-1 bg-primary hover:bg-primary-deep text-white rounded-full py-5 text-xs font-bold gap-2 cursor-pointer shadow-sm"
+                >
+                  <ClipboardList className="w-4 h-4" /> Preencher Ficha Agora (2 min)
+                </Button>
+                <a
+                  href={`https://dramichelletiago.com.br/anamnese?protocolo=${confirmedBooking.protocol}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-full border border-border bg-background px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted text-center"
+                >
+                  Abrir link direto
+                </a>
+              </div>
+            </div>
+
             <Button
-              variant="outline"
-              onClick={() => {
-                const gUrl = buildGoogleCalendarUrl(
-                  `Consulta Odontológica - Dra. Michelle Tiago (${confirmedBooking.name})`,
-                  selectedDay.dateString,
-                  confirmedBooking.time,
-                  `Agendamento para ${confirmedBooking.name} (${confirmedBooking.phone}). Protocolo: ${confirmedBooking.protocol}`,
-                );
-                window.open(gUrl, "_blank");
-              }}
-              className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
+              onClick={() =>
+                window.open(`https://wa.me/${CLINIC.whatsapp}?text=${waMessage}`, "_blank")
+              }
+              className="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white rounded-full py-6 text-base font-bold shadow-md transition-silk gap-2"
             >
-              <CalendarIcon className="w-4 h-4 text-[#90464f]" /> Adicionar à minha Google Agenda
+              <Send className="w-5 h-5" /> Enviar Confirmação pelo WhatsApp
             </Button>
-          )}
 
-          <Button variant="outline" onClick={handleReset} className="rounded-full w-full">
-            Concluir
-          </Button>
-        </div>
+            {selectedDay && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const gUrl = buildGoogleCalendarUrl(
+                    `Consulta Odontológica - Dra. Michelle Tiago (${confirmedBooking.name})`,
+                    selectedDay.dateString,
+                    confirmedBooking.time,
+                    `Agendamento para ${confirmedBooking.name} (${confirmedBooking.phone}). Protocolo: ${confirmedBooking.protocol}`,
+                  );
+                  window.open(gUrl, "_blank");
+                }}
+                className="w-full rounded-full py-5 text-sm font-semibold gap-2 border-border"
+              >
+                <CalendarIcon className="w-4 h-4 text-[#90464f]" /> Adicionar à minha Google Agenda
+              </Button>
+            )}
+
+            <Button variant="outline" onClick={handleReset} className="rounded-full w-full">
+              Concluir
+            </Button>
+          </div>
+        )
       ) : (
         /* Main Step: Interactive Calendar */
         <div className={`p-6 space-y-5 ${inline ? "" : "max-h-[78vh] overflow-y-auto"}`}>
