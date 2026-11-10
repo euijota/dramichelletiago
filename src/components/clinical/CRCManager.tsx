@@ -853,7 +853,9 @@ export function CRCManager({
                               });
                               window.open(fullUrl, "_blank");
                             } catch {
-                              window.open(reminderUrl, "_blank");
+                              toast.error(
+                                "Não foi possível gerar o link seguro de confirmação. Tente novamente.",
+                              );
                             }
                           }
 

@@ -2,14 +2,22 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { requireAdmin } from "@/integrations/supabase/auth-middleware";
 import { CLINIC } from "@/lib/clinic";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_TOKEN_LENGTH = 512;
+
+/**
+ * Segredo HMAC exclusivo do servidor. Falha fechada: sem segredo configurado,
+ * nenhum token é emitido nem aceito (não existe valor padrão embutido no código).
+ */
 function getTokenSecret(): string {
-  return (
-    process.env.APPOINTMENT_TOKEN_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "dramichelle-token-secret-salt-2026"
-  );
+  const secret = process.env.APPOINTMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret || secret.length < 32) {
+    throw new Error("APPOINTMENT_TOKEN_SECRET não configurado no servidor.");
+  }
+  return secret;
 }
 
 function signTokenData(data: string, secret: string): string {
@@ -38,6 +46,9 @@ export function generateAppointmentToken(
   purpose: "confirm" | "cancel" = "confirm",
   expiryDays = 30,
 ): string {
+  if (!UUID_REGEX.test(appointmentId)) {
+    throw new Error("ID de agendamento inválido.");
+  }
   const secret = getTokenSecret();
   const expiresAt = Date.now() + expiryDays * 24 * 60 * 60 * 1000;
   const nonce = crypto.randomBytes(12).toString("base64url");
@@ -64,7 +75,7 @@ export function validateAppointmentToken(
   expectedPurpose?: "confirm" | "cancel",
 ): string | null {
   try {
-    if (!token || typeof token !== "string") return null;
+    if (!token || typeof token !== "string" || token.length > MAX_TOKEN_LENGTH) return null;
 
     let decoded = "";
     try {
@@ -80,6 +91,8 @@ export function validateAppointmentToken(
 
       const [, appointmentId, purpose, expStr, nonce, signature] = parts;
       if (!appointmentId || !purpose || !expStr || !nonce || !signature) return null;
+      if (!UUID_REGEX.test(appointmentId)) return null;
+      if (purpose !== "confirm" && purpose !== "cancel") return null;
 
       if (expectedPurpose && purpose !== expectedPurpose) return null;
 
@@ -95,20 +108,8 @@ export function validateAppointmentToken(
       return isValid ? appointmentId : null;
     }
 
-    // Formato legado base64url (appointmentId:purpose:secret) para retrocompatibilidade com links existentes
-    if (decoded.includes(":")) {
-      const parts = decoded.split(":");
-      if (parts.length >= 2) {
-        const [appointmentId, purpose] = parts;
-        if (!appointmentId) return null;
-        if (expectedPurpose && purpose && purpose !== expectedPurpose) return null;
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(appointmentId) || appointmentId.length >= 10) {
-          return appointmentId;
-        }
-      }
-    }
-
+    // Formatos legados (sem assinatura) são recusados: conhecer o ID da consulta
+    // não pode bastar para ler dados, confirmar ou cancelar.
     return null;
   } catch {
     return null;
@@ -366,7 +367,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
     // Dispara alerta real de confirmação para a Dra. Michelle / consultório
     const dataBr = appointment.appointment_date.split("-").reverse().join("/");
     const horaBr = appointment.appointment_time.slice(0, 5);
-    await dispatchClinicAlert({
+    const alertResult = await dispatchClinicAlert({
       subject: `✅ Consulta Confirmada: ${appointment.patient_name} (${dataBr} às ${horaBr})`,
       message: `O paciente ${appointment.patient_name} confirmou presença para a consulta marcada para ${dataBr} às ${horaBr}.`,
       patientName: appointment.patient_name,
@@ -376,8 +377,16 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
       status: "confirmed",
     });
 
+    if (!alertResult.delivered) {
+      console.error(
+        `[clinic-alert] Nenhum canal aceitou o aviso (${appointmentId}):`,
+        alertResult.errors.join(" | "),
+      );
+    }
+
     return {
       success: true,
+      clinicNotified: alertResult.delivered,
       appointment: {
         date: appointment.appointment_date,
         time: appointment.appointment_time,
@@ -444,7 +453,7 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
     // Dispara alerta real de cancelamento para o consultório
     const dataBr = appointment.appointment_date.split("-").reverse().join("/");
     const horaBr = appointment.appointment_time.slice(0, 5);
-    await dispatchClinicAlert({
+    const alertResult = await dispatchClinicAlert({
       subject: `❌ Consulta Cancelada: ${appointment.patient_name} (${dataBr} às ${horaBr})`,
       message: `A consulta de ${appointment.patient_name} para ${dataBr} às ${horaBr} foi cancelada.\nMotivo: ${cancelReason}`,
       patientName: appointment.patient_name,
@@ -454,8 +463,16 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
       status: "cancelled",
     });
 
+    if (!alertResult.delivered) {
+      console.error(
+        `[clinic-alert] Nenhum canal aceitou o aviso (${appointmentId}):`,
+        alertResult.errors.join(" | "),
+      );
+    }
+
     return {
       success: true,
+      clinicNotified: alertResult.delivered,
       appointment: {
         date: appointment.appointment_date,
         time: appointment.appointment_time,
@@ -487,66 +504,101 @@ export const getAppointmentByToken = createServerFn({ method: "GET" })
       return null;
     }
 
-    const confirmToken = generateAppointmentToken(appointment.id, "confirm");
-    const cancelToken = generateAppointmentToken(appointment.id, "cancel");
-
+    // Não emite tokens novos aqui: quem possui o link não pode renovar a própria validade.
+    // O mesmo token (já validado) serve para as ações permitidas nesta página.
     return {
       ...appointment,
-      cancellationToken: cancelToken,
-      confirmationToken: confirmToken,
+      cancellationToken: token,
+      confirmationToken: token,
     };
   });
 
+const PUBLIC_BASE_URL = "https://dramichelletiago.com.br";
+const ISSUABLE_STATUSES = ["pending", "confirmed"] as const;
+
+type IssuedAppointmentTokens = {
+  confirmToken: string;
+  cancelToken: string;
+  confirmUrl: string;
+  cancelUrl: string;
+};
+
+function buildIssuedTokens(appointmentId: string): IssuedAppointmentTokens {
+  const confirmToken = generateAppointmentToken(appointmentId, "confirm");
+  const cancelToken = generateAppointmentToken(appointmentId, "cancel");
+  return {
+    confirmToken,
+    cancelToken,
+    confirmUrl: `${PUBLIC_BASE_URL}/confirmar/${confirmToken}`,
+    cancelUrl: `${PUBLIC_BASE_URL}/cancelar/${cancelToken}`,
+  };
+}
+
+function isUpcoming(appointmentDate: string, appointmentTime: string): boolean {
+  // Horário da clínica (Macapá, UTC-3, sem horário de verão)
+  const startsAt = new Date(`${appointmentDate}T${appointmentTime.slice(0, 8)}-03:00`);
+  return !isNaN(startsAt.getTime()) && startsAt.getTime() > Date.now();
+}
+
 /**
- * Server function to generate cryptographically signed tokens and links in batch.
- * Used by Painel and CRC to ensure reminder messages always contain authentic v2 HMAC tokens.
+ * Emite tokens assinados em lote para o painel/CRC.
+ * Exige sessão válida com papel admin (requireAdmin) e só emite para consultas
+ * existentes, futuras e em estado pendente/confirmado. IDs desconhecidos são ignorados.
  */
 export const getAppointmentActionTokens = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator((input: { appointmentIds: string[] }) =>
-    z.object({ appointmentIds: z.array(z.string()).max(100) }).parse(input),
+    z.object({ appointmentIds: z.array(z.string().max(64)).max(100) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const baseUrl = "https://dramichelletiago.com.br";
-    const result: Record<
-      string,
-      {
-        confirmToken: string;
-        cancelToken: string;
-        confirmUrl: string;
-        cancelUrl: string;
-      }
-    > = {};
+    const result: Record<string, IssuedAppointmentTokens> = {};
+    // IDs fora do formato UUID são ignorados em vez de derrubar o lote inteiro
+    const ids = Array.from(new Set(data.appointmentIds)).filter((id) => UUID_REGEX.test(id));
+    if (ids.length === 0) return result;
 
-    for (const id of data.appointmentIds) {
-      if (!id) continue;
-      const confirmToken = generateAppointmentToken(id, "confirm");
-      const cancelToken = generateAppointmentToken(id, "cancel");
-      result[id] = {
-        confirmToken,
-        cancelToken,
-        confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
-        cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
-      };
+    const { data: appointments, error } = await supabaseAdmin
+      .from("appointments")
+      .select("id, status, appointment_date, appointment_time")
+      .in("id", ids)
+      .in("status", [...ISSUABLE_STATUSES]);
+
+    if (error) {
+      throw new Error("Não foi possível emitir os links agora. Tente novamente.");
+    }
+
+    for (const apt of appointments ?? []) {
+      if (!isUpcoming(apt.appointment_date, apt.appointment_time)) continue;
+      result[apt.id] = buildIssuedTokens(apt.id);
     }
 
     return result;
   });
 
 /**
- * Server function to generate tokens for a single appointment on demand.
+ * Emite tokens para uma única consulta, sob as mesmas regras do lote.
  */
 export const getSingleAppointmentTokens = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
   .validator((input: { appointmentId: string }) =>
-    z.object({ appointmentId: z.string() }).parse(input),
+    z.object({ appointmentId: z.string().regex(UUID_REGEX) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const baseUrl = "https://dramichelletiago.com.br";
-    const confirmToken = generateAppointmentToken(data.appointmentId, "confirm");
-    const cancelToken = generateAppointmentToken(data.appointmentId, "cancel");
-    return {
-      confirmToken,
-      cancelToken,
-      confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
-      cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
-    };
+    const { data: apt, error } = await supabaseAdmin
+      .from("appointments")
+      .select("id, status, appointment_date, appointment_time")
+      .eq("id", data.appointmentId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error("Não foi possível emitir o link agora. Tente novamente.");
+    }
+    if (
+      !apt ||
+      !(ISSUABLE_STATUSES as readonly string[]).includes(apt.status) ||
+      !isUpcoming(apt.appointment_date, apt.appointment_time)
+    ) {
+      throw new Error("Esta consulta não está elegível para envio de link.");
+    }
+
+    return buildIssuedTokens(apt.id);
   });

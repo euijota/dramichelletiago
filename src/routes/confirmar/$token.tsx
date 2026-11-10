@@ -46,6 +46,8 @@ function ConfirmAppointment() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  // true = algum canal aceitou o aviso; false = nenhum canal aceitou; null = sem novo aviso
+  const [clinicNotified, setClinicNotified] = useState<boolean | null>(null);
 
   const {
     data: appointment,
@@ -58,8 +60,9 @@ function ConfirmAppointment() {
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmAppointmentByToken({ data: { token } }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       toast.success("Agendamento confirmado com sucesso!");
+      setClinicNotified(typeof result?.clinicNotified === "boolean" ? result.clinicNotified : null);
       setShowConfirmation(true);
       queryClient.invalidateQueries({ queryKey: ["appointment", token] });
     },
@@ -119,6 +122,8 @@ function ConfirmAppointment() {
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
               O link de confirmação pode estar inválido, expirado ou o agendamento já foi cancelado.
+              Links enviados antes da atualização de segurança não são mais aceitos: peça um novo
+              link ao consultório pelo WhatsApp.
             </p>
             <Button
               onClick={() => navigate({ to: "/" })}
@@ -214,8 +219,15 @@ function ConfirmAppointment() {
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" />
             <h1 className="mt-6 font-display text-2xl text-foreground">Consulta confirmada!</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Seu agendamento foi confirmado com sucesso. A Dra. Michelle foi notificada.
+              Sua confirmação foi registrada na agenda do consultório.
+              {clinicNotified === true && " O aviso foi enviado ao consultório."}
             </p>
+            {clinicNotified === false && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Não conseguimos enviar o aviso automático agora, mas sua confirmação está salva. Se
+                quiser, avise também pelo WhatsApp {CLINIC.phone}.
+              </p>
+            )}
             <div className="mt-6 rounded-2xl bg-background p-4 text-left">
               <div className="flex items-start gap-3 text-sm">
                 <User className="mt-0.5 h-4 w-4 text-muted-foreground" />

@@ -187,9 +187,17 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
         appointmentId = inserted.id;
 
         // Generate cancellation and confirmation tokens
-        const { generateAppointmentToken } = await import("@/lib/cancellation");
-        cancellationToken = generateAppointmentToken(appointmentId, "cancel");
-        confirmationToken = generateAppointmentToken(appointmentId, "confirm");
+        // Falha na emissão do token não pode desfazer nem mascarar o agendamento já salvo.
+        try {
+          const { generateAppointmentToken } = await import("@/lib/cancellation");
+          cancellationToken = generateAppointmentToken(appointmentId, "cancel");
+          confirmationToken = generateAppointmentToken(appointmentId, "confirm");
+        } catch (tokenError) {
+          console.error(
+            "[saveAppointmentAndNotify] Falha ao emitir tokens do agendamento:",
+            tokenError instanceof Error ? tokenError.message : tokenError,
+          );
+        }
 
         // Generate cryptographically signed anamnesis token
         if (patientId) {

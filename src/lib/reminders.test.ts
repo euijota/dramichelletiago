@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildConfirmationLinks,
   buildWhatsAppReminderMessage,
   buildEmailReminderMessage,
   buildWhatsAppReminderUrl,
@@ -65,6 +66,14 @@ describe("Reminder Templates", () => {
     expect(message).toContain(
       "https://dramichelletiago.com.br/confirmar/v2.550e8400-e29b-41d4-a716-446655440000.confirm.12345.nonce.sig",
     );
+  });
+});
+
+describe("Unsigned link prevention", () => {
+  it("never builds a confirmation link from the appointment ID alone", () => {
+    const links = buildConfirmationLinks("550e8400-e29b-41d4-a716-446655440000");
+    expect(links.confirmUrl).not.toContain("/confirmar/");
+    expect(links.cancelUrl).not.toContain("/cancelar/");
   });
 });
 

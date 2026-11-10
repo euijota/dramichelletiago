@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getAppointmentByToken, cancelAppointmentByToken } from "@/lib/cancellation";
-import { formatLongDate } from "@/lib/clinic";
+import { CLINIC, formatLongDate } from "@/lib/clinic";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,7 @@ function CancelAppointment() {
   const navigate = useNavigate();
   const [reason, setReason] = useState("Solicitado pelo paciente");
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [clinicNotified, setClinicNotified] = useState<boolean | null>(null);
   const [redirectToReschedule, setRedirectToReschedule] = useState(false);
 
   const {
@@ -49,7 +50,8 @@ function CancelAppointment() {
   const cancelMutation = useMutation({
     mutationFn: (reasonText: string) =>
       cancelAppointmentByToken({ data: { token, reason: reasonText } }),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      setClinicNotified(typeof result?.clinicNotified === "boolean" ? result.clinicNotified : null);
       if (redirectToReschedule) {
         toast.success("Horário anterior liberado! Escolha agora sua nova data e horário.");
         navigate({ to: "/agendar" });
@@ -99,7 +101,8 @@ function CancelAppointment() {
               Agendamento não encontrado
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              O link de cancelamento pode estar inválido, expirado ou o agendamento já foi cancelado
+              Links enviados antes da atualização de segurança não são mais aceitos. O link de
+              cancelamento pode estar inválido, expirado ou o agendamento já foi cancelado
               anteriormente.
             </p>
             <Button
@@ -148,8 +151,15 @@ function CancelAppointment() {
             <CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" />
             <h1 className="mt-6 font-display text-2xl text-foreground">Cancelamento confirmado</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Seu agendamento foi cancelado com sucesso. A Dra. Michelle foi notificada.
+              Seu cancelamento foi registrado na agenda do consultório.
+              {clinicNotified === true && " O aviso foi enviado ao consultório."}
             </p>
+            {clinicNotified === false && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Não conseguimos enviar o aviso automático agora, mas seu cancelamento está salvo. Se
+                quiser, avise também pelo WhatsApp {CLINIC.phone}.
+              </p>
+            )}
             <div className="mt-6 rounded-2xl bg-background p-4 text-left">
               <div className="flex items-start gap-3 text-sm">
                 <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -279,7 +289,8 @@ function CancelAppointment() {
           </div>
 
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            Ao confirmar, a Dra. Michelle será notificada automaticamente sobre o cancelamento.
+            Ao confirmar, o cancelamento é registrado na agenda e o consultório recebe um aviso
+            automático.
           </p>
         </div>
       </div>

@@ -448,7 +448,8 @@ function Painel() {
         const targetUrl = buildReminderLink(appointment, res.confirmToken);
         window.open(targetUrl, "_blank");
       } catch {
-        window.open(buildReminderLink(appointment), "_blank");
+        toast.error("Não foi possível gerar o link seguro de confirmação. Tente novamente.");
+        return;
       }
     }
 
@@ -2083,13 +2084,8 @@ function AppointmentSheet({
                     );
                     window.open(targetUrl, "_blank");
                   } catch {
-                    window.open(
-                      buildReminderLink({
-                        ...appointment,
-                        appointment_date: date,
-                        appointment_time: time,
-                      }),
-                      "_blank",
+                    toast.error(
+                      "Não foi possível gerar o link seguro de confirmação. Tente novamente.",
                     );
                   }
                 }

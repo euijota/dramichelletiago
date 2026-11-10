@@ -14,40 +14,17 @@ export interface ReminderData {
   confirmUrl?: string;
 }
 
-/**
- * @deprecated Use cryptographically signed v2 tokens generated via getAppointmentActionTokens / cancellation.ts
- * Kept only for backwards compatibility with tests and unmigrated callers.
- */
-export function buildBrowserAppointmentToken(
-  appointmentId: string,
-  purpose: "confirm" | "cancel" = "confirm",
-): string {
-  const payload = `${appointmentId}:${purpose}:clinica`;
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(payload, "utf-8").toString("base64url");
-  }
-  return btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
 export function buildConfirmationLinks(
   appointmentId?: string,
   confirmationToken?: string,
   cancellationToken?: string,
 ) {
   const baseUrl = "https://dramichelletiago.com.br";
-  if (!appointmentId && !confirmationToken) {
-    return {
-      confirmUrl: `${baseUrl}/agendar`,
-      cancelUrl: `${baseUrl}/agendar`,
-      rescheduleUrl: `${baseUrl}/agendar`,
-    };
-  }
-  const confirmToken =
-    confirmationToken ||
-    (appointmentId ? buildBrowserAppointmentToken(appointmentId, "confirm") : "");
-  const cancelToken =
-    cancellationToken ||
-    (appointmentId ? buildBrowserAppointmentToken(appointmentId, "cancel") : "");
+  // Links de ação só existem com token assinado emitido pelo servidor.
+  // Sem token, nunca montar um link a partir do ID da consulta.
+  void appointmentId;
+  const confirmToken = confirmationToken || "";
+  const cancelToken = cancellationToken || "";
   return {
     confirmUrl: confirmToken ? `${baseUrl}/confirmar/${confirmToken}` : `${baseUrl}/agendar`,
     cancelUrl: cancelToken ? `${baseUrl}/cancelar/${cancelToken}` : `${baseUrl}/agendar`,

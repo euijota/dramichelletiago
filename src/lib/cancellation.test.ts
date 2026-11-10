@@ -1,10 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import {
   generateAppointmentToken,
   validateAppointmentToken,
   generateCancellationToken,
   validateCancellationToken,
 } from "./cancellation";
+
+const TEST_SECRET = "test-secret-for-appointment-tokens-0123456789abcdef";
+
+beforeAll(() => {
+  process.env.APPOINTMENT_TOKEN_SECRET = TEST_SECRET;
+});
 
 describe("Appointment Token System", () => {
   it("should generate a valid appointment token", () => {
@@ -52,12 +58,8 @@ describe("Appointment Token System", () => {
     expect(result).toBeNull();
   });
 
-  it("should handle token with special characters in appointment ID", () => {
-    const appointmentId = "test-id-with-dashes-123";
-    const token = generateAppointmentToken(appointmentId);
-    const extractedId = validateAppointmentToken(token);
-
-    expect(extractedId).toBe(appointmentId);
+  it("should refuse to issue tokens for non-UUID appointment IDs", () => {
+    expect(() => generateAppointmentToken("test-id-with-dashes-123")).toThrow();
   });
 
   it("should encode/decode UUID correctly", () => {
@@ -82,17 +84,85 @@ describe("Appointment Token System", () => {
     expect(extractedId).toBe(appointmentId);
   });
 
-  it("should accept legacy base64url appointmentId:purpose:secret tokens for retrocompatibility", () => {
+  it("should reject unsigned legacy appointmentId:purpose:secret tokens", () => {
     const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
-    const legacyPayload = `${appointmentId}:confirm:clinica`;
-    const legacyToken = Buffer.from(legacyPayload).toString("base64url");
+    for (const payload of [
+      `${appointmentId}:confirm:clinica`,
+      `${appointmentId}:cancel:clinica`,
+      `${appointmentId}:confirm`,
+      appointmentId,
+    ]) {
+      const legacyToken = Buffer.from(payload).toString("base64url");
+      expect(validateAppointmentToken(legacyToken)).toBeNull();
+      expect(validateAppointmentToken(legacyToken, "confirm")).toBeNull();
+      expect(validateAppointmentToken(legacyToken, "cancel")).toBeNull();
+    }
+  });
+});
 
-    const extracted = validateAppointmentToken(legacyToken, "confirm");
-    expect(extracted).toBe(appointmentId);
+describe("Appointment Token Forgery Resistance", () => {
+  const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
+  const otherId = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
-    // Mismatched purpose should be rejected
-    const rejectedForCancel = validateAppointmentToken(legacyToken, "cancel");
-    expect(rejectedForCancel).toBeNull();
+  function decode(token: string) {
+    return Buffer.from(token, "base64url").toString("utf-8").split(".");
+  }
+  function encode(parts: string[]) {
+    return Buffer.from(parts.join(".")).toString("base64url");
+  }
+
+  afterEach(() => {
+    process.env.APPOINTMENT_TOKEN_SECRET = TEST_SECRET;
+  });
+
+  it("rejects a v2 token with a fabricated signature", () => {
+    const parts = decode(generateAppointmentToken(appointmentId));
+    parts[5] = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    expect(validateAppointmentToken(encode(parts))).toBeNull();
+  });
+
+  it("rejects a v2 token whose appointment ID was swapped", () => {
+    const parts = decode(generateAppointmentToken(appointmentId));
+    parts[1] = otherId;
+    expect(validateAppointmentToken(encode(parts))).toBeNull();
+  });
+
+  it("rejects a v2 token whose purpose or expiry was altered", () => {
+    const parts = decode(generateAppointmentToken(appointmentId, "confirm"));
+    expect(
+      validateAppointmentToken(encode([...parts.slice(0, 2), "cancel", ...parts.slice(3)])),
+    ).toBeNull();
+    const extended = [...parts];
+    extended[3] = String(Number(parts[3]) + 365 * 24 * 60 * 60 * 1000);
+    expect(validateAppointmentToken(encode(extended))).toBeNull();
+  });
+
+  it("rejects expired tokens", () => {
+    const token = generateAppointmentToken(appointmentId, "confirm", -1);
+    expect(validateAppointmentToken(token)).toBeNull();
+  });
+
+  it("rejects tokens signed with a different secret", () => {
+    const token = generateAppointmentToken(appointmentId);
+    process.env.APPOINTMENT_TOKEN_SECRET = "another-secret-entirely-0123456789abcdef-xyz";
+    expect(validateAppointmentToken(token)).toBeNull();
+  });
+
+  it("fails closed when no server secret is configured", () => {
+    const token = generateAppointmentToken(appointmentId);
+    const savedService = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.APPOINTMENT_TOKEN_SECRET;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    try {
+      expect(() => generateAppointmentToken(appointmentId)).toThrow();
+      expect(validateAppointmentToken(token)).toBeNull();
+    } finally {
+      if (savedService !== undefined) process.env.SUPABASE_SERVICE_ROLE_KEY = savedService;
+    }
+  });
+
+  it("rejects oversized tokens before decoding", () => {
+    expect(validateAppointmentToken("A".repeat(5000))).toBeNull();
   });
 });
 
