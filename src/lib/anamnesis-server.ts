@@ -15,11 +15,45 @@ import type { Database, Json } from "@/integrations/supabase/types";
 type PatientUpdate = Database["public"]["Tables"]["patients"]["Update"];
 
 function getAnamnesisSecret(): string {
-  return (
-    process.env.APPOINTMENT_TOKEN_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "dramichelle-anamnesis-secret-salt-2026"
-  );
+  const secret = process.env.APPOINTMENT_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret || secret.length < 32) {
+    throw new Error("APPOINTMENT_TOKEN_SECRET não configurado no servidor.");
+  }
+  return secret;
+}
+
+interface ProtocolAttemptTracker {
+  failedAttempts: number;
+  lockedUntil: number;
+}
+const protocolAttempts = new Map<string, ProtocolAttemptTracker>();
+
+function checkProtocolRateLimit(protocol: string): { allowed: boolean; remainingSeconds?: number } {
+  const now = Date.now();
+  const entry = protocolAttempts.get(protocol);
+  if (!entry) return { allowed: true };
+  if (entry.lockedUntil > now) {
+    return { allowed: false, remainingSeconds: Math.ceil((entry.lockedUntil - now) / 1000) };
+  }
+  if (entry.lockedUntil > 0 && entry.lockedUntil <= now) {
+    protocolAttempts.delete(protocol);
+    return { allowed: true };
+  }
+  return { allowed: true };
+}
+
+function recordProtocolFailedAttempt(protocol: string) {
+  const now = Date.now();
+  const entry = protocolAttempts.get(protocol) || { failedAttempts: 0, lockedUntil: 0 };
+  entry.failedAttempts += 1;
+  if (entry.failedAttempts >= 5) {
+    entry.lockedUntil = now + 15 * 60 * 1000; // Bloqueio de 15 minutos
+  }
+  protocolAttempts.set(protocol, entry);
+}
+
+function resetProtocolAttempts(protocol: string) {
+  protocolAttempts.delete(protocol);
 }
 
 /**
@@ -345,6 +379,13 @@ export const getAnamnesisInfoByProtocol = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const cleanProto = data.protocol.trim().toUpperCase();
 
+    const rateCheck = checkProtocolRateLimit(cleanProto);
+    if (!rateCheck.allowed) {
+      throw new Error(
+        `Muitas tentativas incorretas para este protocolo. Por segurança, tente novamente em ${rateCheck.remainingSeconds || 60}s.`,
+      );
+    }
+
     // Busca exata pelo identificador [AG-XXXX] nas observações
     const targetTag = `[${cleanProto}]`;
     const { data: appt, error } = await supabaseAdmin
@@ -365,31 +406,56 @@ export const getAnamnesisInfoByProtocol = createServerFn({ method: "POST" })
     const ddd = cleanPhone.length >= 10 ? cleanPhone.slice(0, 2) : "";
 
     // Se o paciente enviou os 4 dígitos finais para desbloquear a sessão:
-    if (data.phoneDigits4 && actualLast4 && data.phoneDigits4 === actualLast4) {
-      // Gera token autenticado para este agendamento
-      const authToken = generateAnamnesisToken({
-        patientId: appt.patient_id || appt.id,
-        appointmentId: appt.id,
-        protocol: cleanProto,
-      });
+    if (data.phoneDigits4) {
+      if (actualLast4 && data.phoneDigits4 === actualLast4) {
+        resetProtocolAttempts(cleanProto);
+        // Gera token autenticado para este agendamento
+        const authToken = generateAnamnesisToken({
+          patientId: appt.patient_id || appt.id,
+          appointmentId: appt.id,
+          protocol: cleanProto,
+        });
 
-      return {
-        found: true,
-        isVerified: true,
-        token: authToken,
-        protocol: cleanProto,
-        appointment: {
-          id: appt.id,
-          patientId: appt.patient_id,
-          patientName: appt.patient_name,
-          patientPhone: appt.patient_phone,
-          patientEmail: appt.patient_email,
-          serviceName: appt.service_name,
-          date: appt.appointment_date,
-          time: appt.appointment_time,
-        },
-        alreadySubmitted: false,
-      };
+        return {
+          found: true,
+          isVerified: true,
+          token: authToken,
+          protocol: cleanProto,
+          appointment: {
+            id: appt.id,
+            patientId: appt.patient_id,
+            patientName: appt.patient_name,
+            patientPhone: appt.patient_phone,
+            patientEmail: appt.patient_email,
+            serviceName: appt.service_name,
+            date: appt.appointment_date,
+            time: appt.appointment_time,
+          },
+          alreadySubmitted: false,
+        };
+      } else {
+        // Tentativa de PIN incorreta
+        recordProtocolFailedAttempt(cleanProto);
+        return {
+          found: true,
+          isVerified: false,
+          protocol: cleanProto,
+          requiresPhoneVerification: true,
+          phoneHint: ddd ? `DDD (${ddd})` : undefined,
+          error: "Os dígitos informados não conferem com o telefone do agendamento.",
+          appointment: {
+            id: appt.id,
+            patientId: null,
+            patientName: maskName(appt.patient_name),
+            patientPhone: maskPhone(appt.patient_phone),
+            patientEmail: maskEmail(appt.patient_email),
+            serviceName: appt.service_name,
+            date: appt.appointment_date,
+            time: appt.appointment_time,
+          },
+          alreadySubmitted: false,
+        };
+      }
     }
 
     // Se NÃO passou verificação de telefone: retorna estritamente DADOS MASCARADOS para proteger PII

@@ -123,6 +123,48 @@ export function validateCancellationToken(token: string): string | null {
   return validateAppointmentToken(token, "cancel");
 }
 
+/**
+ * Resolve o ID do agendamento a partir de um token HMAC v2 ou token revogável (Opção B).
+ * Permite convivência transparente entre links já enviados no WhatsApp e o novo core do banco.
+ */
+export async function resolveAppointmentIdFromToken(
+  token: string,
+  expectedPurpose?: "confirm" | "cancel",
+): Promise<string | null> {
+  // 1. Tenta validação síncrona HMAC v2 (formato: v2.<id>.<purpose>.<exp>.<nonce>.<sig>)
+  const hmacId = validateAppointmentToken(token, expectedPurpose);
+  if (hmacId) return hmacId;
+
+  // 2. Tenta token revogável Opção B (hash SHA-256 no banco)
+  if (token && typeof token === "string" && token.length >= 32 && !token.includes(".")) {
+    try {
+      const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+      const { data, error } = await (supabaseAdmin as any)
+        .from("appointment_link_tokens")
+        .select("appointment_id, allowed_actions, expires_at, revoked_at")
+        .eq("token_hash", tokenHash)
+        .is("revoked_at", null)
+        .maybeSingle();
+
+      if (error || !data) return null;
+      const row = data as {
+        appointment_id: string;
+        allowed_actions: string[];
+        expires_at: string;
+        revoked_at: string | null;
+      };
+      if (new Date(row.expires_at) <= new Date()) return null;
+      if (expectedPurpose && !row.allowed_actions?.includes(expectedPurpose)) return null;
+
+      return row.appointment_id;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 async function dispatchClinicAlert({
   subject,
   message,
@@ -303,7 +345,7 @@ const confirmAppointmentSchema = z.object({
 export const confirmAppointmentByToken = createServerFn({ method: "POST" })
   .validator((input) => confirmAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
-    const appointmentId = validateAppointmentToken(data.token, "confirm");
+    const appointmentId = await resolveAppointmentIdFromToken(data.token, "confirm");
 
     if (!appointmentId) {
       throw new Error("Token de confirmação inválido ou expirado.");
@@ -402,7 +444,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
 export const cancelAppointmentByToken = createServerFn({ method: "POST" })
   .validator((input) => cancelAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
-    const appointmentId = validateAppointmentToken(data.token);
+    const appointmentId = await resolveAppointmentIdFromToken(data.token, "cancel");
 
     if (!appointmentId) {
       throw new Error("Token de cancelamento inválido ou expirado.");
@@ -488,7 +530,7 @@ export const cancelAppointmentByToken = createServerFn({ method: "POST" })
 export const getAppointmentByToken = createServerFn({ method: "GET" })
   .validator((token: string) => z.string().min(10).parse(token))
   .handler(async ({ data: token }) => {
-    const appointmentId = validateAppointmentToken(token);
+    const appointmentId = await resolveAppointmentIdFromToken(token);
 
     if (!appointmentId) {
       return null;

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import {
   extractClinicalWarnings,
   formatAnamnesisContent,
@@ -9,6 +9,10 @@ import {
   type AnamnesisAnswers,
 } from "./anamnesis";
 import { generateAnamnesisToken, validateAnamnesisToken } from "./anamnesis-server";
+
+beforeAll(() => {
+  process.env.APPOINTMENT_TOKEN_SECRET = "test-secret-anamnesis-0123456789abcdef";
+});
 
 describe("anamnesis pure utilities", () => {
   it("extracts no warnings when patient has healthy answers", () => {

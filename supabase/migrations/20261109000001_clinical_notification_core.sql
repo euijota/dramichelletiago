@@ -14,6 +14,14 @@ BEGIN
   ) THEN
     ALTER TABLE public.appointments ADD COLUMN cancellation_reason text;
   END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.constraint_column_usage
+    WHERE table_name = 'appointments' AND constraint_name = 'check_cancellation_reason_length'
+  ) THEN
+    ALTER TABLE public.appointments
+    ADD CONSTRAINT check_cancellation_reason_length CHECK (cancellation_reason IS NULL OR length(cancellation_reason) <= 500);
+  END IF;
 END $$;
 
 -- 2. TABELA DE AUTORIZAÇÕES INDIVIDUAIS COM HASH (OPÇÃO B DO DESIGN)
@@ -147,8 +155,8 @@ BEGIN
     RETURN jsonb_build_object('code', 'not_eligible');
   END IF;
 
-  -- Horário de Macapá (UTC-3)
-  v_starts_at := (v_apt.appointment_date || 'T' || v_apt.appointment_time || '-03:00')::timestamptz;
+  -- Horário de Macapá (UTC-3: America/Belem)
+  v_starts_at := ((v_apt.appointment_date + v_apt.appointment_time) AT TIME ZONE 'America/Belem');
   IF v_starts_at <= now() THEN
     RETURN jsonb_build_object('code', 'not_eligible');
   END IF;
@@ -282,7 +290,7 @@ BEGIN
     RETURN jsonb_build_object('code', 'action_not_allowed');
   END IF;
 
-  -- 2. Bloqueio atômico na ordem: appointments -> appointment_link_tokens
+  -- 2. Bloqueio atômico pessimista: appointments -> appointment_link_tokens
   SELECT id, status, appointment_date, appointment_time, patient_name, patient_phone, notes, cancellation_reason
   INTO v_apt
   FROM public.appointments
@@ -293,12 +301,27 @@ BEGIN
     RETURN jsonb_build_object('code', 'invalid_link');
   END IF;
 
-  PERFORM 1 FROM public.appointment_link_tokens
+  -- Re-seleciona e bloqueia o token para re-validar que não foi revogado enquanto aguardava o lock
+  SELECT id, appointment_id, allowed_actions, expires_at, revoked_at
+  INTO v_token
+  FROM public.appointment_link_tokens
   WHERE id = v_token.id
   FOR UPDATE;
 
+  IF v_token.revoked_at IS NOT NULL THEN
+    RETURN jsonb_build_object('code', 'token_revoked');
+  END IF;
+
+  IF v_token.expires_at <= now() THEN
+    RETURN jsonb_build_object('code', 'token_expired');
+  END IF;
+
+  IF NOT (p_action = ANY(v_token.allowed_actions)) THEN
+    RETURN jsonb_build_object('code', 'action_not_allowed');
+  END IF;
+
   -- 3. Verificação de consulta no passado
-  v_starts_at := (v_apt.appointment_date || 'T' || v_apt.appointment_time || '-03:00')::timestamptz;
+  v_starts_at := ((v_apt.appointment_date + v_apt.appointment_time) AT TIME ZONE 'America/Belem');
   IF v_starts_at <= now() THEN
     RETURN jsonb_build_object('code', 'appointment_past');
   END IF;
@@ -500,7 +523,7 @@ BEGIN
   v_limit := LEAST(GREATEST(COALESCE(p_limit, 10), 1), 10);
   v_lease_id := gen_random_uuid();
 
-  -- Recupera leases expiradas de volta para pending
+  -- 1. Recupera leases expiradas sem tentativa iniciada de volta para pending
   UPDATE public.clinical_notification_events
   SET status = 'pending',
       lease_id = NULL,
@@ -510,12 +533,26 @@ BEGIN
     AND lease_expires_at < now()
     AND attempt_lease_id IS NULL;
 
-  -- Reserva atômica com SKIP LOCKED
+  -- 2. Recupera leases expiradas com tentativa iniciada (worker caiu durante envio) -> uncertain com backoff
+  UPDATE public.clinical_notification_events
+  SET status = 'uncertain',
+      lease_id = NULL,
+      lease_expires_at = NULL,
+      next_attempt_at = CASE
+        WHEN attempt_count >= 5 THEN NULL
+        ELSE now() + interval '120 seconds'
+      END
+  WHERE status = 'processing'
+    AND lease_expires_at < now()
+    AND attempt_lease_id IS NOT NULL;
+
+  -- 3. Reserva atômica com SKIP LOCKED (apenas eventos com next_attempt_at válido)
   WITH target_events AS (
     SELECT id
     FROM public.clinical_notification_events
     WHERE status IN ('pending', 'uncertain')
-      AND (next_attempt_at IS NULL OR next_attempt_at <= now())
+      AND next_attempt_at IS NOT NULL
+      AND next_attempt_at <= now()
       AND attempt_count < 5
     ORDER BY next_attempt_at ASC, created_at ASC, id ASC
     LIMIT v_limit
@@ -675,7 +712,7 @@ BEGIN
     v_backoff_seconds := p_retry_after_seconds;
   END IF;
 
-  v_next_attempt := now() + (v_backoff_seconds || ' seconds')::interval;
+  v_next_attempt := now() + (v_backoff_seconds * interval '1 second');
 
   -- Se atingiu 5 tentativas totais, encerra sem novo agendamento
   IF v_event.attempt_count >= 5 THEN
@@ -884,7 +921,90 @@ CREATE TRIGGER trg_clinical_on_appointment_reschedule
   EXECUTE FUNCTION public.clinical_on_appointment_reschedule();
 
 -- ==============================================================================
--- 16. PERMISSÕES E MENOR PRIVILÉGIO
+-- 16. RPCs DO MONITOR DE CICLO (clinical_claim_monitor_cycle e clinical_finish_monitor_cycle)
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION public.clinical_claim_monitor_cycle()
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_current_slot timestamptz;
+  v_runtime record;
+  v_new_lease uuid;
+  v_new_check_in uuid;
+BEGIN
+  -- Minuto truncado atual em UTC
+  v_current_slot := date_trunc('minute', now() AT TIME ZONE 'UTC');
+
+  SELECT * INTO v_runtime
+  FROM public.clinical_notification_runtime
+  WHERE id = true
+  FOR UPDATE;
+
+  -- Se o ciclo atual já foi concluído neste minuto, não inicia outro
+  IF v_runtime.cycle_slot = v_current_slot AND v_runtime.last_cycle_completed_at >= v_current_slot THEN
+    RETURN jsonb_build_object('claimed', false, 'reason', 'already_completed');
+  END IF;
+
+  -- Se há lease ativo para este minuto que ainda não expirou, respeita
+  IF v_runtime.cycle_slot = v_current_slot 
+     AND v_runtime.monitor_lease_expires_at IS NOT NULL 
+     AND v_runtime.monitor_lease_expires_at > now() THEN
+    RETURN jsonb_build_object('claimed', false, 'reason', 'lease_active');
+  END IF;
+
+  v_new_lease := gen_random_uuid();
+  v_new_check_in := gen_random_uuid();
+
+  UPDATE public.clinical_notification_runtime
+  SET cycle_slot = v_current_slot,
+      check_in_id = v_new_check_in,
+      monitor_lease_id = v_new_lease,
+      monitor_lease_expires_at = now() + interval '90 seconds'
+  WHERE id = true;
+
+  RETURN jsonb_build_object(
+    'claimed', true,
+    'lease_id', v_new_lease,
+    'check_in_id', v_new_check_in,
+    'cycle_slot', v_current_slot
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.clinical_finish_monitor_cycle(
+  p_lease_id uuid,
+  p_health_code text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_updated boolean := false;
+BEGIN
+  IF p_health_code NOT IN ('healthy', 'delayed', 'failed') THEN
+    RAISE EXCEPTION 'Código de saúde inválido: %', p_health_code;
+  END IF;
+
+  UPDATE public.clinical_notification_runtime
+  SET last_cycle_completed_at = now(),
+      last_health_code = p_health_code,
+      monitor_lease_id = NULL,
+      monitor_lease_expires_at = NULL
+  WHERE id = true AND monitor_lease_id = p_lease_id;
+
+  v_updated := FOUND;
+
+  RETURN jsonb_build_object('updated', v_updated);
+END;
+$$;
+
+-- ==============================================================================
+-- 17. PERMISSÕES E MENOR PRIVILÉGIO
 -- Revoga execução pública das RPCs; concede apenas a service_role
 -- ==============================================================================
 REVOKE ALL ON FUNCTION public.clinical_issue_appointment_link(uuid, text) FROM PUBLIC, anon, authenticated;
@@ -919,3 +1039,9 @@ GRANT EXECUTE ON FUNCTION public.clinical_get_recent_patient_events() TO service
 
 REVOKE ALL ON FUNCTION public.clinical_acknowledge_notification(uuid, uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.clinical_acknowledge_notification(uuid, uuid) TO service_role;
+
+REVOKE ALL ON FUNCTION public.clinical_claim_monitor_cycle() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.clinical_claim_monitor_cycle() TO service_role;
+
+REVOKE ALL ON FUNCTION public.clinical_finish_monitor_cycle(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.clinical_finish_monitor_cycle(uuid, text) TO service_role;

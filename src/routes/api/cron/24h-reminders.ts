@@ -5,16 +5,14 @@ export const Route = createFileRoute("/api/cron/24h-reminders")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        // Validação de segurança com CRON_SECRET se configurado
+        // Validação de segurança com CRON_SECRET (fail-closed: sem segredo, recusa qualquer chamada)
         const cronSecret = process.env.CRON_SECRET;
-        if (cronSecret) {
-          const authHeader = request.headers.get("authorization");
-          if (authHeader !== `Bearer ${cronSecret}`) {
-            return new Response(JSON.stringify({ error: "Unauthorized" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            });
-          }
+        const authHeader = request.headers.get("authorization");
+        if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
         }
 
         try {
