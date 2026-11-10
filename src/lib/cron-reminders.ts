@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/integrations/supabase/auth-middleware";
-import { buildWhatsAppReminderUrl, shouldSendReminder, formatBrazilianDate } from "@/lib/reminders";
+import { buildWhatsAppReminderMessage, formatBrazilianDate } from "@/lib/reminders";
+import { generateAppointmentToken } from "@/lib/cancellation";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
 import { CLINIC } from "@/lib/clinic";
@@ -15,30 +16,6 @@ interface AppointmentForReminder {
   service_name: string;
   status: string;
   reminder_sent_at: string | null;
-}
-
-function buildReminderMessage(vars: Record<string, string>): string {
-  return renderTemplate(
-    `🦷 *Lembrete de Consulta - Amanhã*
-
-Olá, {{patient_name}}!
-
-Este é um lembrete de que você tem consulta agendada para AMANHÃ:
-
-📅 *Data:* {{appointment_date_formatted}}
-⏰ *Horário:* {{appointment_time}}
-🩺 *Serviço:* {{service_name}}
-
-🏥 *Local:* {{clinic_name}}
-📍 {{clinic_address}}
-
-⚠️ Caso não possa comparecer, por favor nos avise com antecedência pelo WhatsApp: {{clinic_whatsapp}}
-
-Nos vemos amanhã! 😊
-
-— {{clinic_short_name}}`,
-    vars,
-  );
 }
 
 export async function execute24hReminders() {
@@ -73,6 +50,22 @@ export async function execute24hReminders() {
     return { success: true, sent: 0, message: "No appointments to remind" };
   }
 
+  const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
+  if (!webhookUrl) {
+    console.warn(
+      `[cron-24h] WHATSAPP_WEBHOOK_URL não configurado. ${appointments.length} lembrete(s) pendente(s) aguardam envio assistido via CRC/Painel.`,
+    );
+    return {
+      success: false,
+      reason: "WHATSAPP_WEBHOOK_NOT_CONFIGURED",
+      total: appointments.length,
+      sent: 0,
+      failed: 0,
+      message:
+        "Webhook de WhatsApp não configurado no servidor. O envio deve ser realizado de forma assistida no Painel ou CRC.",
+    };
+  }
+
   // Try to get custom template
   const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
 
@@ -81,32 +74,73 @@ export async function execute24hReminders() {
 
   for (const apt of appointments as AppointmentForReminder[]) {
     try {
-      const vars = {
-        patient_name: apt.patient_name,
-        patient_phone: apt.patient_phone,
-        appointment_date: apt.appointment_date,
-        appointment_time: apt.appointment_time,
-        appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
-        service_name: apt.service_name,
-        clinic_name: CLINIC.name,
-        clinic_short_name: CLINIC.shortName,
-        clinic_address: CLINIC.address,
-        clinic_phone: CLINIC.phone,
-        clinic_whatsapp: CLINIC.whatsapp,
-      };
+      let confirmToken = "";
+      try {
+        confirmToken = generateAppointmentToken(apt.id, "confirm");
+      } catch (tokenErr) {
+        console.warn(`[cron-24h] Erro ao emitir token para ${apt.id}:`, tokenErr);
+      }
 
-      const message = customTemplate
-        ? renderTemplate(customTemplate.body, vars)
-        : buildReminderMessage(vars);
+      const confirmUrl = confirmToken
+        ? `https://dramichelletiago.com.br/confirmar/${confirmToken}`
+        : "https://dramichelletiago.com.br/agendar";
+
+      let message: string;
+      if (customTemplate) {
+        const vars = {
+          patient_name: apt.patient_name,
+          patient_phone: apt.patient_phone,
+          appointment_date: apt.appointment_date,
+          appointment_time: apt.appointment_time,
+          appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
+          service_name: apt.service_name,
+          clinic_name: CLINIC.name,
+          clinic_short_name: CLINIC.shortName,
+          clinic_address: CLINIC.address,
+          clinic_phone: CLINIC.phone,
+          clinic_whatsapp: CLINIC.whatsapp,
+          confirm_url: confirmUrl,
+        };
+        message = renderTemplate(customTemplate.body, vars);
+      } else {
+        message = buildWhatsAppReminderMessage({
+          patientName: apt.patient_name,
+          appointmentDate: apt.appointment_date,
+          appointmentTime: apt.appointment_time,
+          serviceName: apt.service_name,
+          confirmationToken: confirmToken,
+        });
+      }
 
       const cleanPhone = apt.patient_phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
-      const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
-      // Fire and forget
-      await fetch(waUrl).catch(() => {});
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          phone: fullPhone,
+          event: "appointment_reminder_24h",
+          text: message,
+          patientName: apt.patient_name,
+          patientPhone: apt.patient_phone,
+          appointmentDate: apt.appointment_date,
+          appointmentTime: apt.appointment_time,
+          confirmUrl,
+        }),
+      });
 
-      // Mark reminder as sent
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        failed++;
+        console.warn(
+          `[cron-24h] Webhook WhatsApp retornou HTTP ${res.status} para ${apt.id}: ${errText.slice(0, 100)}`,
+        );
+        continue;
+      }
+
+      // Mark reminder as sent ONLY after verified webhook acceptance
       const { error: updateError } = await supabaseAdmin
         .from("appointments")
         .update({ reminder_sent_at: new Date().toISOString() })
@@ -142,8 +176,6 @@ export const send24hReminders = createServerFn({ method: "POST" })
 export const send1hReminders = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
-    // Similar logic for 1h before - would need more precise timing
-    // For now, return not implemented
     return { success: true, sent: 0, message: "1h reminders not yet implemented" };
   });
 
@@ -160,30 +192,48 @@ export const testReminder = createServerFn({ method: "POST" })
 
     if (error || !apt) throw new Error("Agendamento não encontrado");
 
-    const vars = {
-      patient_name: apt.patient_name,
-      patient_phone: apt.patient_phone,
-      appointment_date: apt.appointment_date,
-      appointment_time: apt.appointment_time,
-      appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
-      service_name: apt.service_name,
-      clinic_name: CLINIC.name,
-      clinic_short_name: CLINIC.shortName,
-      clinic_address: CLINIC.address,
-      clinic_phone: CLINIC.phone,
-      clinic_whatsapp: CLINIC.whatsapp,
-    };
+    const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return {
+        success: false,
+        message:
+          "WHATSAPP_WEBHOOK_URL não está configurado. O envio de WhatsApp automático requer um webhook ativo.",
+      };
+    }
 
-    const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
-    const message = customTemplate
-      ? renderTemplate(customTemplate.body, vars)
-      : buildReminderMessage(vars);
+    const confirmToken = generateAppointmentToken(apt.id, "confirm");
+    const confirmUrl = `https://dramichelletiago.com.br/confirmar/${confirmToken}`;
+
+    const message = buildWhatsAppReminderMessage({
+      patientName: apt.patient_name,
+      appointmentDate: apt.appointment_date,
+      appointmentTime: apt.appointment_time,
+      serviceName: apt.service_name,
+      confirmationToken: confirmToken,
+    });
 
     const cleanPhone = apt.patient_phone.replace(/\D/g, "");
     const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
-    const waUrl = `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
 
-    await fetch(waUrl).catch(() => {});
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8000),
+      body: JSON.stringify({
+        phone: fullPhone,
+        event: "test_reminder",
+        text: message,
+        patientName: apt.patient_name,
+        patientPhone: apt.patient_phone,
+        appointmentDate: apt.appointment_date,
+        confirmUrl,
+      }),
+    });
 
-    return { success: true, message: "Test reminder sent" };
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Webhook WhatsApp falhou com status HTTP ${res.status}: ${errText}`);
+    }
+
+    return { success: true, message: "Test reminder sent via webhook" };
   });

@@ -21,6 +21,8 @@ import { Route as TratamentosRouteImport } from './routes/tratamentos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as CancelarTokenRouteImport } from './routes/cancelar/$token'
 import { Route as ConfirmarTokenRouteImport } from './routes/confirmar/$token'
+import { Route as ApiCron24hRemindersRouteImport } from './routes/api/cron/24h-reminders'
+import { Route as ApiInternalClinicalNotificationsProcessRouteImport } from './routes/api/internal/clinical-notifications/process'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -81,6 +83,17 @@ const ConfirmarTokenRoute = ConfirmarTokenRouteImport.update({
   path: '/confirmar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCron24hRemindersRoute = ApiCron24hRemindersRouteImport.update({
+  id: '/api/cron/24h-reminders',
+  path: '/api/cron/24h-reminders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalClinicalNotificationsProcessRoute =
+  ApiInternalClinicalNotificationsProcessRouteImport.update({
+    id: '/api/internal/clinical-notifications/process',
+    path: '/api/internal/clinical-notifications/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,6 +107,8 @@ export interface FileRoutesByFullPath {
   '/painel': typeof AuthenticatedPainelRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/api/cron/24h-reminders': typeof ApiCron24hRemindersRoute
+  '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,6 +122,8 @@ export interface FileRoutesByTo {
   '/painel': typeof AuthenticatedPainelRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/api/cron/24h-reminders': typeof ApiCron24hRemindersRoute
+  '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,6 +139,8 @@ export interface FileRoutesById {
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/api/cron/24h-reminders': typeof ApiCron24hRemindersRoute
+  '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -137,6 +156,8 @@ export interface FileRouteTypes {
     | '/painel'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/api/cron/24h-reminders'
+    | '/api/internal/clinical-notifications/process'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -150,6 +171,8 @@ export interface FileRouteTypes {
     | '/painel'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/api/cron/24h-reminders'
+    | '/api/internal/clinical-notifications/process'
   id:
     | '__root__'
     | '/'
@@ -164,6 +187,8 @@ export interface FileRouteTypes {
     | '/_authenticated/painel'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/api/cron/24h-reminders'
+    | '/api/internal/clinical-notifications/process'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -178,6 +203,8 @@ export interface RootRouteChildren {
   TratamentosRoute: typeof TratamentosRoute
   CancelarTokenRoute: typeof CancelarTokenRoute
   ConfirmarTokenRoute: typeof ConfirmarTokenRoute
+  ApiCron24hRemindersRoute: typeof ApiCron24hRemindersRoute
+  ApiInternalClinicalNotificationsProcessRoute: typeof ApiInternalClinicalNotificationsProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -266,6 +293,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfirmarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/24h-reminders': {
+      id: '/api/cron/24h-reminders'
+      path: '/api/cron/24h-reminders'
+      fullPath: '/api/cron/24h-reminders'
+      preLoaderRoute: typeof ApiCron24hRemindersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/internal/clinical-notifications/process': {
+      id: '/api/internal/clinical-notifications/process'
+      path: '/api/internal/clinical-notifications/process'
+      fullPath: '/api/internal/clinical-notifications/process'
+      preLoaderRoute: typeof ApiInternalClinicalNotificationsProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -292,6 +333,9 @@ const rootRouteChildren: RootRouteChildren = {
   TratamentosRoute: TratamentosRoute,
   CancelarTokenRoute: CancelarTokenRoute,
   ConfirmarTokenRoute: ConfirmarTokenRoute,
+  ApiCron24hRemindersRoute: ApiCron24hRemindersRoute,
+  ApiInternalClinicalNotificationsProcessRoute:
+    ApiInternalClinicalNotificationsProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
