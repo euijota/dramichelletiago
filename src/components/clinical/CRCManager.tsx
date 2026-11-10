@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, formatLongDate, trimSeconds, toISODate, addDays } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
+import { getAppointmentActionTokens, getSingleAppointmentTokens } from "@/lib/cancellation";
 import { cn } from "@/lib/utils";
 import {
   buildWhatsAppUniversalUrl,
@@ -191,6 +192,18 @@ export function CRCManager({
       return (data || []) as Appointment[];
     },
     refetchInterval: 10_000,
+  });
+
+  // Busca tokens criptográficos assinados HMAC v2 para as confirmações
+  const pendingIds = useMemo(() => {
+    return Array.from(new Set(allPendingAppointments.map((a) => a.id).filter(Boolean)));
+  }, [allPendingAppointments]);
+
+  const { data: crcSignedTokens = {} } = useQuery({
+    queryKey: ["crc_signed_appointment_tokens", pendingIds],
+    enabled: pendingIds.length > 0,
+    staleTime: 1000 * 60 * 30,
+    queryFn: () => getAppointmentActionTokens({ data: { appointmentIds: pendingIds } }),
   });
 
   const todayPendingCount = useMemo(() => {
@@ -743,13 +756,15 @@ export function CRCManager({
                 const isToday = timing === "hoje";
                 const isPast = timing === "passado";
 
-                // Gera mensagem do lembrete universal
+                // Gera mensagem do lembrete universal com token HMAC assinado v2
+                const confirmToken = crcSignedTokens[appointment.id]?.confirmToken;
                 const reminderUrl = buildWhatsAppReminderUrl(appointment.patient_phone, {
                   patientName: appointment.patient_name,
                   appointmentDate: appointment.appointment_date,
                   appointmentTime: trimSeconds(appointment.appointment_time),
                   serviceName: appointment.service_name,
                   appointmentId: appointment.id,
+                  confirmationToken: confirmToken,
                 });
 
                 return (
@@ -820,7 +835,28 @@ export function CRCManager({
                         href={reminderUrl}
                         target="_blank"
                         rel="noreferrer"
-                        onClick={() => {
+                        onClick={async (e) => {
+                          const currentToken = crcSignedTokens[appointment.id]?.confirmToken;
+                          if (!currentToken) {
+                            e.preventDefault();
+                            try {
+                              const res = await getSingleAppointmentTokens({
+                                data: { appointmentId: appointment.id },
+                              });
+                              const fullUrl = buildWhatsAppReminderUrl(appointment.patient_phone, {
+                                patientName: appointment.patient_name,
+                                appointmentDate: appointment.appointment_date,
+                                appointmentTime: trimSeconds(appointment.appointment_time),
+                                serviceName: appointment.service_name,
+                                appointmentId: appointment.id,
+                                confirmationToken: res.confirmToken,
+                              });
+                              window.open(fullUrl, "_blank");
+                            } catch {
+                              window.open(reminderUrl, "_blank");
+                            }
+                          }
+
                           if (!appointment.reminder_sent_at) {
                             toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
                               description:

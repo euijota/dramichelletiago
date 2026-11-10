@@ -54,6 +54,18 @@ describe("Reminder Templates", () => {
       expect(url).toContain("96987654321");
     });
   });
+
+  it("should embed authentic HMAC confirmation token when provided", () => {
+    const signedData = {
+      ...mockData,
+      appointmentId: "550e8400-e29b-41d4-a716-446655440000",
+      confirmationToken: "v2.550e8400-e29b-41d4-a716-446655440000.confirm.12345.nonce.sig",
+    };
+    const message = buildWhatsAppReminderMessage(signedData);
+    expect(message).toContain(
+      "https://dramichelletiago.com.br/confirmar/v2.550e8400-e29b-41d4-a716-446655440000.confirm.12345.nonce.sig",
+    );
+  });
 });
 
 describe("Date Formatting", () => {

@@ -6,7 +6,6 @@ import {
   confirmAppointmentByToken,
   cancelAppointmentByToken,
 } from "@/lib/cancellation";
-import { buildBrowserAppointmentToken } from "@/lib/reminders";
 import { CLINIC, formatLongDate, trimSeconds } from "@/lib/clinic";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -70,8 +69,9 @@ function ConfirmAppointment() {
   });
 
   const rescheduleMutation = useMutation({
-    mutationFn: async (appointmentId: string) => {
-      const cancelTok = buildBrowserAppointmentToken(appointmentId, "cancel");
+    mutationFn: async () => {
+      const cancelTok =
+        (appointment as { cancellationToken?: string } | null)?.cancellationToken || token;
       return cancelAppointmentByToken({
         data: {
           token: cancelTok,
@@ -355,8 +355,8 @@ function ConfirmAppointment() {
               <Button
                 variant="outline"
                 disabled={rescheduleMutation.isPending}
-                onClick={() => rescheduleMutation.mutate(appointment.id)}
-                className="rounded-full py-5 font-semibold border-primary/30 text-primary hover:bg-primary/10 gap-2"
+                onClick={() => rescheduleMutation.mutate()}
+                className="rounded-full py-5 font-semibold border-primary/30 text-primary hover:bg-primary/10 gap-2 cursor-pointer"
               >
                 <RotateCcw className="h-4 w-4" />
                 {rescheduleMutation.isPending ? "Abrindo agenda..." : "Reagendar Outro Horário"}
@@ -365,10 +365,12 @@ function ConfirmAppointment() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  const cancelTok = buildBrowserAppointmentToken(appointment.id, "cancel");
+                  const cancelTok =
+                    (appointment as { cancellationToken?: string } | null)?.cancellationToken ||
+                    token;
                   navigate({ to: `/cancelar/${cancelTok}` });
                 }}
-                className="rounded-full py-5 font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 gap-2"
+                className="rounded-full py-5 font-semibold border-rose-500/30 text-rose-600 hover:bg-rose-500/10 gap-2 cursor-pointer"
               >
                 <XCircle className="h-4 w-4" />
                 Cancelar Consulta

@@ -81,6 +81,19 @@ describe("Appointment Token System", () => {
 
     expect(extractedId).toBe(appointmentId);
   });
+
+  it("should accept legacy base64url appointmentId:purpose:secret tokens for retrocompatibility", () => {
+    const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
+    const legacyPayload = `${appointmentId}:confirm:clinica`;
+    const legacyToken = Buffer.from(legacyPayload).toString("base64url");
+
+    const extracted = validateAppointmentToken(legacyToken, "confirm");
+    expect(extracted).toBe(appointmentId);
+
+    // Mismatched purpose should be rejected
+    const rejectedForCancel = validateAppointmentToken(legacyToken, "cancel");
+    expect(rejectedForCancel).toBeNull();
+  });
 });
 
 describe("Token URL Generation", () => {

@@ -362,6 +362,7 @@ export const getAnamnesisInfoByProtocol = createServerFn({ method: "POST" })
 
     const cleanPhone = (appt.patient_phone || "").replace(/\D/g, "");
     const actualLast4 = cleanPhone.length >= 4 ? cleanPhone.slice(-4) : "";
+    const ddd = cleanPhone.length >= 10 ? cleanPhone.slice(0, 2) : "";
 
     // Se o paciente enviou os 4 dígitos finais para desbloquear a sessão:
     if (data.phoneDigits4 && actualLast4 && data.phoneDigits4 === actualLast4) {
@@ -397,7 +398,7 @@ export const getAnamnesisInfoByProtocol = createServerFn({ method: "POST" })
       isVerified: false,
       protocol: cleanProto,
       requiresPhoneVerification: true,
-      phoneHint: actualLast4 ? `final ****-${actualLast4}` : undefined,
+      phoneHint: ddd ? `DDD (${ddd})` : undefined,
       appointment: {
         id: appt.id,
         patientId: null, // Oculto sem verificação

@@ -95,6 +95,20 @@ export function validateAppointmentToken(
       return isValid ? appointmentId : null;
     }
 
+    // Formato legado base64url (appointmentId:purpose:secret) para retrocompatibilidade com links existentes
+    if (decoded.includes(":")) {
+      const parts = decoded.split(":");
+      if (parts.length >= 2) {
+        const [appointmentId, purpose] = parts;
+        if (!appointmentId) return null;
+        if (expectedPurpose && purpose && purpose !== expectedPurpose) return null;
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(appointmentId) || appointmentId.length >= 10) {
+          return appointmentId;
+        }
+      }
+    }
+
     return null;
   } catch {
     return null;
@@ -125,12 +139,16 @@ async function dispatchClinicAlert({
   appointmentTime: string;
   status: "confirmed" | "cancelled";
 }) {
-  // 1. Notificação WhatsApp via Webhook se configurado
+  const channelsSent: string[] = [];
+  const errors: string[] = [];
+
+  // 1. Notificação WhatsApp via Webhook se configurado com timeout explícito
   if (process.env.WHATSAPP_WEBHOOK_URL) {
     try {
-      await fetch(process.env.WHATSAPP_WEBHOOK_URL, {
+      const res = await fetch(process.env.WHATSAPP_WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           phone: CLINIC.whatsapp,
           event: status === "confirmed" ? "appointment_confirmed" : "appointment_cancelled",
@@ -142,30 +160,130 @@ async function dispatchClinicAlert({
           appointmentTime,
         }),
       });
+      if (res.ok) {
+        channelsSent.push("whatsapp_webhook");
+      } else {
+        const errText = await res.text().catch(() => "");
+        errors.push(`WhatsApp Webhook HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        console.warn(`[dispatchClinicAlert] WhatsApp webhook HTTP ${res.status}:`, errText);
+      }
     } catch (e) {
-      console.warn("[dispatchClinicAlert] WhatsApp webhook warning:", e);
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`WhatsApp Webhook Error: ${msg}`);
+      console.warn("[dispatchClinicAlert] WhatsApp webhook warning:", msg);
     }
   }
 
-  // 2. Notificação por E-mail do Consultório (Formspree fallback)
-  try {
-    await fetch("https://formspree.io/f/xbjnqpyz", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        _replyto: "consultorio@dramichelletiago.com.br",
-        subject,
-        message,
-        patientName,
-        patientPhone: patientPhone || "Não informado",
-        status,
-        appointmentDate,
-        appointmentTime,
-      }),
-    });
-  } catch (e) {
-    console.warn("[dispatchClinicAlert] Email dispatch warning:", e);
+  // 2. Notificação por E-mail: Resend primário (se configurado) com timeout
+  let emailDelivered = false;
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          from: "Agenda Dra. Michelle <onboarding@resend.dev>",
+          to: [CLINIC.email],
+          subject,
+          text: message,
+        }),
+      });
+      if (res.ok) {
+        emailDelivered = true;
+        channelsSent.push("resend_email");
+      } else {
+        const errText = await res.text().catch(() => "");
+        errors.push(`Resend HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        console.warn(`[dispatchClinicAlert] Resend HTTP ${res.status}:`, errText);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Resend Error: ${msg}`);
+      console.warn("[dispatchClinicAlert] Resend warning:", msg);
+    }
   }
+
+  // 3. Fallback de e-mail via FormSubmit se o Resend não entregou
+  if (!emailDelivered) {
+    try {
+      const res = await fetch(`https://formsubmit.co/ajax/${CLINIC.email}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Origin: "https://dramichelletiago.com.br",
+          Referer: "https://dramichelletiago.com.br",
+        },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          _subject: subject,
+          _template: "table",
+          _captcha: "false",
+          Status: status === "confirmed" ? "CONFIRMADO" : "CANCELADO",
+          Paciente: patientName,
+          Telefone: patientPhone || "Não informado",
+          Data: appointmentDate,
+          Horario: appointmentTime,
+          Mensagem: message,
+        }),
+      });
+      if (res.ok) {
+        emailDelivered = true;
+        channelsSent.push("formsubmit_email");
+      } else {
+        const errText = await res.text().catch(() => "");
+        errors.push(`FormSubmit HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        console.warn(`[dispatchClinicAlert] FormSubmit HTTP ${res.status}:`, errText);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`FormSubmit Error: ${msg}`);
+      console.warn("[dispatchClinicAlert] FormSubmit warning:", msg);
+    }
+  }
+
+  // 4. Fallback final via Formspree se nenhum outro e-mail teve sucesso
+  if (!emailDelivered) {
+    try {
+      const res = await fetch("https://formspree.io/f/xbjnqpyz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        signal: AbortSignal.timeout(8000),
+        body: JSON.stringify({
+          _replyto: "consultorio@dramichelletiago.com.br",
+          subject,
+          message,
+          patientName,
+          patientPhone: patientPhone || "Não informado",
+          status,
+          appointmentDate,
+          appointmentTime,
+        }),
+      });
+      if (res.ok) {
+        emailDelivered = true;
+        channelsSent.push("formspree_email");
+      } else {
+        const errText = await res.text().catch(() => "");
+        errors.push(`Formspree HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        console.warn(`[dispatchClinicAlert] Formspree HTTP ${res.status}:`, errText);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`Formspree Error: ${msg}`);
+      console.warn("[dispatchClinicAlert] Formspree warning:", msg);
+    }
+  }
+
+  return {
+    delivered: channelsSent.length > 0,
+    channelsSent,
+    errors,
+  };
 }
 
 const cancelAppointmentSchema = z.object({
@@ -275,7 +393,7 @@ export const confirmAppointmentByToken = createServerFn({ method: "POST" })
 export const cancelAppointmentByToken = createServerFn({ method: "POST" })
   .validator((input) => cancelAppointmentSchema.parse(input))
   .handler(async ({ data }) => {
-    const appointmentId = validateAppointmentToken(data.token, "cancel");
+    const appointmentId = validateAppointmentToken(data.token);
 
     if (!appointmentId) {
       throw new Error("Token de cancelamento inválido ou expirado.");
@@ -369,5 +487,66 @@ export const getAppointmentByToken = createServerFn({ method: "GET" })
       return null;
     }
 
-    return appointment;
+    const confirmToken = generateAppointmentToken(appointment.id, "confirm");
+    const cancelToken = generateAppointmentToken(appointment.id, "cancel");
+
+    return {
+      ...appointment,
+      cancellationToken: cancelToken,
+      confirmationToken: confirmToken,
+    };
+  });
+
+/**
+ * Server function to generate cryptographically signed tokens and links in batch.
+ * Used by Painel and CRC to ensure reminder messages always contain authentic v2 HMAC tokens.
+ */
+export const getAppointmentActionTokens = createServerFn({ method: "POST" })
+  .validator((input: { appointmentIds: string[] }) =>
+    z.object({ appointmentIds: z.array(z.string()).max(100) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const baseUrl = "https://dramichelletiago.com.br";
+    const result: Record<
+      string,
+      {
+        confirmToken: string;
+        cancelToken: string;
+        confirmUrl: string;
+        cancelUrl: string;
+      }
+    > = {};
+
+    for (const id of data.appointmentIds) {
+      if (!id) continue;
+      const confirmToken = generateAppointmentToken(id, "confirm");
+      const cancelToken = generateAppointmentToken(id, "cancel");
+      result[id] = {
+        confirmToken,
+        cancelToken,
+        confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
+        cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
+      };
+    }
+
+    return result;
+  });
+
+/**
+ * Server function to generate tokens for a single appointment on demand.
+ */
+export const getSingleAppointmentTokens = createServerFn({ method: "POST" })
+  .validator((input: { appointmentId: string }) =>
+    z.object({ appointmentId: z.string() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const baseUrl = "https://dramichelletiago.com.br";
+    const confirmToken = generateAppointmentToken(data.appointmentId, "confirm");
+    const cancelToken = generateAppointmentToken(data.appointmentId, "cancel");
+    return {
+      confirmToken,
+      cancelToken,
+      confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
+      cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
+    };
   });

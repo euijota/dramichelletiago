@@ -9,10 +9,14 @@ export interface ReminderData {
   appointmentTime: string;
   serviceName: string;
   appointmentId?: string;
+  confirmationToken?: string;
+  cancellationToken?: string;
+  confirmUrl?: string;
 }
 
 /**
- * Generates deterministic base64url token usable in browser & node for confirm/cancel URLs
+ * @deprecated Use cryptographically signed v2 tokens generated via getAppointmentActionTokens / cancellation.ts
+ * Kept only for backwards compatibility with tests and unmigrated callers.
  */
 export function buildBrowserAppointmentToken(
   appointmentId: string,
@@ -25,20 +29,28 @@ export function buildBrowserAppointmentToken(
   return btoa(payload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export function buildConfirmationLinks(appointmentId?: string) {
+export function buildConfirmationLinks(
+  appointmentId?: string,
+  confirmationToken?: string,
+  cancellationToken?: string,
+) {
   const baseUrl = "https://dramichelletiago.com.br";
-  if (!appointmentId) {
+  if (!appointmentId && !confirmationToken) {
     return {
       confirmUrl: `${baseUrl}/agendar`,
       cancelUrl: `${baseUrl}/agendar`,
       rescheduleUrl: `${baseUrl}/agendar`,
     };
   }
-  const confirmToken = buildBrowserAppointmentToken(appointmentId, "confirm");
-  const cancelToken = buildBrowserAppointmentToken(appointmentId, "cancel");
+  const confirmToken =
+    confirmationToken ||
+    (appointmentId ? buildBrowserAppointmentToken(appointmentId, "confirm") : "");
+  const cancelToken =
+    cancellationToken ||
+    (appointmentId ? buildBrowserAppointmentToken(appointmentId, "cancel") : "");
   return {
-    confirmUrl: `${baseUrl}/confirmar/${confirmToken}`,
-    cancelUrl: `${baseUrl}/cancelar/${cancelToken}`,
+    confirmUrl: confirmToken ? `${baseUrl}/confirmar/${confirmToken}` : `${baseUrl}/agendar`,
+    cancelUrl: cancelToken ? `${baseUrl}/cancelar/${cancelToken}` : `${baseUrl}/agendar`,
     rescheduleUrl: `${baseUrl}/agendar`,
   };
 }
@@ -48,7 +60,10 @@ export function buildConfirmationLinks(appointmentId?: string) {
  */
 export function buildWhatsAppReminderMessage(data: ReminderData): string {
   const dateFormatted = formatBrazilianDate(data.appointmentDate);
-  const { confirmUrl } = buildConfirmationLinks(data.appointmentId);
+  const confirmUrl =
+    data.confirmUrl ||
+    buildConfirmationLinks(data.appointmentId, data.confirmationToken, data.cancellationToken)
+      .confirmUrl;
 
   return (
     `🦷 *Confirmação de Consulta — Dra. Michelle Barbosa Tiago*\n\n` +

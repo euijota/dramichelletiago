@@ -20,6 +20,7 @@ import {
   trimSeconds,
 } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
+import { getAppointmentActionTokens, getSingleAppointmentTokens } from "@/lib/cancellation";
 import { cn } from "@/lib/utils";
 import type { AppointmentExport } from "@/lib/export";
 import {
@@ -310,6 +311,25 @@ function Painel() {
     },
   });
 
+  // Carrega tokens criptografados HMAC v2 para garantir links de confirmação autênticos
+  const visibleAppointmentIds = useMemo(() => {
+    const ids = new Set<string>();
+    (reminders ?? []).forEach((a) => {
+      if (a.id) ids.add(a.id);
+    });
+    (pending ?? []).forEach((a) => {
+      if (a.id) ids.add(a.id);
+    });
+    return Array.from(ids);
+  }, [reminders, pending]);
+
+  const { data: signedTokens = {} } = useQuery({
+    queryKey: ["painel_signed_appointment_tokens", visibleAppointmentIds],
+    enabled: !!session && visibleAppointmentIds.length > 0,
+    staleTime: 1000 * 60 * 30, // 30 minutos (tokens válidos por 30 dias)
+    queryFn: () => getAppointmentActionTokens({ data: { appointmentIds: visibleAppointmentIds } }),
+  });
+
   // Alerta em tempo real no painel quando um agendamento chega ou é confirmado/cancelado
   useEffect(() => {
     if (!session) return;
@@ -412,6 +432,36 @@ function Painel() {
 
     setSelected(null);
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
+  }
+
+  async function handleOpenReminderWhatsApp(
+    e: React.MouseEvent<HTMLAnchorElement>,
+    appointment: Appointment,
+  ) {
+    const currentToken = signedTokens[appointment.id]?.confirmToken;
+    if (!currentToken) {
+      e.preventDefault();
+      try {
+        const res = await getSingleAppointmentTokens({
+          data: { appointmentId: appointment.id },
+        });
+        const targetUrl = buildReminderLink(appointment, res.confirmToken);
+        window.open(targetUrl, "_blank");
+      } catch {
+        window.open(buildReminderLink(appointment), "_blank");
+      }
+    }
+
+    if (!appointment.reminder_sent_at) {
+      toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
+        description: "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
+        action: {
+          label: "Marcar como Enviado",
+          onClick: () => markReminderSent(appointment),
+        },
+        duration: 10000,
+      });
+    }
   }
 
   async function deleteAppointment(id: string) {
@@ -1293,22 +1343,13 @@ function Painel() {
                     </div>
 
                     <a
-                      href={buildReminderLink(appointment)}
+                      href={buildReminderLink(
+                        appointment,
+                        signedTokens[appointment.id]?.confirmToken,
+                      )}
                       target="_blank"
                       rel="noreferrer"
-                      onClick={() => {
-                        if (!appointment.reminder_sent_at) {
-                          toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
-                            description:
-                              "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
-                            action: {
-                              label: "Marcar como Enviado",
-                              onClick: () => markReminderSent(appointment),
-                            },
-                            duration: 10000,
-                          });
-                        }
-                      }}
+                      onClick={(e) => handleOpenReminderWhatsApp(e, appointment)}
                       className={cn(
                         "group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm",
                         appointment.reminder_sent_at
@@ -1406,22 +1447,13 @@ function Painel() {
 
                       <div className="flex flex-wrap items-center gap-2.5">
                         <a
-                          href={buildReminderLink(appointment)}
+                          href={buildReminderLink(
+                            appointment,
+                            signedTokens[appointment.id]?.confirmToken,
+                          )}
                           target="_blank"
                           rel="noreferrer"
-                          onClick={() => {
-                            if (!appointment.reminder_sent_at) {
-                              toast.info(`WhatsApp aberto para ${appointment.patient_name}`, {
-                                description:
-                                  "Após enviar a mensagem no WhatsApp, confirme o registro do envio:",
-                                action: {
-                                  label: "Marcar como Enviado",
-                                  onClick: () => markReminderSent(appointment),
-                                },
-                                duration: 10000,
-                              });
-                            }
-                          }}
+                          onClick={(e) => handleOpenReminderWhatsApp(e, appointment)}
                           className={cn(
                             "group inline-flex items-center gap-1.5 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm cursor-pointer",
                             appointment.reminder_sent_at
@@ -1517,6 +1549,7 @@ function Painel() {
         {selected && (
           <AppointmentSheet
             appointment={selected}
+            confirmToken={signedTokens[selected.id]?.confirmToken}
             onClose={() => setSelected(null)}
             onSave={updateAppointment}
             onDelete={deleteAppointment}
@@ -1870,13 +1903,14 @@ function buildWhatsAppWebUrl(phone: string, message?: string) {
   return buildWhatsAppUniversalUrl(phone, message);
 }
 
-function buildReminderLink(appointment: Appointment) {
+function buildReminderLink(appointment: Appointment, token?: string) {
   return buildWhatsAppReminderUrl(appointment.patient_phone, {
     patientName: appointment.patient_name,
     appointmentDate: appointment.appointment_date,
     appointmentTime: trimSeconds(appointment.appointment_time),
     serviceName: appointment.service_name,
     appointmentId: appointment.id,
+    confirmationToken: token,
   });
 }
 
@@ -1926,12 +1960,14 @@ const CONSULTORIO_ME_QUICK_TEMPLATES = [
 
 function AppointmentSheet({
   appointment,
+  confirmToken,
   onClose,
   onSave,
   onDelete,
   onOpenChart,
 }: {
   appointment: Appointment;
+  confirmToken?: string;
   onClose: () => void;
   onSave: (id: string, patch: Partial<Appointment>, notifyAppointment?: Appointment) => void;
   onDelete: (id: string) => void;
@@ -2020,14 +2056,45 @@ function AppointmentSheet({
         {!isBlock && appointment.patient_phone && appointment.patient_phone !== "Não informado" && (
           <div className="mt-6 space-y-3">
             <a
-              href={buildReminderLink({
-                ...appointment,
-                appointment_date: date,
-                appointment_time: time,
-              })}
+              href={buildReminderLink(
+                {
+                  ...appointment,
+                  appointment_date: date,
+                  appointment_time: time,
+                },
+                confirmToken,
+              )}
               target="_blank"
               rel="noreferrer"
-              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-sm hover:bg-primary-deep transition-all"
+              onClick={async (e) => {
+                if (!confirmToken) {
+                  e.preventDefault();
+                  try {
+                    const res = await getSingleAppointmentTokens({
+                      data: { appointmentId: appointment.id },
+                    });
+                    const targetUrl = buildReminderLink(
+                      {
+                        ...appointment,
+                        appointment_date: date,
+                        appointment_time: time,
+                      },
+                      res.confirmToken,
+                    );
+                    window.open(targetUrl, "_blank");
+                  } catch {
+                    window.open(
+                      buildReminderLink({
+                        ...appointment,
+                        appointment_date: date,
+                        appointment_time: time,
+                      }),
+                      "_blank",
+                    );
+                  }
+                }
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-sm hover:bg-primary-deep transition-all cursor-pointer"
             >
               <Send className="h-4 w-4" />
               <span>Enviar Link de Confirmação / Cancelar / Reagendar</span>

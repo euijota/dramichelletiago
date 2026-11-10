@@ -90,15 +90,17 @@ export function maskName(name: string | null | undefined): string {
 
 /**
  * Mascara números de telefone para proteção da privacidade em consultas públicas.
- * Ex: "(96) 98140-7223" -> "(96) *****-7223"
+ * Não revela os 4 últimos dígitos para evitar que sirva de resposta aos desafios de autenticação.
+ * Ex: "(96) 98140-7223" -> "(96) 98***-****"
  */
 export function maskPhone(phone: string | null | undefined): string {
   if (!phone) return "";
   const clean = phone.replace(/\D/g, "");
-  if (clean.length < 8) return "***";
-  const last4 = clean.slice(-4);
+  if (clean.length < 8) return "****";
   const ddd = clean.length >= 10 ? `(${clean.slice(0, 2)}) ` : "";
-  return `${ddd}*****-${last4}`;
+  const remaining = clean.length >= 10 ? clean.slice(2) : clean;
+  const start = remaining.slice(0, 2);
+  return `${ddd}${start}***-****`;
 }
 
 /**

@@ -85,10 +85,10 @@ describe("PII Masking & Privacy Protection", () => {
     expect(maskName("")).toBe("");
   });
 
-  it("masks phone numbers showing only last 4 digits", () => {
-    expect(maskPhone("(96) 98140-7223")).toBe("(96) *****-7223");
-    expect(maskPhone("96981407223")).toBe("(96) *****-7223");
-    expect(maskPhone("981407223")).toBe("*****-7223");
+  it("masks phone numbers protecting the last 4 digits (anti-challenge-leak)", () => {
+    expect(maskPhone("(96) 98140-7223")).toBe("(96) 98***-****");
+    expect(maskPhone("96981407223")).toBe("(96) 98***-****");
+    expect(maskPhone("981407223")).toBe("98***-****");
     expect(maskPhone("")).toBe("");
   });
 

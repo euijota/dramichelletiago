@@ -242,7 +242,11 @@ function AnamnesePage() {
                       inputMode="numeric"
                       value={phoneDigitsInput}
                       onChange={(e) => setPhoneDigitsInput(e.target.value.replace(/\D/g, ""))}
-                      placeholder={phoneHint ? `4 dígitos (${phoneHint})` : "Ex: 7223"}
+                      placeholder={
+                        phoneHint
+                          ? `4 dígitos finais (${phoneHint})`
+                          : "4 dígitos finais do telefone"
+                      }
                       className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
