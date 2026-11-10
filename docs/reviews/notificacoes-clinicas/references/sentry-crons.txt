@@ -1,0 +1,213 @@
+---
+title: "Crons"
+description: "Sentry Crons allows you to monitor the uptime and performance of any scheduled, recurring job in your application using the Sentry JavaScript SDK."
+url: https://docs.sentry.io/platforms/javascript/guides/node/crons/
+---
+# Set Up Crons for Node.js
+Once implemented, it'll allow you to get alerts and metrics to help you solve errors, detect timeouts, and prevent disruptions to your service.
+## [Requirements](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#requirements)
+* Use our [getting started](https://docs.sentry.io/platforms/javascript/guides/node.md) guide to install and configure the Sentry SDK (version `7.51.1` or newer) for your recurring job.
+* Send a monitor configuration from your code as shown below, and Sentry creates the monitor on the first check-in. You can also [create the monitor in Sentry](https://sentry.io/issues/alerts/new/crons/) instead.
+## [Automatic Crons Instrumentation](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#automatic-crons-instrumentation)
+If you're using the [`cron`](https://www.npmjs.com/package/cron), [`node-cron`](https://www.npmjs.com/package/node-cron) or [`node-schedule`](https://www.npmjs.com/package/node-schedule) libraries to run your periodic tasks, you can use our instrumentation functions in the `Sentry.cron` export to monitor your cron jobs. These functions send the job's schedule with each check-in, so Sentry creates the monitor for you.
+### [Cron](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#cron)
+Requires SDK version `7.92.0` or higher.
+Use `Sentry.cron.instrumentCron` to instrument the `CronJob` constructor or `CronJob.from` method in the [`cron`](https://www.npmjs.com/package/cron) library. Pass the name of the cron monitor as a second argument to the function.
+```JavaScript
+import { CronJob } from "cron";
+const CronJobWithCheckIn = Sentry.cron.instrumentCron(CronJob, "my-cron-job");
+// use the constructor
+const job = new CronJobWithCheckIn("* * * * *", () => {
+console.log("You will see this message every minute");
+});
+// or from method
+const job = CronJobWithCheckIn.from({
+cronTime: "* * * * *",
+onTick: () => {
+console.log("You will see this message every minute");
+},
+});
+```
+### [Node Cron](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#node-cron)
+Requires SDK version `7.92.0` or higher.
+Use `Sentry.cron.instrumentNodeCron` to instrument the `cron` export from the [`node-cron`](https://www.npmjs.com/package/node-cron) library. This returns an object with the same API as the original `cron` export, but with the `schedule` method instrumented. You can pass the name of the cron monitor and an optional time zone as part of the third options argument to the function.
+```JavaScript
+import cron from "node-cron";
+const cronWithCheckIn = Sentry.cron.instrumentNodeCron(cron);
+cronWithCheckIn.schedule(
+"* * * * *",
+() => {
+console.log("running a task every minute");
+},
+{ name: "my-cron-job" }
+);
+```
+### [Node Schedule](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#node-schedule)
+Requires SDK version `7.93.0` or higher.
+Use `Sentry.cron.instrumentNodeSchedule` to instrument the `schedule` export from the [`node-schedule`](https://www.npmjs.com/package/node-schedule) library. This returns an object with the same API as the original `schedule` export, but with the `scheduleJob` method instrumented. You can pass the name of the cron job as the first argument to the function. Currently this only supports cronstring as the second argument to `scheduleJob`.
+```JavaScript
+import * as schedule from "node-schedule";
+const scheduleWithCheckIn = Sentry.cron.instrumentNodeSchedule(schedule);
+scheduleWithCheckIn.scheduleJob(
+"my-cron-job",
+"* * * * *",
+() => {
+console.log("running a task every minute");
+}
+);
+```
+## [Job Monitoring](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#job-monitoring)
+Use the `Sentry.withMonitor()` API to monitor a callback and notify you if your periodic task is missed (or doesn't start when expected), if it fails due to a problem in the runtime (such as an error), or if it fails by exceeding its maximum runtime.
+`Sentry.withMonitor()` requires SDK version `7.76.0`.
+Pass a monitor configuration as the third argument so Sentry creates or updates the monitor from your code:
+```javascript
+Sentry.withMonitor(
+"",
+() => {
+// Execute your scheduled task here...
+},
+{
+schedule: { type: "crontab", value: "0 * * * *" },
+},
+);
+```
+If the monitor already exists in Sentry, the configuration is optional. See [Upserting Cron Monitors](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#upserting-cron-monitors) for all configuration options.
+`Sentry.withMonitor()` does not create new a trace. Events and errors that occur within the monitored callback will be associated with the current trace context.
+If you are using an SDK version prior to `7.76.0`, you can use the `Sentry.captureCheckIn()` API documented below.
+## [Check-Ins](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#check-ins)
+Check-in monitoring allows you to track a job's progress by completing two check-ins: one at the start of your job and another at the end of your job. This two-step process allows Sentry to notify you if your job didn't start when expected (missed) or if it exceeded its maximum runtime (failed).
+```javascript
+// 🟡 Notify Sentry your job is running:
+const checkInId = Sentry.captureCheckIn({
+monitorSlug: "",
+status: "in_progress",
+});
+// Execute your scheduled task here...
+// 🟢 Notify Sentry your job has completed successfully:
+Sentry.captureCheckIn({
+// Make sure this variable is named `checkInId`
+checkInId,
+monitorSlug: "",
+status: "ok",
+});
+```
+If your job execution fails, you can notify Sentry about the failure:
+```javascript
+// 🔴 Notify Sentry your job has failed:
+Sentry.captureCheckIn({
+// Make sure this variable is named `checkInId`
+checkInId,
+monitorSlug: "",
+status: "error",
+});
+```
+## [Heartbeat](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#heartbeat)
+Heartbeat monitoring notifies Sentry of a job's status through one check-in. This setup will only notify you if your job didn't start when expected (missed). If you need to track a job to see if it exceeded its maximum runtime (failed), use check-ins instead.
+```javascript
+// Execute your scheduled task...
+// 🟢 Notify Sentry your job completed successfully:
+Sentry.captureCheckIn({
+monitorSlug: "",
+status: "ok",
+});
+```
+If your job execution fails, you can:
+```javascript
+// 🔴 Notify Sentry your job has failed:
+Sentry.captureCheckIn({
+monitorSlug: "",
+status: "error",
+});
+```
+## [Upserting Cron Monitors](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#upserting-cron-monitors)
+You can create and update your Monitors programmatically with code rather than [creating and configuring them in Sentry.io](https://sentry.io/issues/alerts/new/crons/).
+To create/update a monitor, use `Sentry.withMonitor()` and pass in your monitor configuration as a third parameter:
+```javascript
+const monitorConfig = {
+schedule: {
+type: "crontab",
+value: "* * * * *",
+},
+checkinMargin: 2, // In minutes. Optional.
+maxRuntime: 10, // In minutes. Optional.
+timezone: "America/Los_Angeles", // Optional.
+};
+Sentry.withMonitor(
+"",
+() => {
+// Execute your scheduled task here...
+},
+monitorConfig,
+);
+```
+To configure the monitor's check-ins, use `Sentry.captureCheckIn()` and pass in your monitor configuration as a second parameter:
+```javascript
+const monitorConfig = {
+schedule: {
+type: "crontab",
+value: "* * * * *",
+},
+checkinMargin: 2, // In minutes. Optional.
+maxRuntime: 10, // In minutes. Optional.
+timezone: "America/Los_Angeles", // Optional.
+};
+// 🟡 Notify Sentry your job is running:
+const checkInId = Sentry.captureCheckIn(
+{
+monitorSlug: "",
+status: "in_progress",
+},
+monitorConfig,
+);
+// Execute your scheduled task here...
+// 🟢 Notify Sentry your job has completed successfully:
+Sentry.captureCheckIn(
+{
+// Make sure this variable is named `checkInId`
+checkInId,
+monitorSlug: "",
+status: "ok",
+},
+monitorConfig,
+);
+```
+### [Monitor Configuration Properties](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#monitor-configuration-properties)
+The following are available monitor configuration properties:
+`schedule`:
+The job's schedule:
+The schedule representation for your monitor, either `crontab` or `interval`. The structure will vary depending on the type:
+```json
+{"type": "crontab", "value": "0 * * * *"}
+{"type": "interval", "value": 2, "unit": "hour"}
+```
+`checkinMargin`:
+The amount of time (in minutes) Sentry should wait for your check-in before it's considered missed ("grace period"). Optional.
+We recommend that your check-in margin be less than or equal to your interval.
+`maxRuntime`:
+The amount of time (in minutes) your job is allowed to run before it's considered failed. The maximum is 10080 minutes (7 days). Optional.
+`timezone`:
+The `tz` where your job is running. This is usually your server's timezone, (such as `America/Los_Angeles`). See [list of tz database time zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). Optional.
+`node-cron` allows you to pass luxon timezones, but you have to convert them to an IANA timezone when using Sentry (for example, using `DateTime.local().zoneName`).
+`failureIssueThreshold`:
+*requires SDK version `8.7.0` or higher*
+The number of consecutive failed check-ins required before an issue can be created. Optional.
+`recoveryThreshold`:
+*requires SDK version `8.7.0` or higher*
+The number of consecutive successful check-ins required for an issue to be considered resolved. Optional.
+## [Alerts](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#alerts)
+When your recurring job fails to check in (missed), runs beyond its configured maximum runtime (failed), or manually reports a failure, Sentry will create an error event with a tag to your monitor.
+To receive alerts about these events:
+1. Navigate to **Alerts** in the sidebar.
+2. Create a new alert and select "Issues" under "Errors" as the alert type.
+3. Configure your alert and define a filter match to use: `The event's tags match {key} {match} {value}`.
+Example: `The event's tags match monitor.slug equals my-monitor-slug-here`
+Learn more in [Alerts](https://docs.sentry.io/product/monitors-and-alerts/alerts.md).
+## [Rate Limits](https://docs.sentry.io/platforms/javascript/guides/node/crons.md#rate-limits)
+To prevent abuse and resource overuse, Crons limits check-ins to **6 per minute for each monitor environment**.
+For example, if you have a monitor called "database-backup" with two environments:
+* `database-backup` in environment `production` can send up to 6 check-ins per minute
+* `database-backup` in environment `staging` can also send up to 6 check-ins per minute
+* Combined, they can send up to 12 check-ins per minute
+You can verify if any check-ins are being dropped by visiting the [Usage Stats](https://docs.sentry.io/product/stats.md#usage-stats) page. To avoid dropped check-ins, ensure your monitors don't exceed the rate limit.
+## Pages in this section
+- [Troubleshooting](https://docs.sentry.io/platforms/javascript/guides/node/crons/troubleshooting.md)
