@@ -139,7 +139,7 @@ export async function resolveAppointmentIdFromToken(
   if (token && typeof token === "string" && token.length >= 32 && !token.includes(".")) {
     try {
       const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
-      const { data, error } = await (supabaseAdmin as any)
+      const { data, error } = await supabaseAdmin
         .from("appointment_link_tokens")
         .select("appointment_id, allowed_actions, expires_at, revoked_at")
         .eq("token_hash", tokenHash)

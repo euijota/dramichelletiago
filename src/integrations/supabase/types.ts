@@ -8,115 +8,40 @@ export type Database = {
   };
   public: {
     Tables: {
-      inventory_products: {
+      appointment_link_tokens: {
         Row: {
-          id: string;
-          code: string | null;
-          name: string;
-          category: string;
-          unit: string;
-          current_quantity: number;
-          min_quantity: number;
-          ideal_quantity: number;
-          unit_cost: number | null;
-          supplier: string | null;
-          batch_number: string | null;
-          expiration_date: string | null;
-          location: string | null;
-          notes: string | null;
-          is_active: boolean;
+          allowed_actions: string[];
+          appointment_id: string;
           created_at: string;
-          updated_at: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string | null;
+          token_hash: string;
         };
         Insert: {
-          id?: string;
-          code?: string | null;
-          name: string;
-          category: string;
-          unit?: string;
-          current_quantity?: number;
-          min_quantity?: number;
-          ideal_quantity?: number;
-          unit_cost?: number | null;
-          supplier?: string | null;
-          batch_number?: string | null;
-          expiration_date?: string | null;
-          location?: string | null;
-          notes?: string | null;
-          is_active?: boolean;
+          allowed_actions?: string[];
+          appointment_id: string;
           created_at?: string;
-          updated_at?: string;
+          expires_at: string;
+          id?: string;
+          revoked_at?: string | null;
+          token_hash: string;
         };
         Update: {
-          id?: string;
-          code?: string | null;
-          name?: string;
-          category?: string;
-          unit?: string;
-          current_quantity?: number;
-          min_quantity?: number;
-          ideal_quantity?: number;
-          unit_cost?: number | null;
-          supplier?: string | null;
-          batch_number?: string | null;
-          expiration_date?: string | null;
-          location?: string | null;
-          notes?: string | null;
-          is_active?: boolean;
+          allowed_actions?: string[];
+          appointment_id?: string;
           created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      inventory_transactions: {
-        Row: {
-          id: string;
-          product_id: string;
-          transaction_type: "entrada" | "saida" | "ajuste";
-          quantity: number;
-          previous_quantity: number | null;
-          new_quantity: number | null;
-          unit_cost: number | null;
-          reason: string;
-          patient_id: string | null;
-          responsible: string | null;
-          notes: string | null;
-          created_at: string;
-        };
-        Insert: {
+          expires_at?: string;
           id?: string;
-          product_id: string;
-          transaction_type: string;
-          quantity: number;
-          previous_quantity?: number | null;
-          new_quantity?: number | null;
-          unit_cost?: number | null;
-          reason: string;
-          patient_id?: string | null;
-          responsible?: string | null;
-          notes?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          product_id?: string;
-          transaction_type?: string;
-          quantity?: number;
-          previous_quantity?: number | null;
-          new_quantity?: number | null;
-          unit_cost?: number | null;
-          reason?: string;
-          patient_id?: string | null;
-          responsible?: string | null;
-          notes?: string | null;
-          created_at?: string;
+          revoked_at?: string | null;
+          token_hash?: string;
         };
         Relationships: [
           {
-            foreignKeyName: "inventory_transactions_product_id_fkey";
-            columns: ["product_id"];
+            foreignKeyName: "appointment_link_tokens_appointment_id_fkey";
+            columns: ["appointment_id"];
             isOneToOne: false;
-            referencedRelation: "inventory_products";
+            referencedRelation: "appointments";
             referencedColumns: ["id"];
           },
         ];
@@ -125,6 +50,7 @@ export type Database = {
         Row: {
           appointment_date: string;
           appointment_time: string;
+          cancellation_reason: string | null;
           confirmed_at: string | null;
           created_at: string;
           duration_minutes: number;
@@ -144,6 +70,7 @@ export type Database = {
         Insert: {
           appointment_date: string;
           appointment_time: string;
+          cancellation_reason?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
           duration_minutes?: number;
@@ -163,6 +90,7 @@ export type Database = {
         Update: {
           appointment_date?: string;
           appointment_time?: string;
+          cancellation_reason?: string | null;
           confirmed_at?: string | null;
           created_at?: string;
           duration_minutes?: number;
@@ -353,6 +281,149 @@ export type Database = {
           },
         ];
       };
+      clinical_link_rate_buckets: {
+        Row: {
+          expires_at: string;
+          kind: string;
+          request_count: number;
+          source_hash: string;
+          window_start: string;
+        };
+        Insert: {
+          expires_at: string;
+          kind: string;
+          request_count?: number;
+          source_hash: string;
+          window_start: string;
+        };
+        Update: {
+          expires_at?: string;
+          kind?: string;
+          request_count?: number;
+          source_hash?: string;
+          window_start?: string;
+        };
+        Relationships: [];
+      };
+      clinical_notification_events: {
+        Row: {
+          accepted_at: string | null;
+          appointment_date: string;
+          appointment_id: string | null;
+          appointment_time: string;
+          attempt_count: number;
+          attempt_finished_at: string | null;
+          attempt_lease_id: string | null;
+          created_at: string;
+          error_category: string | null;
+          first_request_intent_at: string | null;
+          frozen_payload: Json | null;
+          id: string;
+          kind: string;
+          last_request_intent_at: string | null;
+          lease_expires_at: string | null;
+          lease_id: string | null;
+          next_attempt_at: string | null;
+          origin: string;
+          patient_name: string;
+          patient_phone: string | null;
+          provider_email_id: string | null;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: string;
+        };
+        Insert: {
+          accepted_at?: string | null;
+          appointment_date: string;
+          appointment_id?: string | null;
+          appointment_time: string;
+          attempt_count?: number;
+          attempt_finished_at?: string | null;
+          attempt_lease_id?: string | null;
+          created_at?: string;
+          error_category?: string | null;
+          first_request_intent_at?: string | null;
+          frozen_payload?: Json | null;
+          id?: string;
+          kind: string;
+          last_request_intent_at?: string | null;
+          lease_expires_at?: string | null;
+          lease_id?: string | null;
+          next_attempt_at?: string | null;
+          origin?: string;
+          patient_name: string;
+          patient_phone?: string | null;
+          provider_email_id?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+        };
+        Update: {
+          accepted_at?: string | null;
+          appointment_date?: string;
+          appointment_id?: string | null;
+          appointment_time?: string;
+          attempt_count?: number;
+          attempt_finished_at?: string | null;
+          attempt_lease_id?: string | null;
+          created_at?: string;
+          error_category?: string | null;
+          first_request_intent_at?: string | null;
+          frozen_payload?: Json | null;
+          id?: string;
+          kind?: string;
+          last_request_intent_at?: string | null;
+          lease_expires_at?: string | null;
+          lease_id?: string | null;
+          next_attempt_at?: string | null;
+          origin?: string;
+          patient_name?: string;
+          patient_phone?: string | null;
+          provider_email_id?: string | null;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "clinical_notification_events_appointment_id_fkey";
+            columns: ["appointment_id"];
+            isOneToOne: false;
+            referencedRelation: "appointments";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      clinical_notification_runtime: {
+        Row: {
+          check_in_id: string | null;
+          cycle_slot: string | null;
+          id: boolean;
+          last_cycle_completed_at: string | null;
+          last_health_code: string | null;
+          monitor_lease_expires_at: string | null;
+          monitor_lease_id: string | null;
+        };
+        Insert: {
+          check_in_id?: string | null;
+          cycle_slot?: string | null;
+          id?: boolean;
+          last_cycle_completed_at?: string | null;
+          last_health_code?: string | null;
+          monitor_lease_expires_at?: string | null;
+          monitor_lease_id?: string | null;
+        };
+        Update: {
+          check_in_id?: string | null;
+          cycle_slot?: string | null;
+          id?: boolean;
+          last_cycle_completed_at?: string | null;
+          last_health_code?: string | null;
+          monitor_lease_expires_at?: string | null;
+          monitor_lease_id?: string | null;
+        };
+        Relationships: [];
+      };
       clinical_records: {
         Row: {
           content: string;
@@ -523,6 +594,126 @@ export type Database = {
             columns: ["trainer_id"];
             isOneToOne: false;
             referencedRelation: "trainers";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      inventory_products: {
+        Row: {
+          batch_number: string | null;
+          category: string;
+          code: string | null;
+          created_at: string;
+          current_quantity: number;
+          expiration_date: string | null;
+          id: string;
+          ideal_quantity: number;
+          is_active: boolean;
+          location: string | null;
+          min_quantity: number;
+          name: string;
+          notes: string | null;
+          supplier: string | null;
+          unit: string;
+          unit_cost: number | null;
+          updated_at: string;
+        };
+        Insert: {
+          batch_number?: string | null;
+          category?: string;
+          code?: string | null;
+          created_at?: string;
+          current_quantity?: number;
+          expiration_date?: string | null;
+          id?: string;
+          ideal_quantity?: number;
+          is_active?: boolean;
+          location?: string | null;
+          min_quantity?: number;
+          name: string;
+          notes?: string | null;
+          supplier?: string | null;
+          unit?: string;
+          unit_cost?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          batch_number?: string | null;
+          category?: string;
+          code?: string | null;
+          created_at?: string;
+          current_quantity?: number;
+          expiration_date?: string | null;
+          id?: string;
+          ideal_quantity?: number;
+          is_active?: boolean;
+          location?: string | null;
+          min_quantity?: number;
+          name?: string;
+          notes?: string | null;
+          supplier?: string | null;
+          unit?: string;
+          unit_cost?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      inventory_transactions: {
+        Row: {
+          created_at: string;
+          id: string;
+          new_quantity: number | null;
+          notes: string | null;
+          patient_id: string | null;
+          previous_quantity: number | null;
+          product_id: string;
+          quantity: number;
+          reason: string;
+          responsible: string | null;
+          transaction_type: string;
+          unit_cost: number | null;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          new_quantity?: number | null;
+          notes?: string | null;
+          patient_id?: string | null;
+          previous_quantity?: number | null;
+          product_id: string;
+          quantity: number;
+          reason?: string;
+          responsible?: string | null;
+          transaction_type: string;
+          unit_cost?: number | null;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          new_quantity?: number | null;
+          notes?: string | null;
+          patient_id?: string | null;
+          previous_quantity?: number | null;
+          product_id?: string;
+          quantity?: number;
+          reason?: string;
+          responsible?: string | null;
+          transaction_type?: string;
+          unit_cost?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_patient_id_fkey";
+            columns: ["patient_id"];
+            isOneToOne: false;
+            referencedRelation: "patients";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "inventory_transactions_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_products";
             referencedColumns: ["id"];
           },
         ];
@@ -740,9 +931,11 @@ export type Database = {
           address_number: string | null;
           birth_date: string | null;
           city: string | null;
+          clinicorp_id: string | null;
           cpf: string | null;
           created_at: string;
           email: string | null;
+          funnel_stage: string | null;
           gender: string | null;
           id: string;
           insurance: string | null;
@@ -753,6 +946,7 @@ export type Database = {
           medical_warning: string | null;
           name: string;
           neighborhood: string | null;
+          nickname: string | null;
           notes: string | null;
           origin: string | null;
           phone: string | null;
@@ -760,14 +954,11 @@ export type Database = {
           postal_code: string | null;
           profession: string | null;
           record_number: number;
+          return_alert_date: string | null;
+          return_alert_notes: string | null;
           rg: string | null;
           state: string | null;
           updated_at: string;
-          nickname?: string | null;
-          return_alert_date?: string | null;
-          return_alert_notes?: string | null;
-          funnel_stage?: string | null;
-          clinicorp_id?: string | null;
         };
         Insert: {
           address?: string | null;
@@ -775,9 +966,11 @@ export type Database = {
           address_number?: string | null;
           birth_date?: string | null;
           city?: string | null;
+          clinicorp_id?: string | null;
           cpf?: string | null;
           created_at?: string;
           email?: string | null;
+          funnel_stage?: string | null;
           gender?: string | null;
           id?: string;
           insurance?: string | null;
@@ -788,6 +981,7 @@ export type Database = {
           medical_warning?: string | null;
           name: string;
           neighborhood?: string | null;
+          nickname?: string | null;
           notes?: string | null;
           origin?: string | null;
           phone?: string | null;
@@ -795,14 +989,11 @@ export type Database = {
           postal_code?: string | null;
           profession?: string | null;
           record_number?: number;
+          return_alert_date?: string | null;
+          return_alert_notes?: string | null;
           rg?: string | null;
           state?: string | null;
           updated_at?: string;
-          nickname?: string | null;
-          return_alert_date?: string | null;
-          return_alert_notes?: string | null;
-          funnel_stage?: string | null;
-          clinicorp_id?: string | null;
         };
         Update: {
           address?: string | null;
@@ -810,9 +1001,11 @@ export type Database = {
           address_number?: string | null;
           birth_date?: string | null;
           city?: string | null;
+          clinicorp_id?: string | null;
           cpf?: string | null;
           created_at?: string;
           email?: string | null;
+          funnel_stage?: string | null;
           gender?: string | null;
           id?: string;
           insurance?: string | null;
@@ -823,6 +1016,7 @@ export type Database = {
           medical_warning?: string | null;
           name?: string;
           neighborhood?: string | null;
+          nickname?: string | null;
           notes?: string | null;
           origin?: string | null;
           phone?: string | null;
@@ -830,14 +1024,11 @@ export type Database = {
           postal_code?: string | null;
           profession?: string | null;
           record_number?: number;
+          return_alert_date?: string | null;
+          return_alert_notes?: string | null;
           rg?: string | null;
           state?: string | null;
           updated_at?: string;
-          nickname?: string | null;
-          return_alert_date?: string | null;
-          return_alert_notes?: string | null;
-          funnel_stage?: string | null;
-          clinicorp_id?: string | null;
         };
         Relationships: [];
       };
@@ -1330,6 +1521,64 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      cancel_appointment_by_id: {
+        Args: { p_appointment_id: string; p_reason: string };
+        Returns: Json;
+      };
+      clinical_acknowledge_notification: {
+        Args: { p_event_id: string; p_reviewer_id: string };
+        Returns: Json;
+      };
+      clinical_apply_patient_action: {
+        Args: { p_action: string; p_reason?: string; p_token_hash: string };
+        Returns: Json;
+      };
+      clinical_begin_notification_attempt: {
+        Args: { p_event_id: string; p_lease_id: string; p_payload: Json };
+        Returns: Json;
+      };
+      clinical_claim_monitor_cycle: { Args: never; Returns: Json };
+      clinical_claim_notification_events: {
+        Args: { p_limit?: number };
+        Returns: Json;
+      };
+      clinical_consume_link_limit: {
+        Args: { p_kind: string; p_source_hash: string };
+        Returns: Json;
+      };
+      clinical_finish_monitor_cycle: {
+        Args: { p_health_code: string; p_lease_id: string };
+        Returns: Json;
+      };
+      clinical_finish_notification_attempt: {
+        Args: {
+          p_error_category?: string;
+          p_event_id: string;
+          p_lease_id: string;
+          p_provider_id?: string;
+          p_result: string;
+          p_retry_after_seconds?: number;
+        };
+        Returns: Json;
+      };
+      clinical_get_notification_status: { Args: never; Returns: Json };
+      clinical_get_recent_patient_events: { Args: never; Returns: Json };
+      clinical_issue_appointment_link: {
+        Args: { p_appointment_id: string; p_token_hash: string };
+        Returns: Json;
+      };
+      clinical_preview_appointment: {
+        Args: { p_token_hash: string };
+        Returns: Json;
+      };
+      clinical_release_unstarted_events: {
+        Args: { p_lease_ids: string[] };
+        Returns: Json;
+      };
+      confirm_appointment_by_id: {
+        Args: { p_appointment_id: string };
+        Returns: Json;
+      };
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"];
