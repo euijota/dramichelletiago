@@ -2,21 +2,25 @@
 
 Projeto: `risylusxvpsvrpqsefor` (produção: `risylusxvpsvrpqsefor.supabase.co`).
 
-## ⚠️ Banco compartilhado
+## Banco limpo (2026-11-11)
 
-Este projeto Supabase compartilha o schema `public` com um **app de personal
-trainer da era Lovable** (`clients`, `trainers`, `workouts`, `payments`,
-`messages`, etc.). Em 2026-11-11 o inventário confirmou: **16 tabelas, 0 linhas,
-sem buckets, sem edge functions** — apenas esqueleto de schema. Usuários de auth
-órfãos daquela era: `joao@email.com`, `kirlian@fitpro.com`.
+Este projeto Supabase **abrigava** um app de personal trainer da era Lovable
+(`clients`, `trainers`, `workouts`, `payments`, `messages`, etc.). O esqueleto
+(16 tabelas vazias, 2 funções, 2 usuários de auth órfãos: `joao@email.com` e
+`kirlian@fitpro.com`) foi removido em 2026-11-11 após inventário confirmar
+0 linhas em todas as tabelas. Backup completo do DDL:
+`migrations_archive/20261111_backup_fitness_skeleton.sql`.
+
+Restam apenas os objetos clínicos da Dra. Michelle (15 tabelas, 1 usuário de
+auth — `dramichellebarbosatiago@gmail.com`, admin).
 
 ## Regras obrigatórias
 
-1. **NUNCA rodar `supabase db pull`** — ele tentaria adotar as tabelas do app
-   fitness no repositório. A fonte de schema deste repo são as migrações em
-   `supabase/migrations/`, exclusivamente.
-2. **`db diff` sempre com `-s public`** e interpretando as tabelas fitness como
-   diferença esperada (nunca "corrigir" aplicando o diff).
+1. **Fonte de schema = migrações em `supabase/migrations/`, exclusivamente.**
+   `db pull` pode distorcer o histórico (recria objetos como migração única) —
+   usar apenas em caso extremo, com revisão manual.
+2. **`db diff` deve ser interpretado com cuidado** — saída grande demais
+   normalmente indica drift; investigar antes de aplicar.
 3. **Nunca rodar os arquivos de `supabase/migrations_archive/`** — são migrações
    órfãs da era Lovable e três delas são perigosas (`harden_role_checks_and_rls`
    termina com `DROP FUNCTION public.has_role`; `split_anon_authenticated_rls`
