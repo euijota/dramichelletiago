@@ -54,3 +54,11 @@ Publicação final confirmada: deployment READY e promovido; os aliases `dramich
 
 - O servidor usa `SENTRY_DSN` do projeto `dramichelle`. O [monitor clinical-notifications](https://ij-49.sentry.io/monitors/10915874/) recebe check-ins de produção a cada minuto e detecta ausência após dois minutos de tolerância.
 - A [regra de falha](https://ij-49.sentry.io/monitors/alerts/6324382/) notifica o membro administrador do projeto. O check-in sintético com status de erro abriu o incidente `DRAMICHELLE-3`. Os e-mails de teste apareceram no Gmail do destinatário. Check-ins de produção continuaram durante a verificação.
+
+## Confirmação automática 20h antes (2026-11-11)
+
+- Novo cron horário `/api/cron/confirmation-20h` (`vercel.json`, `0 * * * *`), protegido por `CRON_SECRET`. A cada execução seleciona consultas com início na janela `[now+19h, now+21h]` (alvo: 20h antes, tolerância de 1h), apenas `status = 'pending'`, `confirmed_at is null` e `reminder_sent_at is null`. Fuso da clínica: UTC-3 fixo.
+- Dedup pela coluna `reminder_sent_at` (mesma marca do envio manual assistido do CRC) — nenhum envio duplicado; a marca só é gravada após o webhook responder 2xx.
+- Contrato do webhook `WHATSAPP_WEBHOOK_URL`: POST JSON `{phone (E.164 com 55), event: "appointment_confirmation_20h", text, patientName, patientPhone, appointmentDate, appointmentTime, confirmUrl}`. O `confirmUrl` aponta para `/confirmar/<token>` (link revogável emitido por `issueRevocableAppointmentLink`). Template: `reminder_24h` (variável `confirm_url`).
+- Sem `WHATSAPP_WEBHOOK_URL` configurada, nada é enviado nem marcado: as confirmações da janela ficam como pendências visíveis no CRC (envio assistido). Provider real (Meta Cloud API ou equivalente) pendente de decisão — a decisão da auditoria Goldfish ZO-01 (não transmitir links automaticamente) foi deliberadamente reaberta; o link permanece revogável e com rate-limit.
+- Fronteira conhecida: consultas agendadas com menos de 19h de antecedência nunca entram na janela e não recebem a mensagem automática (continua valendo o envio assistido no agendamento).

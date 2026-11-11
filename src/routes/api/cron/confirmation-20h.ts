@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { execute24hReminders } from "@/lib/cron-reminders";
+import { executeConfirmationReminders } from "@/lib/cron-reminders";
 
-export const Route = createFileRoute("/api/cron/24h-reminders")({
+export const Route = createFileRoute("/api/cron/confirmation-20h")({
   server: {
     handlers: {
       GET: async ({ request }) => {
@@ -16,13 +16,13 @@ export const Route = createFileRoute("/api/cron/24h-reminders")({
         }
 
         try {
-          const result = await execute24hReminders();
+          const result = await executeConfirmationReminders();
           return new Response(JSON.stringify(result), {
             status: 200,
             headers: { "Content-Type": "application/json" },
           });
         } catch (error) {
-          console.error("[api/cron/24h-reminders] Erro ao executar lembretes:", error);
+          console.error("[api/cron/confirmation-20h] Erro ao executar confirmações:", error);
           return new Response(
             JSON.stringify({
               error: error instanceof Error ? error.message : "Internal Server Error",

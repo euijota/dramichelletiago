@@ -7,6 +7,17 @@ import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
 import { CLINIC } from "@/lib/clinic";
 
+// Fuso da clínica (Macapá/Belém): UTC-3 fixo (Brasil sem horário de verão desde 2019).
+const CLINIC_UTC_OFFSET_MINUTES = -3 * 60;
+
+// A mensagem de confirmação é enviada 20h antes do início da consulta.
+// O cron roda a cada hora e seleciona a janela [now+19h, now+21h] para
+// tolerar atraso de até 1h na execução (Vercel cron pode atrasar alguns minutos).
+const TARGET_HOURS_BEFORE = 20;
+const WINDOW_HOURS = 1;
+
+const HOUR_MS = 3_600_000;
+
 interface AppointmentForReminder {
   id: string;
   patient_name: string;
@@ -18,47 +29,72 @@ interface AppointmentForReminder {
   reminder_sent_at: string | null;
 }
 
-export async function execute24hReminders() {
-  // Calculate tomorrow's date in UTC-3 (Macapá)
-  const now = new Date();
-  const macapaOffset = -3 * 60; // UTC-3 in minutes
-  const macapaNow = new Date(now.getTime() + (macapaOffset - now.getTimezoneOffset()) * 60000);
+/** Época (ms) do início da consulta, interpretando date+time no fuso da clínica (UTC-3). */
+export function appointmentStartMs(appointmentDate: string, appointmentTime: string): number {
+  const [y, m, d] = appointmentDate.split("-").map(Number);
+  const [hh, mm, ss] = appointmentTime.split(":").map(Number);
+  return Date.UTC(y, m - 1, d, hh, mm ?? 0, ss ?? 0) - CLINIC_UTC_OFFSET_MINUTES * 60_000;
+}
 
-  const tomorrow = new Date(macapaNow);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+/** Data local da clínica (YYYY-MM-DD) para um instante. */
+export function clinicDateString(instant: Date): string {
+  return new Date(instant.getTime() + CLINIC_UTC_OFFSET_MINUTES * 60_000)
+    .toISOString()
+    .split("T")[0];
+}
 
-  console.log(`[cron-24h] Checking reminders for ${tomorrowStr} (Macapá time)`);
+export async function executeConfirmationReminders(now: Date = new Date()) {
+  const windowStart = now.getTime() + (TARGET_HOURS_BEFORE - WINDOW_HOURS) * HOUR_MS; // now + 19h
+  const windowEnd = now.getTime() + (TARGET_HOURS_BEFORE + WINDOW_HOURS) * HOUR_MS; // now + 21h
 
-  // Fetch appointments for tomorrow that are pending/confirmed and haven't had reminder sent
+  // Datas locais possivelmente cobertas pela janela (no máximo 2: hoje e/ou amanhã).
+  const dates = Array.from(
+    new Set([clinicDateString(new Date(windowStart)), clinicDateString(new Date(windowEnd))]),
+  );
+
+  console.log(
+    `[cron-confirmacao] Janela: ${new Date(windowStart).toISOString()} .. ${new Date(
+      windowEnd,
+    ).toISOString()} (datas ${dates.join(", ")})`,
+  );
+
+  // Alvo: consultas pendentes (ainda não confirmadas) na janela de ~20h antes,
+  // que ainda não receberam a mensagem (reminder_sent_at é a marca de dedup,
+  // compartilhada com o envio manual assistido do CRC).
   const { data: appointments, error } = await supabaseAdmin
     .from("appointments")
     .select(
       "id, patient_name, patient_phone, appointment_date, appointment_time, service_name, status, reminder_sent_at",
     )
-    .eq("appointment_date", tomorrowStr)
-    .in("status", ["pending", "confirmed"])
+    .in("appointment_date", dates)
+    .eq("status", "pending")
+    .is("confirmed_at", null)
     .is("reminder_sent_at", null);
 
   if (error) {
-    console.error("[cron-24h] Error fetching appointments:", error);
+    console.error("[cron-confirmacao] Error fetching appointments:", error);
     throw new Error(error.message);
   }
 
-  if (!appointments || appointments.length === 0) {
-    console.log("[cron-24h] No appointments need reminders");
-    return { success: true, sent: 0, message: "No appointments to remind" };
+  const inWindow = (appointments as AppointmentForReminder[] | null)?.filter((apt) => {
+    const start = appointmentStartMs(apt.appointment_date, apt.appointment_time);
+    return start >= windowStart && start <= windowEnd;
+  });
+
+  if (!inWindow || inWindow.length === 0) {
+    console.log("[cron-confirmacao] No appointments in confirmation window");
+    return { success: true, sent: 0, message: "No appointments in confirmation window" };
   }
 
   const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
   if (!webhookUrl) {
     console.warn(
-      `[cron-24h] WHATSAPP_WEBHOOK_URL não configurado. ${appointments.length} lembrete(s) pendente(s) aguardam envio assistido via CRC/Painel.`,
+      `[cron-confirmacao] WHATSAPP_WEBHOOK_URL não configurado. ${inWindow.length} confirmação(ões) pendente(s) aguardam envio assistido via CRC/Painel.`,
     );
     return {
       success: false,
       reason: "WHATSAPP_WEBHOOK_NOT_CONFIGURED",
-      total: appointments.length,
+      total: inWindow.length,
       sent: 0,
       failed: 0,
       message:
@@ -66,13 +102,13 @@ export async function execute24hReminders() {
     };
   }
 
-  // Try to get custom template
+  // Template customizável (mesmo do lembrete: já possui a variável confirm_url).
   const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
 
   let sent = 0;
   let failed = 0;
 
-  for (const apt of appointments as AppointmentForReminder[]) {
+  for (const apt of inWindow) {
     try {
       const link = await issueRevocableAppointmentLink(apt.id);
       const confirmToken = link.token;
@@ -122,7 +158,7 @@ export async function execute24hReminders() {
         signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           phone: fullPhone,
-          event: "appointment_reminder_24h",
+          event: "appointment_confirmation_20h",
           text: message,
           patientName: current.patient_name,
           patientPhone: current.patient_phone,
@@ -136,26 +172,26 @@ export async function execute24hReminders() {
         const errText = await res.text().catch(() => "");
         failed++;
         console.warn(
-          `[cron-24h] Webhook WhatsApp retornou HTTP ${res.status} para ${apt.id}: ${errText.slice(0, 100)}`,
+          `[cron-confirmacao] Webhook WhatsApp retornou HTTP ${res.status} para ${apt.id}: ${errText.slice(0, 100)}`,
         );
         continue;
       }
 
-      // Mark reminder as sent ONLY after verified webhook acceptance
+      // Marca como enviado SOMENTE após aceite verificado do webhook (dedup).
       const { error: updateError } = await supabaseAdmin
         .from("appointments")
         .update({ reminder_sent_at: new Date().toISOString() })
         .eq("id", apt.id);
 
       if (updateError) {
-        console.warn(`[cron-24h] Failed to mark reminder sent for ${apt.id}:`, updateError);
+        console.warn(`[cron-confirmacao] Failed to mark confirmation sent for ${apt.id}:`, updateError);
       } else {
         sent++;
-        console.log(`[cron-24h] Reminder sent for appointment ID: ${apt.id}`);
+        console.log(`[cron-confirmacao] Confirmation sent for appointment ID: ${apt.id}`);
       }
     } catch (e) {
       failed++;
-      console.error(`[cron-24h] Failed to send reminder for ${apt.id}:`, e);
+      console.error(`[cron-confirmacao] Failed to send confirmation for ${apt.id}:`, e);
     }
   }
 
@@ -163,15 +199,18 @@ export async function execute24hReminders() {
     success: true,
     sent,
     failed,
-    total: appointments.length,
-    date: tomorrowStr,
+    total: inWindow.length,
+    window: {
+      start: new Date(windowStart).toISOString(),
+      end: new Date(windowEnd).toISOString(),
+    },
   };
 }
 
-export const send24hReminders = createServerFn({ method: "POST" })
+export const sendConfirmationReminders = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .handler(async () => {
-    return execute24hReminders();
+    return executeConfirmationReminders();
   });
 
 export const send1hReminders = createServerFn({ method: "POST" })

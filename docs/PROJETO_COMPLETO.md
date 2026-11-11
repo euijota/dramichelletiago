@@ -61,7 +61,7 @@ Processador → check-ins no Sentry → alerta operacional
 | `/auth`, `/login`                                         | Login Supabase. A Vercel redireciona `/login` para `/auth`.                                              |
 | `/painel`                                                 | Área autenticada com operações administrativas.                                                          |
 | `POST /api/internal/clinical-notifications/process`       | Consome eventos persistidos, com segredo Bearer e corpo `{}`.                                            |
-| `/api/cron/24h-reminders`                                 | Rota separada de lembretes, protegida por `CRON_SECRET`. A configuração do cron consta em `vercel.json`. |
+| `/api/cron/confirmation-20h`                              | Cron horário (Vercel): envia mensagem de confirmação com link revogável 20h antes de consultas `pending` não confirmadas, protegida por `CRON_SECRET`. Requer `WHATSAPP_WEBHOOK_URL`; sem ele, o envio permanece assistido no CRC. |
 
 ### Mapa do repositório
 

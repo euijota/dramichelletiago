@@ -10,8 +10,8 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/24h-reminders",
-      "schedule": "0 12 * * *"
+      "path": "/api/cron/confirmation-20h",
+      "schedule": "0 * * * *"
     }
   ],
   "headers": [
