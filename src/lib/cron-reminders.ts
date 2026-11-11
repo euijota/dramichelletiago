@@ -184,7 +184,10 @@ export async function executeConfirmationReminders(now: Date = new Date()) {
         .eq("id", apt.id);
 
       if (updateError) {
-        console.warn(`[cron-confirmacao] Failed to mark confirmation sent for ${apt.id}:`, updateError);
+        console.warn(
+          `[cron-confirmacao] Failed to mark confirmation sent for ${apt.id}:`,
+          updateError,
+        );
       } else {
         sent++;
         console.log(`[cron-confirmacao] Confirmation sent for appointment ID: ${apt.id}`);
