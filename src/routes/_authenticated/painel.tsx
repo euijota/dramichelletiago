@@ -1,4 +1,3 @@
-import { NotificationStatus } from "@/components/clinical/NotificationStatus";
 import { NotificationBell } from "@/components/clinical/NotificationBell";
 import { BirthdaysCard } from "@/components/clinical/BirthdaysCard";
 import { useEffect, useMemo, useState } from "react";
@@ -893,7 +892,6 @@ function Painel() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6">
-        {mainTab === "agenda" && <NotificationStatus />}
         {mainTab === "pacientes" ? (
           <PatientsManager
             initialPatientId={selectedPatientIdForChart}
