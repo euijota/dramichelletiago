@@ -465,6 +465,92 @@ function Painel() {
     queryClient.invalidateQueries({ queryKey: ["appointments"] });
   }
 
+  const [openingChartApptId, setOpeningChartApptId] = useState<string | null>(null);
+
+  async function handleOpenPatientChart(appointment: Appointment) {
+    if (appointment.service_name === "Bloqueio de Agenda") return;
+
+    // 1. Se já tem vínculo com prontuário, abre diretamente
+    if (appointment.patient_id) {
+      setSelected(null);
+      setSelectedPatientIdForChart(appointment.patient_id);
+      setMainTab("pacientes");
+      return;
+    }
+
+    // 2. Se não tem patient_id vinculado, busca por telefone ou nome na tabela patients
+    setOpeningChartApptId(appointment.id);
+    try {
+      const cleanPhone = (appointment.patient_phone || "").replace(/\D/g, "");
+      let targetPatient: { id: string; name: string } | null = null;
+
+      if (cleanPhone.length >= 8) {
+        const { data: byPhone } = await supabase
+          .from("patients")
+          .select("id, name, phone")
+          .ilike("phone", `%${cleanPhone.slice(-8)}%`)
+          .limit(1);
+        if (byPhone && byPhone.length > 0) {
+          targetPatient = byPhone[0];
+        }
+      }
+
+      if (!targetPatient && appointment.patient_name?.trim()) {
+        const { data: byName } = await supabase
+          .from("patients")
+          .select("id, name, phone")
+          .ilike("name", appointment.patient_name.trim())
+          .limit(1);
+        if (byName && byName.length > 0) {
+          targetPatient = byName[0];
+        }
+      }
+
+      // Se ainda não existir no cadastro de pacientes, cria um novo automaticamente
+      if (!targetPatient) {
+        const { data: created, error: createErr } = await supabase
+          .from("patients")
+          .insert({
+            name: appointment.patient_name.trim(),
+            phone: appointment.patient_phone?.trim() || null,
+            email: appointment.patient_email?.trim() || null,
+            origin: "Agendamento",
+            insurance: "PARTICULAR",
+          })
+          .select("id, name")
+          .single();
+
+        if (createErr) throw createErr;
+        if (created) {
+          targetPatient = created;
+          toast.success(`Prontuário criado e vinculado para ${created.name}`);
+        }
+      } else {
+        toast.success(`Prontuário vinculado para ${targetPatient.name}`);
+      }
+
+      if (targetPatient?.id) {
+        await supabase
+          .from("appointments")
+          .update({ patient_id: targetPatient.id })
+          .eq("id", appointment.id);
+
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        queryClient.invalidateQueries({ queryKey: ["patients"] });
+
+        setSelected(null);
+        setSelectedPatientIdForChart(targetPatient.id);
+        setMainTab("pacientes");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      console.error("Erro ao abrir prontuário:", err);
+      toast.error(`Não foi possível abrir o prontuário: ${msg}`);
+    } finally {
+      setOpeningChartApptId(null);
+    }
+  }
+
   async function handleSignOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
@@ -1027,7 +1113,16 @@ function Painel() {
             {/* Stats with Uiverse-inspired glassmorphic cards */}
             <div className="mt-2 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
               {/* Card 1: Hoje */}
-              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-primary/40 hover:shadow-raised">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekStart(startOfWeek(new Date()));
+                  document
+                    .getElementById("agenda-calendar")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-7 text-left shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-primary/40 hover:shadow-raised cursor-pointer"
+              >
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-primary/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
                 <div className="flex items-center justify-between">
                   <span className="text-kicker text-muted-foreground">Consultas hoje</span>
@@ -1043,14 +1138,28 @@ function Painel() {
                     {todayCount === 1 ? "agendamento" : "agendamentos"}
                   </span>
                 </div>
-                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                  <span>{formatLongDate(todayISO)}</span>
+                <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                    <span>{formatLongDate(todayISO)}</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-primary group-hover:underline">
+                    Ver na agenda →
+                  </span>
                 </div>
-              </div>
+              </button>
 
               {/* Card 2: Confirmadas */}
-              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-emerald-500/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-raised">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekStart(startOfWeek(new Date()));
+                  document
+                    .getElementById("agenda-calendar")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-emerald-500/[0.04] p-7 text-left shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-emerald-500/40 hover:shadow-raised cursor-pointer"
+              >
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-emerald-500/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
                 <div className="flex items-center justify-between">
                   <span className="text-kicker text-muted-foreground">Confirmadas na semana</span>
@@ -1066,16 +1175,30 @@ function Painel() {
                     consultas ativas
                   </span>
                 </div>
-                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                  <span>
-                    {formatShortDate(rangeStart)} a {formatShortDate(rangeEnd)}
+                <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                    <span>
+                      {formatShortDate(rangeStart)} a {formatShortDate(rangeEnd)}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-600 group-hover:underline">
+                    Ver semana →
                   </span>
                 </div>
-              </div>
+              </button>
 
               {/* Card 3: Pendentes de amanhã (envio das confirmações às 16h) */}
-              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-amber-500/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-amber-500/40 hover:shadow-raised">
+              <button
+                type="button"
+                onClick={() => {
+                  setAgendaPendingDayFilter("amanha");
+                  document
+                    .getElementById("fila-confirmacoes")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-amber-500/[0.04] p-7 text-left shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-amber-500/40 hover:shadow-raised cursor-pointer"
+              >
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-amber-500/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
                 <div className="flex items-center justify-between">
                   <span className="text-kicker text-muted-foreground">Confirmar amanhã</span>
@@ -1105,22 +1228,27 @@ function Painel() {
                     {pendingTomorrowCount === 0 ? "fila em dia" : "requer atenção"}
                   </span>
                 </div>
-                <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
-                  <span
-                    className={cn(
-                      "inline-block h-2 w-2 rounded-full",
-                      pendingTomorrowCount > 0
-                        ? "bg-amber-500 animate-pulse"
-                        : "bg-muted-foreground/40",
-                    )}
-                  />
-                  <span>
-                    {pendingTomorrowCount > 0
-                      ? `${pendingTomorrowCount} aguardando · ${formatLongDate(tomorrowISO)}`
-                      : `Todas confirmadas · ${formatLongDate(tomorrowISO)}`}
+                <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-block h-2 w-2 rounded-full",
+                        pendingTomorrowCount > 0
+                          ? "bg-amber-500 animate-pulse"
+                          : "bg-muted-foreground/40",
+                      )}
+                    />
+                    <span>
+                      {pendingTomorrowCount > 0
+                        ? `${pendingTomorrowCount} aguardando`
+                        : "Todas confirmadas"}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-amber-600 group-hover:underline">
+                    Ver fila de envio →
                   </span>
                 </div>
-              </div>
+              </button>
               {/* Card 4: Aniversariantes do dia e da semana */}
               <BirthdaysCard
                 onOpenCRC={() => {
@@ -1131,7 +1259,10 @@ function Painel() {
             </div>
 
             {/* Week navigation with Segmented Controls */}
-            <div className="mt-16 flex flex-wrap items-center justify-between gap-4">
+            <div
+              id="agenda-calendar"
+              className="mt-16 flex flex-wrap items-center justify-between gap-4"
+            >
               <div>
                 <span className="text-kicker text-muted-foreground">Período selecionado</span>
                 <h2 className="mt-1 font-display text-3xl text-foreground">
@@ -1258,32 +1389,47 @@ function Painel() {
                                 <Clock className="h-3 w-3 text-muted-foreground" />
                                 <span>{item.time}</span>
                               </span>
-                              <span
-                                className={cn(
-                                  "text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
-                                  item.status === "pending"
-                                    ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
-                                    : item.status === "confirmed"
-                                      ? "text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border-emerald-600/30"
-                                      : item.status === "completed"
-                                        ? "text-primary bg-primary/10 border-primary/25"
-                                        : "text-muted-foreground bg-muted border-border",
+                              <div className="flex items-center gap-1.5">
+                                {item.rawSupa.service_name !== "Bloqueio de Agenda" && (
+                                  <span
+                                    role="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPatientChart(item.rawSupa);
+                                    }}
+                                    title="Abrir prontuário diretamente"
+                                    className="p-1 rounded-md text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-colors"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                  </span>
                                 )}
-                              >
                                 <span
                                   className={cn(
-                                    "h-1.5 w-1.5 rounded-full",
+                                    "text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border flex items-center gap-1",
                                     item.status === "pending"
-                                      ? "bg-amber-500 animate-pulse"
+                                      ? "text-amber-800 dark:text-amber-300 bg-amber-500/15 border-amber-500/30"
                                       : item.status === "confirmed"
-                                        ? "bg-emerald-500"
+                                        ? "text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 border-emerald-600/30"
                                         : item.status === "completed"
-                                          ? "bg-primary"
-                                          : "bg-muted-foreground",
+                                          ? "text-primary bg-primary/10 border-primary/25"
+                                          : "text-muted-foreground bg-muted border-border",
                                   )}
-                                />
-                                {STATUS_LABELS[item.status]}
-                              </span>
+                                >
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 rounded-full",
+                                      item.status === "pending"
+                                        ? "bg-amber-500 animate-pulse"
+                                        : item.status === "confirmed"
+                                          ? "bg-emerald-500"
+                                          : item.status === "completed"
+                                            ? "bg-primary"
+                                            : "bg-muted-foreground",
+                                    )}
+                                  />
+                                  {STATUS_LABELS[item.status]}
+                                </span>
+                              </div>
                             </div>
                             <span className="mt-2 block truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
                               {item.title}
@@ -1320,9 +1466,15 @@ function Painel() {
                     className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <div>
-                      <p className="font-display text-2xl text-foreground">
-                        {appointment.patient_name}
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(appointment)}
+                        className="text-left group cursor-pointer"
+                      >
+                        <p className="font-display text-2xl text-foreground group-hover:text-primary transition-colors">
+                          {appointment.patient_name}
+                        </p>
+                      </button>
                       <p className="mt-1.5 text-sm text-muted-foreground">
                         {appointment.service_name} às {trimSeconds(appointment.appointment_time)} ·{" "}
                         {STATUS_LABELS[appointment.status]}
@@ -1333,26 +1485,38 @@ function Painel() {
                       </p>
                     </div>
 
-                    <a
-                      href={buildReminderLink(
-                        appointment,
-                        signedTokens[appointment.id]?.confirmToken,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => handleOpenReminderWhatsApp(e, appointment)}
-                      className={cn(
-                        "group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm",
-                        appointment.reminder_sent_at
-                          ? "border border-border bg-card text-foreground hover:bg-accent hover:border-foreground/30"
-                          : "bg-primary text-primary-foreground hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20",
-                      )}
-                    >
-                      <MessageCircle className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
-                      <span>
-                        {appointment.reminder_sent_at ? "Abrir WhatsApp" : "Enviar lembrete"}
-                      </span>
-                    </a>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenPatientChart(appointment)}
+                        disabled={openingChartApptId === appointment.id}
+                        title="Abrir prontuário clínico do paciente"
+                        className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 hover:bg-primary hover:text-primary-foreground px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary transition-all duration-300 active:scale-95 shadow-sm cursor-pointer"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Prontuário</span>
+                      </button>
+                      <a
+                        href={buildReminderLink(
+                          appointment,
+                          signedTokens[appointment.id]?.confirmToken,
+                        )}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => handleOpenReminderWhatsApp(e, appointment)}
+                        className={cn(
+                          "group inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold uppercase tracking-wider transition-all duration-300 active:scale-95 shadow-sm",
+                          appointment.reminder_sent_at
+                            ? "border border-border bg-card text-foreground hover:bg-accent hover:border-foreground/30"
+                            : "bg-primary text-primary-foreground hover:bg-primary-deep hover:shadow-md hover:shadow-primary/20",
+                        )}
+                      >
+                        <MessageCircle className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" />
+                        <span>
+                          {appointment.reminder_sent_at ? "Abrir WhatsApp" : "Enviar lembrete"}
+                        </span>
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1360,7 +1524,7 @@ function Painel() {
 
             {/* Pending queue */}
 
-            <section className="mt-20">
+            <section id="fila-confirmacoes" className="mt-20">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                   <h2 className="font-display text-3xl text-foreground">
@@ -1422,9 +1586,15 @@ function Painel() {
                       className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div>
-                        <p className="font-display text-2xl text-foreground">
-                          {appointment.patient_name}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(appointment)}
+                          className="text-left group cursor-pointer"
+                        >
+                          <p className="font-display text-2xl text-foreground group-hover:text-primary transition-colors">
+                            {appointment.patient_name}
+                          </p>
+                        </button>
                         <p className="mt-1.5 text-sm text-muted-foreground">
                           {appointment.service_name} ·{" "}
                           {formatLongDate(appointment.appointment_date)} às{" "}
@@ -1437,6 +1607,16 @@ function Painel() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPatientChart(appointment)}
+                          disabled={openingChartApptId === appointment.id}
+                          title="Abrir prontuário clínico do paciente"
+                          className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 hover:bg-primary hover:text-primary-foreground px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary transition-all duration-300 active:scale-95 shadow-sm cursor-pointer"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>Prontuário</span>
+                        </button>
                         <a
                           href={buildReminderLink(
                             appointment,
@@ -1544,11 +1724,7 @@ function Painel() {
             onClose={() => setSelected(null)}
             onSave={updateAppointment}
             onDelete={deleteAppointment}
-            onOpenChart={(patientId) => {
-              setSelected(null);
-              setSelectedPatientIdForChart(patientId);
-              setMainTab("pacientes");
-            }}
+            onOpenChart={handleOpenPatientChart}
           />
         )}
 
@@ -1962,7 +2138,7 @@ function AppointmentSheet({
   onClose: () => void;
   onSave: (id: string, patch: Partial<Appointment>, notifyAppointment?: Appointment) => void;
   onDelete: (id: string) => void;
-  onOpenChart: (patientId: string) => void;
+  onOpenChart: (appointment: Appointment) => void;
 }) {
   const [date, setDate] = useState(appointment.appointment_date);
   const [time, setTime] = useState(trimSeconds(appointment.appointment_time));
@@ -1983,9 +2159,10 @@ function AppointmentSheet({
           <p className="text-kicker text-primary-soft">
             {isBlock ? "Horário Bloqueado" : STATUS_LABELS[appointment.status]}
           </p>
-          {appointment.patient_id && !isBlock && (
+          {!isBlock && (
             <button
-              onClick={() => onOpenChart(appointment.patient_id!)}
+              type="button"
+              onClick={() => onOpenChart(appointment)}
               className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-4 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer"
             >
               <FileText className="h-3.5 w-3.5" />
@@ -1995,6 +2172,17 @@ function AppointmentSheet({
         </div>
         <h2 className="mt-4 font-display text-3xl text-foreground">{appointment.patient_name}</h2>
         <p className="mt-2 text-sm text-muted-foreground">{appointment.service_name}</p>
+
+        {!isBlock && (
+          <button
+            type="button"
+            onClick={() => onOpenChart(appointment)}
+            className="w-full mt-4 flex items-center justify-center gap-2 rounded-2xl border border-primary/25 bg-primary/10 hover:bg-primary hover:text-primary-foreground text-primary py-2.5 px-4 text-xs font-semibold uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+          >
+            <FileText className="h-4 w-4" />
+            <span>Acessar Prontuário Clínico do Paciente</span>
+          </button>
+        )}
 
         <dl className="mt-8 space-y-3 border-y border-border py-7 text-sm">
           {!isBlock && (
