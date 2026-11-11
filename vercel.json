@@ -11,7 +11,7 @@
   "crons": [
     {
       "path": "/api/cron/confirmation-20h",
-      "schedule": "0 * * * *"
+      "schedule": "0 19 * * *"
     }
   ],
   "headers": [
