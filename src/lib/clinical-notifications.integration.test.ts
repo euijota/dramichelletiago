@@ -43,7 +43,7 @@ beforeAll(async () => {
       notes text, confirmed_at timestamptz, updated_at timestamptz DEFAULT now());`);
   const jobsSql = await readFile(
     new URL(
-      "../../supabase/migrations/20261109000002_clinical_notification_jobs.sql",
+      "../../supabase/migrations/20261110200408_clinical_notification_jobs.sql",
       import.meta.url,
     ),
     "utf8",
@@ -54,10 +54,10 @@ beforeAll(async () => {
     ),
   );
   for (const path of [
-    "20261109000001_clinical_notification_core.sql",
-    "20261110000001_integrate_clinical_notification_flow.sql",
-    "20261110200600_restrict_legacy_appointment_actions.sql",
-    "20261111000001_clinical_notification_operations.sql",
+    "20261110191957_clinical_notification_core.sql",
+    "20261110200352_integrate_clinical_notification_flow.sql",
+    "20261110200530_restrict_legacy_appointment_actions.sql",
+    "20261111004050_clinical_notification_operations.sql",
   ]) {
     await db.exec(
       await readFile(new URL(`../../supabase/migrations/${path}`, import.meta.url), "utf8"),
