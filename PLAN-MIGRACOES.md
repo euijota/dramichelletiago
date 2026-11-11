@@ -202,6 +202,23 @@ Com o local rodando (`supabase start`):
 
 ---
 
+---
+
+## Log de execução (2026-11-11)
+
+- **Fase 0 ✅** — CLI 3.1.0 instalado, projeto vinculado. `migration list` inicial: 100% divergente, como previsto.
+- **Fase 1 ✅** — 8 renomeados, 4 gerados do histórico, 20 arquivados. `migration list`: 12/12 alinhadas. Commit `0048c3a`. Commit extra `9764fc1` (`.temp` ignorado).
+- **Fase 2 ✅** — `20261111200000_align_with_remote_state.sql` (seções a–i). `db reset` aplica 13 migrações sem erro; arquivo aplicado 2x = zero erros, `services` continua 11.
+- **Fase 3 ✅** — Paridade objeto a objeto (tabelas/colunas/policies/índices/triggers/funções): as únicas diferenças clínicas restantes são os objetos que o push criará em produção e a política combinada de `services` que será substituída pela dividida.
+- **Fase 4 ✅** — Smoke RLS: anon bloqueado em appointments/templates; 11 services ativos visíveis; `get_public_occupied_slots()` OK; authenticated sem papel = 0; admin via JWT = acesso total; 7 triggers + 6 índices + event trigger `ensure_rls` + `inventory_*` + `cancel/confirm_appointment_by_id` criados.
+- **Fase 5 ⏳** — pendente de aprovação.
+
+### Achado crítico durante a execução (alterou o conteúdo da migração)
+
+Na build local (Supabase PG 17.6), um `anon` tocando uma função SECURITY DEFINER sem EXECUTE não recebe "permission denied" — **provoca segfault no backend**, que derruba e reinicia o cluster inteiro. A política "Anyone can view active services" (`TO anon, authenticated`) original chamava `public.has_role` sem EXECUTE para anon → crash reproduzível com um SELECT simples.
+
+Correção aplicada na Fase 2: a política de `services` foi **dividida por papel** — branch anon só testa `is_active = true` (nunca chama `has_role`); o branch authenticated mantém `has_role` (tem EXECUTE). O push substituirá a política combinada em produção, eliminando essa mina também lá. `has_role` continua com EXECUTE apenas para `authenticated` e `service_role` (decisão de menor privilégio em vez de conceder EXECUTE a anon).
+
 ## Fora de escopo (próximos passos sugeridos)
 
 - Registrar num ADR/README: este banco é compartilhado; `db pull/diff` exigem cuidado; migrations são a única fonte de schema.
