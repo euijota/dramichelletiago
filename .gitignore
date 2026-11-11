@@ -49,3 +49,4 @@ scripts/
 
 # Estado local do CLI do Supabase (link)
 supabase/.temp/
+supabase/.branches/
