@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, formatLongDate, trimSeconds, toISODate, addDays } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
-import { getAppointmentActionTokens, getSingleAppointmentTokens } from "@/lib/cancellation";
+import { getSingleAppointmentTokens } from "@/lib/cancellation";
 import { cn } from "@/lib/utils";
 import {
   buildWhatsAppUniversalUrl,
@@ -194,17 +194,7 @@ export function CRCManager({
     refetchInterval: 10_000,
   });
 
-  // Busca tokens criptográficos assinados HMAC v2 para as confirmações
-  const pendingIds = useMemo(() => {
-    return Array.from(new Set(allPendingAppointments.map((a) => a.id).filter(Boolean)));
-  }, [allPendingAppointments]);
-
-  const { data: crcSignedTokens = {} } = useQuery({
-    queryKey: ["crc_signed_appointment_tokens", pendingIds],
-    enabled: pendingIds.length > 0,
-    staleTime: 1000 * 60 * 30,
-    queryFn: () => getAppointmentActionTokens({ data: { appointmentIds: pendingIds } }),
-  });
+  const crcSignedTokens: Record<string, { confirmToken: string }> = {};
 
   const todayPendingCount = useMemo(() => {
     return allPendingAppointments.filter((a) => a.appointment_date === todayStr).length;
@@ -756,7 +746,7 @@ export function CRCManager({
                 const isToday = timing === "hoje";
                 const isPast = timing === "passado";
 
-                // Gera mensagem do lembrete universal com token HMAC assinado v2
+                // Gera mensagem do lembrete universal com token revogável
                 const confirmToken = crcSignedTokens[appointment.id]?.confirmToken;
                 const reminderUrl = buildWhatsAppReminderUrl(appointment.patient_phone, {
                   patientName: appointment.patient_name,
@@ -843,19 +833,23 @@ export function CRCManager({
                               const res = await getSingleAppointmentTokens({
                                 data: { appointmentId: appointment.id },
                               });
-                              const fullUrl = buildWhatsAppReminderUrl(appointment.patient_phone, {
-                                patientName: appointment.patient_name,
-                                appointmentDate: appointment.appointment_date,
-                                appointmentTime: trimSeconds(appointment.appointment_time),
-                                serviceName: appointment.service_name,
-                                appointmentId: appointment.id,
-                                confirmationToken: res.confirmToken,
-                              });
-                              window.open(fullUrl, "_blank");
+                              const fullUrl = buildWhatsAppReminderUrl(
+                                res.snapshot.patient_phone || "",
+                                {
+                                  patientName: res.snapshot.patient_name,
+                                  appointmentDate: res.snapshot.appointment_date,
+                                  appointmentTime: trimSeconds(res.snapshot.appointment_time),
+                                  serviceName: appointment.service_name,
+                                  appointmentId: appointment.id,
+                                  confirmationToken: res.confirmToken,
+                                },
+                              );
+                              window.open(fullUrl, "_blank", "noopener,noreferrer");
                             } catch {
                               toast.error(
                                 "Não foi possível gerar o link seguro de confirmação. Tente novamente.",
                               );
+                              return;
                             }
                           }
 

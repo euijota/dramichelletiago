@@ -34,7 +34,6 @@ import {
   AlertCircle,
   ClipboardList,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, buildGoogleCalendarUrl } from "@/lib/clinic";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
@@ -195,33 +194,11 @@ export function BookingModal({
       try {
         const map: Record<string, string[]> = {};
 
-        // 1. Fetch Supabase (from today onwards)
         const now = new Date();
         const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const { data: supaData } = await supabase
-          .from("appointments")
-          .select("appointment_date, appointment_time")
-          .gte("appointment_date", todayIso)
-          .neq("status", "cancelled");
-
-        if (supaData) {
-          supaData.forEach((item) => {
-            const d = item.appointment_date;
-            const t = item.appointment_time.slice(0, 5);
-            if (!map[d]) map[d] = [];
-            map[d].push(t);
-          });
-        }
-
-        // 2. Fetch iCal Feed
-        try {
-          const slots = await getOccupiedSlots();
-          slots.forEach((evt) => {
-            if (!map[evt.date]) map[evt.date] = [];
-            map[evt.date].push(evt.time.slice(0, 5));
-          });
-        } catch (e) {
-          console.error("iCal feed fetch failed:", e);
+        const slots = await getOccupiedSlots();
+        for (const slot of slots) {
+          (map[slot.date] ??= []).push(slot.time);
         }
 
         if (!isMounted) return;

@@ -11,7 +11,7 @@ import {
 import { generateAnamnesisToken, validateAnamnesisToken } from "./anamnesis-server";
 
 beforeAll(() => {
-  process.env.APPOINTMENT_TOKEN_SECRET = "test-secret-anamnesis-0123456789abcdef";
+  process.env.ANAMNESIS_TOKEN_SECRET = "test-secret-anamnesis-0123456789abcdef";
 });
 
 describe("anamnesis pure utilities", () => {
@@ -104,16 +104,14 @@ describe("PII Masking & Privacy Protection", () => {
 
 describe("Anamnesis Cryptographic Token Security", () => {
   it("generates and validates an authentic anamnesis token", () => {
-    const patientId = "patient-uuid-1234";
-    const appointmentId = "appt-uuid-5678";
+    const appointmentId = "550e8400-e29b-41d4-a716-446655440000";
     const protocol = "AG-TEST";
 
-    const token = generateAnamnesisToken({ patientId, appointmentId, protocol });
+    const token = generateAnamnesisToken({ appointmentId, protocol });
     expect(token).toBeTruthy();
 
     const verified = validateAnamnesisToken(token);
     expect(verified).not.toBeNull();
-    expect(verified?.patientId).toBe(patientId);
     expect(verified?.appointmentId).toBe(appointmentId);
     expect(verified?.protocol).toBe(protocol);
   });
@@ -127,17 +125,20 @@ describe("Anamnesis Cryptographic Token Security", () => {
 
   it("rejects expired anamnesis tokens", () => {
     const token = generateAnamnesisToken({
-      patientId: "patient-123",
+      appointmentId: "550e8400-e29b-41d4-a716-446655440000",
       expiryDays: -1, // already expired
     });
     const verified = validateAnamnesisToken(token);
     expect(verified).toBeNull();
   });
 
-  it("detects tampered patientId in valid anamnesis token", () => {
-    const token = generateAnamnesisToken({ patientId: "victim-id" });
+  it("detects tampered appointmentId in valid anamnesis token", () => {
+    const token = generateAnamnesisToken({ appointmentId: "550e8400-e29b-41d4-a716-446655440000" });
     const decoded = Buffer.from(token, "base64url").toString("utf-8");
-    const tampered = decoded.replace("victim-id", "attacker-id");
+    const tampered = decoded.replace(
+      "550e8400-e29b-41d4-a716-446655440000",
+      "550e8400-e29b-41d4-a716-446655440001",
+    );
     const tamperedToken = Buffer.from(tampered).toString("base64url");
 
     const verified = validateAnamnesisToken(tamperedToken);

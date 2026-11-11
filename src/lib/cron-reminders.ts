@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { requireAdmin } from "@/integrations/supabase/auth-middleware";
 import { buildWhatsAppReminderMessage, formatBrazilianDate } from "@/lib/reminders";
-import { generateAppointmentToken } from "@/lib/cancellation";
+import { issueRevocableAppointmentLink } from "@/lib/appointment-links.server";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
 import { CLINIC } from "@/lib/clinic";
@@ -74,12 +74,13 @@ export async function execute24hReminders() {
 
   for (const apt of appointments as AppointmentForReminder[]) {
     try {
-      let confirmToken = "";
-      try {
-        confirmToken = generateAppointmentToken(apt.id, "confirm");
-      } catch (tokenErr) {
-        console.warn(`[cron-24h] Erro ao emitir token para ${apt.id}:`, tokenErr);
-      }
+      const link = await issueRevocableAppointmentLink(apt.id);
+      const confirmToken = link.token;
+      const current = {
+        ...apt,
+        ...link.snapshot,
+        patient_phone: link.snapshot.patient_phone || "",
+      };
 
       const confirmUrl = confirmToken
         ? `https://dramichelletiago.com.br/confirmar/${confirmToken}`
@@ -88,11 +89,11 @@ export async function execute24hReminders() {
       let message: string;
       if (customTemplate) {
         const vars = {
-          patient_name: apt.patient_name,
-          patient_phone: apt.patient_phone,
-          appointment_date: apt.appointment_date,
-          appointment_time: apt.appointment_time,
-          appointment_date_formatted: formatBrazilianDate(apt.appointment_date),
+          patient_name: current.patient_name,
+          patient_phone: current.patient_phone,
+          appointment_date: current.appointment_date,
+          appointment_time: current.appointment_time,
+          appointment_date_formatted: formatBrazilianDate(current.appointment_date),
           service_name: apt.service_name,
           clinic_name: CLINIC.name,
           clinic_short_name: CLINIC.shortName,
@@ -104,15 +105,15 @@ export async function execute24hReminders() {
         message = renderTemplate(customTemplate.body, vars);
       } else {
         message = buildWhatsAppReminderMessage({
-          patientName: apt.patient_name,
-          appointmentDate: apt.appointment_date,
-          appointmentTime: apt.appointment_time,
+          patientName: current.patient_name,
+          appointmentDate: current.appointment_date,
+          appointmentTime: current.appointment_time,
           serviceName: apt.service_name,
           confirmationToken: confirmToken,
         });
       }
 
-      const cleanPhone = apt.patient_phone.replace(/\D/g, "");
+      const cleanPhone = current.patient_phone.replace(/\D/g, "");
       const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
 
       const res = await fetch(webhookUrl, {
@@ -123,10 +124,10 @@ export async function execute24hReminders() {
           phone: fullPhone,
           event: "appointment_reminder_24h",
           text: message,
-          patientName: apt.patient_name,
-          patientPhone: apt.patient_phone,
-          appointmentDate: apt.appointment_date,
-          appointmentTime: apt.appointment_time,
+          patientName: current.patient_name,
+          patientPhone: current.patient_phone,
+          appointmentDate: current.appointment_date,
+          appointmentTime: current.appointment_time,
           confirmUrl,
         }),
       });
@@ -201,18 +202,20 @@ export const testReminder = createServerFn({ method: "POST" })
       };
     }
 
-    const confirmToken = generateAppointmentToken(apt.id, "confirm");
+    const link = await issueRevocableAppointmentLink(apt.id);
+    const confirmToken = link.token;
+    const current = { ...apt, ...link.snapshot, patient_phone: link.snapshot.patient_phone || "" };
     const confirmUrl = `https://dramichelletiago.com.br/confirmar/${confirmToken}`;
 
     const message = buildWhatsAppReminderMessage({
-      patientName: apt.patient_name,
-      appointmentDate: apt.appointment_date,
-      appointmentTime: apt.appointment_time,
+      patientName: current.patient_name,
+      appointmentDate: current.appointment_date,
+      appointmentTime: current.appointment_time,
       serviceName: apt.service_name,
       confirmationToken: confirmToken,
     });
 
-    const cleanPhone = apt.patient_phone.replace(/\D/g, "");
+    const cleanPhone = current.patient_phone.replace(/\D/g, "");
     const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
 
     const res = await fetch(webhookUrl, {
@@ -223,9 +226,9 @@ export const testReminder = createServerFn({ method: "POST" })
         phone: fullPhone,
         event: "test_reminder",
         text: message,
-        patientName: apt.patient_name,
-        patientPhone: apt.patient_phone,
-        appointmentDate: apt.appointment_date,
+        patientName: current.patient_name,
+        patientPhone: current.patient_phone,
+        appointmentDate: current.appointment_date,
         confirmUrl,
       }),
     });

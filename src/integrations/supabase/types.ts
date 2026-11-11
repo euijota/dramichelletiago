@@ -1561,6 +1561,11 @@ export type Database = {
         };
         Returns: Json;
       };
+      get_public_occupied_slots: {
+        Args: never;
+        Returns: { appointment_date: string; appointment_time: string }[];
+      };
+      clinical_notification_health: { Args: never; Returns: string };
       clinical_get_notification_status: { Args: never; Returns: Json };
       clinical_get_recent_patient_events: { Args: never; Returns: Json };
       clinical_issue_appointment_link: {

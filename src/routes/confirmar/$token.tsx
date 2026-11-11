@@ -46,8 +46,8 @@ function ConfirmAppointment() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showConfirmation, setShowConfirmation] = useState(false);
-  // true = algum canal aceitou o aviso; false = nenhum canal aceitou; null = sem novo aviso
-  const [clinicNotified, setClinicNotified] = useState<boolean | null>(null);
+  // true = evento persistido para envio; false = sem evento; null = sem nova ação
+  const [notificationQueued, setNotificationQueued] = useState<boolean | null>(null);
 
   const {
     data: appointment,
@@ -56,13 +56,16 @@ function ConfirmAppointment() {
   } = useQuery({
     queryKey: ["appointment", token],
     queryFn: () => getAppointmentByToken({ data: token }),
+    retry: false,
   });
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmAppointmentByToken({ data: { token } }),
     onSuccess: (result) => {
       toast.success("Agendamento confirmado com sucesso!");
-      setClinicNotified(typeof result?.clinicNotified === "boolean" ? result.clinicNotified : null);
+      setNotificationQueued(
+        typeof result?.notificationQueued === "boolean" ? result.notificationQueued : null,
+      );
       setShowConfirmation(true);
       queryClient.invalidateQueries({ queryKey: ["appointment", token] });
     },
@@ -118,12 +121,14 @@ function ConfirmAppointment() {
           <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center">
             <XCircle className="mx-auto h-16 w-16 text-rose-600" />
             <h1 className="mt-6 font-display text-2xl text-foreground">
-              Agendamento não encontrado
+              {error ? "Não foi possível abrir o link" : "Agendamento não encontrado"}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              O link de confirmação pode estar inválido, expirado ou o agendamento já foi cancelado.
-              Links enviados antes da atualização de segurança não são mais aceitos: peça um novo
-              link ao consultório pelo WhatsApp.
+              {error?.message.startsWith("Muitas tentativas.")
+                ? error.message
+                : error
+                  ? "Tente novamente em instantes."
+                  : "O link pode estar inválido ou expirado. Solicite um novo link ao consultório."}
             </p>
             <Button
               onClick={() => navigate({ to: "/" })}
@@ -220,12 +225,12 @@ function ConfirmAppointment() {
             <h1 className="mt-6 font-display text-2xl text-foreground">Consulta confirmada!</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Sua confirmação foi registrada na agenda do consultório.
-              {clinicNotified === true && " O aviso foi enviado ao consultório."}
+              {notificationQueued === true &&
+                " O aviso ao consultório foi registrado para envio automático."}
             </p>
-            {clinicNotified === false && (
+            {notificationQueued === false && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Não conseguimos enviar o aviso automático agora, mas sua confirmação está salva. Se
-                quiser, avise também pelo WhatsApp {CLINIC.phone}.
+                Sua confirmação está salva. Se quiser, avise também pelo WhatsApp {CLINIC.phone}.
               </p>
             )}
             <div className="mt-6 rounded-2xl bg-background p-4 text-left">

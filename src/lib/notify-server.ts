@@ -42,12 +42,14 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
   .validator((data: unknown) => {
     const parsed = bookingSchema.safeParse(data);
     if (!parsed.success) {
-      throw new Error(parsed.error.errors.map((e) => e.message).join(", "));
+      throw new Error(parsed.error.issues.map((e) => e.message).join(", "));
     }
     return parsed.data;
   })
   .handler(async (ctx) => {
     const data = ctx.data;
+    const { enforceClinicalLinkLimit } = await import("@/lib/clinical-link-limit.server");
+    await enforceClinicalLinkLimit("action");
 
     // Rate limiting by IP
     const request = await import("@tanstack/react-start/server").then((m) => m.getRequest());
@@ -77,91 +79,14 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     // 1. Save via supabaseAdmin (service role)
     let dbSaved = false;
     let appointmentId = "";
-    let patientId: string | null = null;
-    let cancellationToken = "";
-    let confirmationToken = "";
+    const patientId: string | null = null;
+    const cancellationToken = "";
+    const confirmationToken = "";
     let anamnesisToken = "";
     let durationMinutes = 60;
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-      // Auto-link appointment to public.patients
-      try {
-        const cleanPhone = (data.patientPhone || "").replace(/\D/g, "");
-        let matchedPatient: {
-          id: string;
-          name: string;
-          phone: string | null;
-          email: string | null;
-        } | null = null;
-
-        // Try lookup by phone (last 8 digits)
-        if (cleanPhone.length >= 8) {
-          const last8 = cleanPhone.slice(-8);
-          const { data: pByPhone } = await supabaseAdmin
-            .from("patients")
-            .select("id, name, phone, email")
-            .ilike("phone", `%${last8}%`)
-            .limit(1)
-            .maybeSingle();
-          if (pByPhone) matchedPatient = pByPhone;
-        }
-
-        // Try lookup by exact/ilike name if not matched by phone
-        if (!matchedPatient && data.patientName) {
-          const { data: pByName } = await supabaseAdmin
-            .from("patients")
-            .select("id, name, phone, email")
-            .ilike("name", data.patientName.trim())
-            .limit(1)
-            .maybeSingle();
-          if (pByName) matchedPatient = pByName;
-        }
-
-        if (matchedPatient) {
-          patientId = matchedPatient.id;
-          const updates: { email?: string; phone?: string } = {};
-          if (!matchedPatient.email && data.patientEmail) {
-            updates.email = data.patientEmail.trim();
-          }
-          if (!matchedPatient.phone && data.patientPhone) {
-            updates.phone = data.patientPhone.trim();
-          }
-          if (Object.keys(updates).length > 0) {
-            await supabaseAdmin.from("patients").update(updates).eq("id", patientId);
-          }
-        } else {
-          // Create patient record automatically
-          const insurance = data.serviceName.toLowerCase().includes("plano")
-            ? data.serviceName.replace(/plano:?/i, "").trim()
-            : "Particular";
-
-          const { data: createdPatient, error: createErr } = await supabaseAdmin
-            .from("patients")
-            .insert({
-              name: data.patientName.trim(),
-              phone: data.patientPhone.trim() || null,
-              email: data.patientEmail?.trim() || null,
-              insurance: insurance || "Particular",
-              origin: "Agendamento Online",
-              notes: data.notes?.trim() || null,
-            })
-            .select("id")
-            .single();
-
-          if (!createErr && createdPatient) {
-            patientId = createdPatient.id;
-            console.log("[saveAppointmentAndNotify] New patient auto-created:", patientId);
-          }
-        }
-      } catch (err) {
-        console.warn("[saveAppointmentAndNotify] Patient auto-linking warning:", err);
-      }
-
-      if (patientId) {
-        (record as any).patient_id = patientId;
-      }
 
       // Look up service duration
       const { data: service } = await supabaseAdmin
@@ -186,28 +111,12 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
         dbSaved = true;
         appointmentId = inserted.id;
 
-        // Generate cancellation and confirmation tokens
-        // Falha na emissão do token não pode desfazer nem mascarar o agendamento já salvo.
-        try {
-          const { generateAppointmentToken } = await import("@/lib/cancellation");
-          cancellationToken = generateAppointmentToken(appointmentId, "cancel");
-          confirmationToken = generateAppointmentToken(appointmentId, "confirm");
-        } catch (tokenError) {
-          console.error(
-            "[saveAppointmentAndNotify] Falha ao emitir tokens do agendamento:",
-            tokenError instanceof Error ? tokenError.message : tokenError,
-          );
-        }
-
-        // Generate cryptographically signed anamnesis token
-        if (patientId) {
-          const { generateAnamnesisToken } = await import("@/lib/anamnesis-server");
-          anamnesisToken = generateAnamnesisToken({
-            patientId,
-            appointmentId,
-            protocol: data.protocol,
-          });
-        }
+        // O link público identifica a consulta. A recepção vincula o prontuário.
+        const { generateAnamnesisToken } = await import("@/lib/anamnesis-server");
+        anamnesisToken = generateAnamnesisToken({
+          appointmentId,
+          protocol: data.protocol,
+        });
 
         console.log("[saveAppointmentAndNotify] Appointment saved, ID:", appointmentId);
       } else if (error.code === "23505") {
@@ -221,23 +130,6 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
       if (e instanceof Error && e.message.includes("horário")) throw e;
       console.error("[saveAppointmentAndNotify] Admin client error:", e);
       throw new Error("Serviço indisponível. Tente novamente ou agende via WhatsApp.");
-    }
-
-    // 2. Fallback: try anon client if admin failed
-    if (!dbSaved) {
-      try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const url = process.env.SUPABASE_URL!;
-        const key = process.env.SUPABASE_PUBLISHABLE_KEY!;
-        if (url && key) {
-          const client = createClient(url, key);
-          const { error } = await client.from("appointments").insert(record);
-          if (!error) dbSaved = true;
-          else console.warn("[saveAppointmentAndNotify] Anon insert warning:", error.message);
-        }
-      } catch (e) {
-        console.warn("[saveAppointmentAndNotify] Anon client warning:", e);
-      }
     }
 
     // 3. Email notification (FormSubmit + Formspree + optional Resend / Webhook)

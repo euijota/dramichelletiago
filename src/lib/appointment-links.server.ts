@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export function generateRandomLinkToken(): { rawToken: string; tokenHash: string } {
@@ -27,6 +28,7 @@ export async function issueRevocableAppointmentLink(appointmentId: string): Prom
     appointment_time: string;
   };
 }> {
+  z.string().uuid().parse(appointmentId);
   const { rawToken, tokenHash } = generateRandomLinkToken();
   const baseUrl = "https://dramichelletiago.com.br";
 
@@ -35,17 +37,28 @@ export async function issueRevocableAppointmentLink(appointmentId: string): Prom
     p_token_hash: tokenHash,
   });
 
-  if (error || !data || data.code !== "ok") {
+  const parsed = z
+    .object({
+      code: z.literal("ok"),
+      expires_at: z.string(),
+      snapshot: z.object({
+        patient_name: z.string(),
+        patient_phone: z.string().nullable(),
+        appointment_date: z.string(),
+        appointment_time: z.string(),
+      }),
+    })
+    .safeParse(data);
+  if (error || !parsed.success)
     throw new Error(
-      `Não foi possível emitir o link: ${data?.code || error?.message || "erro desconhecido"}`,
+      "Não foi possível emitir o link. Verifique se a consulta ainda é futura e está disponível.",
     );
-  }
 
   return {
     token: rawToken,
     confirmUrl: `${baseUrl}/confirmar/${rawToken}`,
     cancelUrl: `${baseUrl}/cancelar/${rawToken}`,
-    expiresAt: data.expires_at,
-    snapshot: data.snapshot,
+    expiresAt: parsed.data.expires_at,
+    snapshot: parsed.data.snapshot,
   };
 }

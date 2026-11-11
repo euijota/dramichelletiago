@@ -1,12 +1,15 @@
+import { z } from "zod";
 import { CLINIC } from "@/lib/clinic";
 
-export interface SendClinicalEmailParams {
-  idempotencyKey: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
+export const clinicalEmailPayloadSchema = z.object({
+  from: z.string().min(3),
+  to: z.array(z.string().email()).length(1),
+  subject: z.string().min(1),
+  html: z.string().min(1),
+  text: z.string().min(1),
+  template_version: z.literal(1),
+});
+export type ClinicalEmailPayload = z.infer<typeof clinicalEmailPayloadSchema>;
 export interface SendClinicalEmailResult {
   status: "accepted" | "retryable" | "permanent" | "uncertain";
   providerId?: string;
@@ -14,30 +17,24 @@ export interface SendClinicalEmailResult {
   retryAfterSeconds?: number;
 }
 
-/**
- * Adaptador de e-mail de notificações clínicas via Resend API.
- * Suporta Idempotency-Key estável, timeout explícito de 10s e categorização determinística de erros.
- */
-export async function sendClinicalEmail({
-  idempotencyKey,
-  subject,
-  html,
-  text,
-}: SendClinicalEmailParams): Promise<SendClinicalEmailResult> {
+export function getClinicalEmailConfiguration() {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return {
-      status: "retryable",
-      errorCategory: "configuration_unavailable",
-    };
+  const from = process.env.CLINICAL_EMAIL_FROM || process.env.CLINICAL_FROM_EMAIL;
+  const to = process.env.CLINICAL_EMAIL_TO || process.env.CLINICAL_ALERT_EMAIL || CLINIC.email;
+  if (!apiKey || !from || !z.string().email().safeParse(to).success) {
+    throw new Error("Serviço de e-mail não configurado.");
   }
+  return { apiKey, from, to };
+}
 
-  const fromAddress =
-    process.env.CLINICAL_FROM_EMAIL || "Agenda Dra. Michelle <onboarding@resend.dev>";
-  const toAddress = process.env.CLINICAL_ALERT_EMAIL || CLINIC.email;
-
+export async function sendClinicalEmail(
+  payload: ClinicalEmailPayload,
+  idempotencyKey: string,
+): Promise<SendClinicalEmailResult> {
+  const { apiKey } = getClinicalEmailConfiguration();
+  const { template_version: _version, ...body } = clinicalEmailPayloadSchema.parse(payload);
   try {
-    const res = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -45,52 +42,38 @@ export async function sendClinicalEmail({
         "Idempotency-Key": idempotencyKey,
       },
       signal: AbortSignal.timeout(10000),
-      body: JSON.stringify({
-        from: fromAddress,
-        to: [toAddress],
-        subject,
-        html,
-        text,
-      }),
+      body: JSON.stringify(body),
     });
-
-    if (res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { id?: string };
-      return {
-        status: "accepted",
-        providerId: data.id || "resend-accepted",
-      };
+    const result = (await response.json().catch(() => null)) as {
+      id?: string;
+      name?: string;
+    } | null;
+    if (response.ok) {
+      return result?.id
+        ? { status: "accepted", providerId: result.id }
+        : { status: "uncertain", errorCategory: "provider_uncertain" };
     }
-
-    // Tratamento de cabeçalho Retry-After
-    const retryAfterHeader = res.headers.get("retry-after");
-    let retryAfterSeconds: number | undefined;
-    if (retryAfterHeader) {
-      const parsed = parseInt(retryAfterHeader, 10);
-      if (!isNaN(parsed) && parsed > 0) {
-        retryAfterSeconds = parsed;
-      }
-    }
-
-    if (res.status === 429 || res.status >= 500) {
+    const retryAfter = response.headers.get("retry-after");
+    const seconds =
+      retryAfter && /^\d+$/.test(retryAfter)
+        ? Number(retryAfter)
+        : retryAfter
+          ? Math.ceil((Date.parse(retryAfter) - Date.now()) / 1000)
+          : NaN;
+    if (
+      response.status === 429 ||
+      response.status >= 500 ||
+      (response.status === 409 && result?.name === "concurrent_idempotent_requests")
+    ) {
       return {
         status: "retryable",
         errorCategory: "provider_retryable",
-        retryAfterSeconds,
+        retryAfterSeconds:
+          Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 2147483647) : undefined,
       };
     }
-
-    // 4xx permanente (exceto rate limit)
-    return {
-      status: "permanent",
-      errorCategory: "provider_permanent",
-    };
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.warn(`[sendClinicalEmail] Falha de transporte/timeout (${idempotencyKey}):`, msg);
-    return {
-      status: "uncertain",
-      errorCategory: "provider_uncertain",
-    };
+    return { status: "permanent", errorCategory: "provider_permanent" };
+  } catch {
+    return { status: "uncertain", errorCategory: "provider_uncertain" };
   }
 }

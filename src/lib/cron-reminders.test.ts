@@ -24,6 +24,18 @@ vi.mock("@/lib/message-templates-server", () => ({
   getMessageTemplate: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/lib/appointment-links.server", () => ({
+  issueRevocableAppointmentLink: vi.fn().mockResolvedValue({
+    token: "b".repeat(43),
+    snapshot: {
+      patient_name: "Maria Silva",
+      patient_phone: "96981112222",
+      appointment_date: "2026-11-11",
+      appointment_time: "14:00:00",
+    },
+  }),
+}));
+
 describe("Automated 24h Cron Reminders", () => {
   beforeEach(() => {
     vi.clearAllMocks();

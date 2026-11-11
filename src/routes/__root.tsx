@@ -175,18 +175,17 @@ function RootComponent() {
   useEffect(() => {
     if (typeof window !== "undefined" && import.meta.env.VITE_SENTRY_DSN) {
       try {
+        const sensitive = /\/(?:confirmar|cancelar|anamnese)(?:\/|%2f)|\/_serverFn(?:\/|%2f)/i;
+        const containsSensitiveRoute = (event: unknown) =>
+          sensitive.test(window.location.pathname) || sensitive.test(JSON.stringify(event));
         Sentry.init({
           dsn: import.meta.env.VITE_SENTRY_DSN,
-          integrations: [
-            Sentry.browserTracingIntegration(),
-            Sentry.replayIntegration({
-              maskAllText: true,
-              blockAllMedia: true,
-            }),
-          ],
+          integrations: [Sentry.browserTracingIntegration()],
+          beforeSend: (event) => (containsSensitiveRoute(event) ? null : event),
+          beforeSendTransaction: (event) => (containsSensitiveRoute(event) ? null : event),
+          beforeBreadcrumb: (breadcrumb) =>
+            containsSensitiveRoute(breadcrumb) ? null : breadcrumb,
           tracesSampleRate: 1.0,
-          replaysSessionSampleRate: 0.1,
-          replaysOnErrorSampleRate: 1.0,
         });
       } catch (e) {
         console.error("Erro ao iniciar Sentry:", e);

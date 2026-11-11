@@ -1,3 +1,4 @@
+import { NotificationStatus } from "@/components/clinical/NotificationStatus";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -20,7 +21,7 @@ import {
   trimSeconds,
 } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
-import { getAppointmentActionTokens, getSingleAppointmentTokens } from "@/lib/cancellation";
+import { getSingleAppointmentTokens } from "@/lib/cancellation";
 import { cn } from "@/lib/utils";
 import type { AppointmentExport } from "@/lib/export";
 import {
@@ -311,24 +312,8 @@ function Painel() {
     },
   });
 
-  // Carrega tokens criptografados HMAC v2 para garantir links de confirmação autênticos
-  const visibleAppointmentIds = useMemo(() => {
-    const ids = new Set<string>();
-    (reminders ?? []).forEach((a) => {
-      if (a.id) ids.add(a.id);
-    });
-    (pending ?? []).forEach((a) => {
-      if (a.id) ids.add(a.id);
-    });
-    return Array.from(ids);
-  }, [reminders, pending]);
-
-  const { data: signedTokens = {} } = useQuery({
-    queryKey: ["painel_signed_appointment_tokens", visibleAppointmentIds],
-    enabled: !!session && visibleAppointmentIds.length > 0,
-    staleTime: 1000 * 60 * 30, // 30 minutos (tokens válidos por 30 dias)
-    queryFn: () => getAppointmentActionTokens({ data: { appointmentIds: visibleAppointmentIds } }),
-  });
+  // A emissão acontece no clique; consultas do painel não revogam links enviados.
+  const signedTokens: Record<string, { confirmToken: string }> = {};
 
   // Alerta em tempo real no painel quando um agendamento chega ou é confirmado/cancelado
   useEffect(() => {
@@ -445,8 +430,11 @@ function Painel() {
         const res = await getSingleAppointmentTokens({
           data: { appointmentId: appointment.id },
         });
-        const targetUrl = buildReminderLink(appointment, res.confirmToken);
-        window.open(targetUrl, "_blank");
+        const targetUrl = buildReminderLink(
+          { ...appointment, ...res.snapshot, patient_phone: res.snapshot.patient_phone || "" },
+          res.confirmToken,
+        );
+        window.open(targetUrl, "_blank", "noopener,noreferrer");
       } catch {
         toast.error("Não foi possível gerar o link seguro de confirmação. Tente novamente.");
         return;
@@ -913,6 +901,7 @@ function Painel() {
       </header>
 
       <main className="mx-auto max-w-[1600px] px-4 sm:px-6 py-6">
+        {mainTab === "agenda" && <NotificationStatus />}
         {mainTab === "pacientes" ? (
           <PatientsManager
             initialPatientId={selectedPatientIdForChart}
@@ -2068,26 +2057,32 @@ function AppointmentSheet({
               target="_blank"
               rel="noreferrer"
               onClick={async (e) => {
-                if (!confirmToken) {
-                  e.preventDefault();
-                  try {
-                    const res = await getSingleAppointmentTokens({
-                      data: { appointmentId: appointment.id },
-                    });
-                    const targetUrl = buildReminderLink(
+                e.preventDefault();
+                if (
+                  date !== appointment.appointment_date ||
+                  time !== trimSeconds(appointment.appointment_time)
+                ) {
+                  toast.error("Salve a data e o horário antes de enviar o link.");
+                  return;
+                }
+                try {
+                  const res = await getSingleAppointmentTokens({
+                    data: { appointmentId: appointment.id },
+                  });
+                  window.open(
+                    buildReminderLink(
                       {
                         ...appointment,
-                        appointment_date: date,
-                        appointment_time: time,
+                        ...res.snapshot,
+                        patient_phone: res.snapshot.patient_phone || "",
                       },
                       res.confirmToken,
-                    );
-                    window.open(targetUrl, "_blank");
-                  } catch {
-                    toast.error(
-                      "Não foi possível gerar o link seguro de confirmação. Tente novamente.",
-                    );
-                  }
+                    ),
+                    "_blank",
+                    "noopener,noreferrer",
+                  );
+                } catch {
+                  toast.error("Não foi possível emitir o link. Tente novamente.");
                 }
               }}
               className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-5 py-3.5 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-sm hover:bg-primary-deep transition-all cursor-pointer"

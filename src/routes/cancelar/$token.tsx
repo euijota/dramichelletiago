@@ -35,7 +35,7 @@ function CancelAppointment() {
   const navigate = useNavigate();
   const [reason, setReason] = useState("Solicitado pelo paciente");
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [clinicNotified, setClinicNotified] = useState<boolean | null>(null);
+  const [notificationQueued, setNotificationQueued] = useState<boolean | null>(null);
   const [redirectToReschedule, setRedirectToReschedule] = useState(false);
 
   const {
@@ -45,13 +45,16 @@ function CancelAppointment() {
   } = useQuery({
     queryKey: ["appointment", token],
     queryFn: () => getAppointmentByToken({ data: token }),
+    retry: false,
   });
 
   const cancelMutation = useMutation({
     mutationFn: (reasonText: string) =>
       cancelAppointmentByToken({ data: { token, reason: reasonText } }),
     onSuccess: (result) => {
-      setClinicNotified(typeof result?.clinicNotified === "boolean" ? result.clinicNotified : null);
+      setNotificationQueued(
+        typeof result?.notificationQueued === "boolean" ? result.notificationQueued : null,
+      );
       if (redirectToReschedule) {
         toast.success("Horário anterior liberado! Escolha agora sua nova data e horário.");
         navigate({ to: "/agendar" });
@@ -98,12 +101,14 @@ function CancelAppointment() {
           <div className="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center">
             <XCircle className="mx-auto h-16 w-16 text-rose-600" />
             <h1 className="mt-6 font-display text-2xl text-foreground">
-              Agendamento não encontrado
+              {error ? "Não foi possível abrir o link" : "Agendamento não encontrado"}
             </h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              Links enviados antes da atualização de segurança não são mais aceitos. O link de
-              cancelamento pode estar inválido, expirado ou o agendamento já foi cancelado
-              anteriormente.
+              {error?.message.startsWith("Muitas tentativas.")
+                ? error.message
+                : error
+                  ? "Tente novamente em instantes."
+                  : "O link pode estar inválido ou expirado. Solicite um novo link ao consultório."}
             </p>
             <Button
               onClick={() => navigate({ to: "/" })}
@@ -152,12 +157,12 @@ function CancelAppointment() {
             <h1 className="mt-6 font-display text-2xl text-foreground">Cancelamento confirmado</h1>
             <p className="mt-3 text-sm text-muted-foreground">
               Seu cancelamento foi registrado na agenda do consultório.
-              {clinicNotified === true && " O aviso foi enviado ao consultório."}
+              {notificationQueued === true &&
+                " O aviso ao consultório foi registrado para envio automático."}
             </p>
-            {clinicNotified === false && (
+            {notificationQueued === false && (
               <p className="mt-2 text-xs text-muted-foreground">
-                Não conseguimos enviar o aviso automático agora, mas seu cancelamento está salvo. Se
-                quiser, avise também pelo WhatsApp {CLINIC.phone}.
+                Seu cancelamento está salvo. Se quiser, avise também pelo WhatsApp {CLINIC.phone}.
               </p>
             )}
             <div className="mt-6 rounded-2xl bg-background p-4 text-left">

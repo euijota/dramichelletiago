@@ -1,154 +1,23 @@
-# Sistema de Confirmação de Agendamento
+# Confirmação e cancelamento por link
 
-Sistema de confirmação via link para pacientes confirmarem suas consultas de forma autônoma.
+O painel e o CRC emitem uma credencial aleatória revogável no clique de envio assistido. A consulta do painel não emite credenciais. O banco armazena somente SHA-256; reemitir ou reagendar revoga o link anterior. Uma credencial permite confirmar e cancelar, respeitando as transições da consulta. Links HMAC antigos deixam de ser aceitos: é necessário emitir novos links no painel.
 
-## Funcionalidades
+## Fluxo integrado
 
-- ✅ Link único de confirmação por agendamento
-- ✅ Token seguro (base64url, similar ao cancelamento)
-- ✅ Interface amigável em `/confirmar/:token`
-- ✅ Atualização automática do status para "confirmed"
-- ✅ Registro de timestamp (`confirmed_at`)
-- ✅ Validações: não permite confirmar agendamentos cancelados/concluídos/passados
-- ✅ Notificação à dentista após confirmação (TODO)
+1. A recepção autenticada solicita `getSingleAppointmentTokens`, protegido por `requireAdmin`. A RPC `clinical_issue_appointment_link` registra o hash e retorna o retrato atual da consulta usado na mensagem. O lembrete automático já existente usa a mesma emissão quando seu webhook está configurado.
+2. `/confirmar/:token` e `/cancelar/:token` fazem a prévia pela RPC `clinical_preview_appointment`, sem renovar o link. A prévia não retorna o identificador da consulta.
+3. O POST envia o hash à RPC `clinical_apply_patient_action`. A alteração da consulta e a criação do evento ocorrem na mesma transação. Repetir uma ação já aplicada não cria outro evento. O motivo de cancelamento tem campo próprio e preserva as notas.
+4. A resposta ao paciente informa que a ação foi salva e o aviso registrado para envio. Não comprova entrega de e-mail. Esse caminho não chama provedores de notificação.
+5. O endpoint interno reserva exclusivamente eventos persistidos. Antes do HTTP, registra a intenção e congela remetente, destinatário e conteúdo. Só conta aceitação após persistir o resultado do provedor.
 
-## Fluxo de uso
+O fluxo de novo agendamento em `notify-server.ts` não gera nem distribui credenciais de confirmação/cancelamento nos canais auxiliares. O token de anamnese mantém seu fluxo separado.
 
-### 1. Paciente agenda consulta
+## Arquivos e verificação
 
-- Sistema gera automaticamente 2 tokens:
-  - **Token de confirmação** (para confirmar)
-  - **Token de cancelamento** (para cancelar)
+- Emissão: `src/lib/appointment-links.server.ts`.
+- Ações e prévia: `src/lib/cancellation.ts`.
+- Processador: `src/lib/clinical-notifications.server.ts` e `src/lib/email.server.ts`.
+- Migração complementar: `supabase/migrations/20261110000001_integrate_clinical_notification_flow.sql`.
+- Operação e limites: [NOTIFICATION_OPERATIONS.md](NOTIFICATION_OPERATIONS.md).
 
-### 2. Paciente recebe notificação
-
-Email/WhatsApp contém:
-
-```
-✅ Link de confirmação: https://dramichelletiago.vercel.app/confirmar/ABC123
-🔗 Link de cancelamento: https://dramichelletiago.vercel.app/cancelar/XYZ789
-```
-
-### 3. Confirmação pelo paciente
-
-- Clica no link de confirmação
-- Visualiza detalhes da consulta
-- Clica em "Confirmar Consulta"
-- Status muda de `pending` → `confirmed`
-- `confirmed_at` registra timestamp
-
-### 4. Feedback visual
-
-- **Agendamento pendente**: Botão "Confirmar Consulta" ativo
-- **Já confirmado**: Badge verde "Agendamento já confirmado"
-- **Cancelado**: Badge amarelo "Agendamento cancelado"
-- **Não encontrado**: Erro "Link inválido ou expirado"
-
-## Estrutura técnica
-
-### Migration
-
-```sql
--- supabase/migrations/20260806171500_add_confirmation_tracking.sql
-ALTER TABLE appointments
-ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMPTZ DEFAULT NULL;
-```
-
-### Funções principais
-
-**`generateAppointmentToken(appointmentId)`**
-
-- Gera token base64url seguro
-- Mesmo sistema usado para cancelamento
-- Formato: `base64url(appointmentId:randomSecret)`
-
-**`confirmAppointmentByToken(token)`**
-
-- Valida token
-- Verifica status do agendamento
-- Atualiza para `confirmed` + `confirmed_at`
-- Retorna sucesso ou erro
-
-**`getAppointmentByToken(token)`**
-
-- Busca detalhes do agendamento pelo token
-- Usado para preview antes de confirmar
-
-### Rota
-
-**`/confirmar/:token`** (`src/routes/confirmar/$token.tsx`)
-
-- Interface visual com dados da consulta
-- Estados: loading, não encontrado, cancelado, já confirmado, pendente, sucesso
-- Design consistente com `/cancelar/:token`
-
-## Integração
-
-### Notificações (notify-server.ts)
-
-Os links são incluídos automaticamente nos emails:
-
-```typescript
-const confirmationLink = confirmationToken
-  ? `https://dramichelletiago.vercel.app/confirmar/${confirmationToken}`
-  : "";
-
-const messageText =
-  `✅ Link de confirmação: ${confirmationLink}\n` + `🔗 Link de cancelamento: ${cancellationLink}`;
-```
-
-### Google Agenda
-
-O código do webhook está versionado em `google-apps-script/Code.gs`. O app da Web deve:
-
-- executar como a proprietária da agenda;
-- permitir acesso a qualquer pessoa, mantendo a operação protegida pelo segredo compartilhado;
-- armazenar `GOOGLE_APPS_SCRIPT_SECRET` nas propriedades do script;
-- receber somente `POST` JSON para criação de eventos;
-- usar o protocolo do agendamento para impedir eventos duplicados.
-
-O Vercel precisa das variáveis sensíveis `GOOGLE_APPS_SCRIPT_URL` e
-`GOOGLE_APPS_SCRIPT_SECRET`. Ao rotacionar o segredo, atualize a propriedade do Apps Script e
-o Vercel antes de reimplantar o site. Nunca coloque o segredo na URL ou no repositório.
-
-### WhatsApp
-
-Para mensagens WhatsApp, adicione o link de confirmação:
-
-```typescript
-const message =
-  `Olá! Sua consulta foi agendada.\n\n` +
-  `📅 Data: ${data.appointmentDate}\n` +
-  `⏰ Horário: ${data.appointmentTime}\n\n` +
-  `✅ Confirme sua presença: ${confirmationLink}\n` +
-  `🔗 Precisa cancelar? ${cancellationLink}`;
-```
-
-## Testes
-
-63 testes passando, incluindo:
-
-- Geração de tokens
-- Validação de tokens
-- URL safety (base64url)
-- Compatibilidade com funções legadas
-- Diferentes formatos de URL (confirmar/cancelar)
-
-```bash
-npm test
-```
-
-## Segurança
-
-- ✅ Token único por agendamento
-- ✅ Sem informações sensíveis no token
-- ✅ Validação server-side
-- ✅ Proteção contra replay (status checked)
-- ✅ Não permite ações em agendamentos passados
-
-## Próximos passos
-
-- [ ] Notificar dentista quando paciente confirma (WhatsApp/Email)
-- [ ] Analytics: taxa de confirmação
-- [ ] Lembrete automático se não confirmar 48h antes
-- [ ] Link de reagendamento na página de confirmação
+`npm run test:run` executa contratos da aplicação, transporte simulado e SQL das migrações em PostgreSQL isolado com PGlite. Há cenários de revogação, repetição, rollback, reserva individual e evento superado. O teste isolado usa uma conexão; não comprova concorrência entre sessões nem integração com o Supabase remoto ou entrega real.

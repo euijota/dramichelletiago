@@ -51,3 +51,47 @@ A referência primária adicional de cabeçalhos Vercel foi capturada para resol
 ## Encerramento
 
 Revisão concluída após resultados reais de todos os revisores solicitados. Etapa 7 convergiu em duas rodadas; etapa 9 em quatro, com as duas últimas limpas. Todos os PROPOSE FIX foram aplicados apenas ao design e sua cópia de elaboração. Nenhum item foi escalado ou dispensado como risco sem registro. Verificações operacionais do ambiente permanecem requisitos de implementação/ativação.
+
+## Resolução da integração — 2026-11-10
+
+**Alvo adicional autorizado pelo autor:** concluir emissão revogável, ação transacional e consumo exclusivo dos eventos persistidos antes de adicionar funcionalidades. A autorização desta solicitação amplia o escopo documental anterior para implementação local.
+
+### INT-01 — Integração — Blocker
+
+- **Discrepância:** os consumidores continuavam gerando HMAC, tornando a revogação persistida ineficaz nesses links.
+- **AI Suggestion:** PROPOSE FIX.
+- **Correção aplicada:** emissão aleatória persistida por hash, no clique administrativo ou no envio do lembrete existente; retirada da emissão automática durante consultas do painel e da distribuição por canais auxiliares. Links antigos são recusados. Testes de revogação e validação adicionados.
+- **Status:** resolvido no código local.
+
+### INT-02 — Integração — Blocker
+
+- **Discrepância:** ações públicas atualizavam diretamente a consulta, sem atomicidade com o evento.
+- **AI Suggestion:** PROPOSE FIX.
+- **Correção aplicada:** confirmação/cancelamento passam exclusivamente pela RPC transacional. Testes SQL comprovam rollback da consulta se a inserção do evento falhar e ausência de duplicação em repetição.
+- **Status:** resolvido no código local.
+
+### INT-03 — Integração — Major
+
+- **Discrepância:** erros do banco podiam aparecer como fila vazia ou sucesso de processamento; reservas compartilhadas e retomadas não preservavam integralmente o contrato de envio.
+- **AI Suggestion:** PROPOSE FIX.
+- **Correção aplicada:** endpoint sem argumentos de evento; processamento só após reserva e intenção persistidas; confirmação do resultado no banco obrigatória; reserva por evento, payload completo congelado, rejeição de reserva vencida/evento superado e encerramento de reenvio fora da janela de idempotência. Migração complementar preserva migrações anteriores.
+- **Status:** resolvido no código local; concorrência entre sessões e aceitação/entrega no ambiente não comprovadas pelos testes isolados.
+
+**Resultado:** três PROPOSE FIX aplicados, nenhum CONTEST/ESCALATE/DECLINE nesta resolução. Ativação remota, jobs, monitor operacional e limites previstos no design completo permanecem fora desta entrega, descritos em `docs/NOTIFICATION_OPERATIONS.md`. O estado documental anterior não equivale à implantação do sistema.
+
+**Verificação local:** 181 testes em 15 arquivos passaram; TypeScript, ESLint, build e `git diff --check` passaram. Transporte externo simulado e SQL em PGlite de conexão única; sem comprovação de entrega real ou concorrência entre sessões.
+
+## Implantação autorizada — 2026-11-10
+
+O autor solicitou atualização no Supabase e na Vercel. Migrações de integração, preparação dos jobs e restrição das RPCs legadas foram aplicadas ao Supabase ativo `risylusxvpsvrpqsefor`. Revisão de segurança confirmou que as RPCs legadas por ID permitiam contornar tokens; EXECUTE foi revogado para PUBLIC/anon/authenticated, preservando service_role. Privilégios foram consultados após a alteração. DOMPurify foi atualizado para corrigir a ocorrência crítica apontada no build. As variáveis de envio não estão configuradas e não houve envio real nem ativação de job. Evidências e pendências em `docs/NOTIFICATION_OPERATIONS.md`.
+
+
+## Execução do plano de segurança e operação
+
+- **PROPOSE FIX — Dependências.** Atualizadas as cadeias de `shell-quote`, Vite, YAML e source maps, Zod 4 e a distribuição oficial corrigida do SheetJS. A auditoria de produção retornou zero alertas. O arquivo de agenda foi reaberto no teste com as duas abas e os valores esperados.
+- **PROPOSE FIX — Proteção dos links.** Limites persistentes ligados à prévia e às ações de confirmação e cancelamento. Cabeçalhos verificados no deploy. Reemissão tornou o token de teste anterior inválido.
+- **PROPOSE FIX — Acesso a dados clínicos.** Políticas permissivas removidas das sete tabelas verificadas. Disponibilidade pública limitada a data e hora. Agendamento e anamnese públicos deixaram de vincular ou atualizar prontuário existente por nome ou telefone. Privilégios e políticas foram verificados em produção. Não foi verificado acesso histórico indevido.
+- **PROPOSE FIX — Operação.** Fila e revisão de falhas conectadas ao painel, monitor interno saudável e retenção diária ativa. Confirmação e cancelamento testados pelo navegador móvel. Primeiras tentativas em 9,7 s e 20,6 s, um envio aceito por ação e recebimento confirmado.
+- **Pendente.** Validar no Sentry a configuração e a chegada do alerta de ausência. Dois testes de concorrência passaram com sessões reais em schema privado temporário. O relatório permanece parcialmente resolvido na validação do alerta externo.
+
+**Auditoria final local:** zero alertas em produção e zero altos/críticos na auditoria completa. Restam 11 moderados na árvore de desenvolvimento. Testes, TypeScript, lint e build passaram.

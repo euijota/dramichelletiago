@@ -1,6 +1,12 @@
-import { describe, it, expect } from "vitest";
-import { filterAppointments } from "./export";
+import { describe, it, expect, vi } from "vitest";
+import { exportToExcel, filterAppointments } from "./export";
 import type { AppointmentExport, ExportFilters } from "./export";
+
+const { saveWorkbook } = vi.hoisted(() => ({ saveWorkbook: vi.fn() }));
+vi.mock("xlsx", async (original) => ({
+  ...(await original<typeof import("xlsx")>()),
+  writeFile: saveWorkbook,
+}));
 
 const mockAppointments: AppointmentExport[] = [
   {
@@ -197,5 +203,21 @@ describe("Export Data Structure", () => {
     const appointmentWithNullNotes = mockAppointments.find((a) => a.notes === null);
     expect(appointmentWithNullNotes).toBeDefined();
     expect(appointmentWithNullNotes!.notes).toBeNull();
+  });
+});
+
+it("exporta e reabre abas, cabeçalhos e valores da agenda", async () => {
+  const xlsx = await import("xlsx");
+  await exportToExcel(mockAppointments, { status: ["confirmed"] });
+  const [workbook, filename] = saveWorkbook.mock.calls[0];
+  expect(filename).toMatch(/^agenda_.*\.xlsx$/);
+  const exported = xlsx.read(xlsx.write(workbook, { type: "buffer", bookType: "xlsx" }));
+  expect(exported.SheetNames).toEqual(["Agendamentos", "Resumo"]);
+  expect(xlsx.utils.sheet_to_json(exported.Sheets.Agendamentos)).toEqual([
+    expect.objectContaining({ Data: "10/08/2026", Hora: "09:00", Paciente: "João Silva" }),
+  ]);
+  expect(xlsx.utils.sheet_to_json(exported.Sheets.Resumo)).toContainEqual({
+    Métrica: "Total de agendamentos",
+    Valor: 1,
   });
 });
