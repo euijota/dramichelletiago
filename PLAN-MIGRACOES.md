@@ -211,7 +211,7 @@ Com o local rodando (`supabase start`):
 - **Fase 2 ✅** — `20261111200000_align_with_remote_state.sql` (seções a–i). `db reset` aplica 13 migrações sem erro; arquivo aplicado 2x = zero erros, `services` continua 11.
 - **Fase 3 ✅** — Paridade objeto a objeto (tabelas/colunas/policies/índices/triggers/funções): as únicas diferenças clínicas restantes são os objetos que o push criará em produção e a política combinada de `services` que será substituída pela dividida.
 - **Fase 4 ✅** — Smoke RLS: anon bloqueado em appointments/templates; 11 services ativos visíveis; `get_public_occupied_slots()` OK; authenticated sem papel = 0; admin via JWT = acesso total; 7 triggers + 6 índices + event trigger `ensure_rls` + `inventory_*` + `cancel/confirm_appointment_by_id` criados.
-- **Fase 5 ⏳** — pendente de aprovação.
+- **Fase 5 ✅** — `db push --remote --yes` autorizado pelo usuário (2026-11-11). Aplicada apenas `20261111200000`. Verificação pós-push: `migration list` 13/13; `services` = 11 linhas; políticas de services divididas (anon/authenticated/admin) e templates só admin; 7 índices em appointments; event trigger `ensure_rls`; `inventory_*` criadas; `has_role` com EXECUTE para authenticated/service_role/supabase_admin (anon revogado). Teste vivo via PostgREST: anon em `services` → **HTTP 200** (antes causava segfault); anon em `appointments` → HTTP 401; anon em `message_templates` → lista vazia.
 
 ### Achado crítico durante a execução (alterou o conteúdo da migração)
 
