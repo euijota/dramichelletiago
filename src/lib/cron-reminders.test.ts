@@ -37,16 +37,15 @@ vi.mock("@/lib/appointment-links.server", () => ({
   }),
 }));
 
-// Instante fixo para os testes: 2026-11-11T07:30:00Z (04:30 em Macapá/Belém).
-// Janela de confirmação: [2026-11-12T02:30:00Z, 2026-11-12T04:30:00Z] (20h antes ± 1h),
-// que cruza a meia-noite local (datas 2026-11-11 e 2026-11-12 na query).
-const FIXED_NOW = new Date("2026-11-11T07:30:00Z");
+// Instante fixo para os testes: 2026-11-11T19:00:00Z (16:00 em Macapá/Belém),
+// horário do cron diário. Alvo: todas as consultas pendentes de 2026-11-12 (véspera).
+const FIXED_NOW = new Date("2026-11-11T19:00:00Z");
 const IN_WINDOW_APPOINTMENT = {
   id: "550e8400-e29b-41d4-a716-446655440000",
   patient_name: "Maria Silva",
   patient_phone: "(96) 98111-2222",
   appointment_date: "2026-11-12",
-  appointment_time: "00:30:00", // 03:30Z = exatamente 20h antes
+  appointment_time: "00:30:00", // primeira hora do dia seguinte
   service_name: "Consulta Odontológica",
   status: "pending",
   reminder_sent_at: null,
@@ -56,7 +55,7 @@ function mockQueryResult(data: unknown[], error: unknown = null) {
   mockIsReminder.mockResolvedValueOnce({ data, error });
 }
 
-describe("Cron de confirmação 20h antes (executeConfirmationReminders)", () => {
+describe("Cron de confirmação na véspera às 16h (executeConfirmationReminders)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.APPOINTMENT_TOKEN_SECRET = "test-secret-appointment-12345678901234567890";
@@ -69,16 +68,13 @@ describe("Cron de confirmação 20h antes (executeConfirmationReminders)", () =>
     vi.restoreAllMocks();
   });
 
-  it("consulta apenas pendentes não confirmadas e sem envio anterior, nas datas cobertas pela janela", async () => {
+  it("consulta apenas pendentes não confirmadas e sem envio anterior, somente do dia seguinte", async () => {
     mockQueryResult([]);
     const { executeConfirmationReminders } = await import("./cron-reminders");
     await executeConfirmationReminders(FIXED_NOW);
 
     expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining("reminder_sent_at"));
-    expect(mockIn).toHaveBeenCalledWith(
-      "appointment_date",
-      expect.arrayContaining(["2026-11-11", "2026-11-12"]),
-    );
+    expect(mockIn).toHaveBeenCalledWith("appointment_date", ["2026-11-12"]);
     expect(mockEq).toHaveBeenCalledWith("status", "pending");
     expect(mockIsConfirmed).toHaveBeenCalledWith("confirmed_at", null);
     expect(mockIsReminder).toHaveBeenCalledWith("reminder_sent_at", null);
@@ -162,10 +158,32 @@ describe("Cron de confirmação 20h antes (executeConfirmationReminders)", () =>
     }
   });
 
-  it("ignora consultas fora da janela de 20h (mesmo estando nas datas consultadas)", async () => {
+  it("inclui consultas do fim do dia seguinte (cobre o dia inteiro)", async () => {
     process.env.WHATSAPP_WEBHOOK_URL = "https://mock-whatsapp-webhook.internal/send";
-    // 18:00 local em 2026-11-12 = 21:00Z = 35h no futuro (fora da janela)
     mockQueryResult([{ ...IN_WINDOW_APPOINTMENT, appointment_time: "18:00:00" }]);
+
+    const mockEqUpdate = vi.fn().mockResolvedValue({ error: null });
+    mockUpdate.mockReturnValue({ eq: mockEqUpdate });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+
+    try {
+      const { executeConfirmationReminders } = await import("./cron-reminders");
+      const result = await executeConfirmationReminders(FIXED_NOW);
+
+      expect(result.sent).toBe(1);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      delete process.env.WHATSAPP_WEBHOOK_URL;
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("ignora consultas fora do dia seguinte (mesmo se retornadas pela query)", async () => {
+    process.env.WHATSAPP_WEBHOOK_URL = "https://mock-whatsapp-webhook.internal/send";
+    // Depois de amanhã: não é véspera
+    mockQueryResult([{ ...IN_WINDOW_APPOINTMENT, appointment_date: "2026-11-13" }]);
 
     const fetchSpy = vi.spyOn(globalThis, "fetch");
 
@@ -185,7 +203,7 @@ describe("Cron de confirmação 20h antes (executeConfirmationReminders)", () =>
 
   it("ignora consultas que já passaram do horário (no passado)", async () => {
     process.env.WHATSAPP_WEBHOOK_URL = "https://mock-whatsapp-webhook.internal/send";
-    // 08:00 local em 2026-11-11 = 11:00Z = 1h no futuro (fora da janela)
+    // 08:00 local em 2026-11-11 (hoje, já passou às 16h)
     mockQueryResult([
       { ...IN_WINDOW_APPOINTMENT, appointment_date: "2026-11-11", appointment_time: "08:00:00" },
     ]);

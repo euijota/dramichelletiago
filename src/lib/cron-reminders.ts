@@ -10,11 +10,10 @@ import { CLINIC } from "@/lib/clinic";
 // Fuso da clínica (Macapá/Belém): UTC-3 fixo (Brasil sem horário de verão desde 2019).
 const CLINIC_UTC_OFFSET_MINUTES = -3 * 60;
 
-// A mensagem de confirmação é enviada 20h antes do início da consulta.
-// O cron roda a cada hora e seleciona a janela [now+19h, now+21h] para
-// tolerar atraso de até 1h na execução (Vercel cron pode atrasar alguns minutos).
-const TARGET_HOURS_BEFORE = 20;
-const WINDOW_HOURS = 1;
+// A mensagem de confirmação é enviada na véspera: o cron roda uma vez por dia
+// às 16h (horário da clínica; "0 19 * * *" UTC em vercel.json, plano Hobby) e
+// seleciona TODAS as consultas pendentes do dia seguinte (data local da clínica).
+// O plano Hobby pode atrasar a execução em até ~1h, o que não afeta a seleção.
 
 const HOUR_MS = 3_600_000;
 
@@ -44,21 +43,21 @@ export function clinicDateString(instant: Date): string {
 }
 
 export async function executeConfirmationReminders(now: Date = new Date()) {
-  const windowStart = now.getTime() + (TARGET_HOURS_BEFORE - WINDOW_HOURS) * HOUR_MS; // now + 19h
-  const windowEnd = now.getTime() + (TARGET_HOURS_BEFORE + WINDOW_HOURS) * HOUR_MS; // now + 21h
+  // Dia seguinte no fuso da clínica (UTC-3 fixo, sem horário de verão).
+  const targetDate = clinicDateString(new Date(now.getTime() + 24 * HOUR_MS));
+  const dates = [targetDate];
 
-  // Datas locais possivelmente cobertas pela janela (no máximo 2: hoje e/ou amanhã).
-  const dates = Array.from(
-    new Set([clinicDateString(new Date(windowStart)), clinicDateString(new Date(windowEnd))]),
-  );
+  // Limites do dia-alvo em UTC, usados no retorno/log.
+  const windowStart = appointmentStartMs(targetDate, "00:00:00");
+  const windowEnd = windowStart + 24 * HOUR_MS - 1;
 
   console.log(
-    `[cron-confirmacao] Janela: ${new Date(windowStart).toISOString()} .. ${new Date(
-      windowEnd,
-    ).toISOString()} (datas ${dates.join(", ")})`,
+    `[cron-confirmacao] Véspera: consultas de ${targetDate} (${new Date(
+      windowStart,
+    ).toISOString()} .. ${new Date(windowEnd).toISOString()})`,
   );
 
-  // Alvo: consultas pendentes (ainda não confirmadas) na janela de ~20h antes,
+  // Alvo: consultas pendentes (ainda não confirmadas) do dia seguinte,
   // que ainda não receberam a mensagem (reminder_sent_at é a marca de dedup,
   // compartilhada com o envio manual assistido do CRC).
   const { data: appointments, error } = await supabaseAdmin
@@ -78,7 +77,7 @@ export async function executeConfirmationReminders(now: Date = new Date()) {
 
   const inWindow = (appointments as AppointmentForReminder[] | null)?.filter((apt) => {
     const start = appointmentStartMs(apt.appointment_date, apt.appointment_time);
-    return start >= windowStart && start <= windowEnd;
+    return apt.appointment_date === targetDate && start > now.getTime();
   });
 
   if (!inWindow || inWindow.length === 0) {
