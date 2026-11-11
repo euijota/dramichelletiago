@@ -1,4 +1,6 @@
 import { NotificationStatus } from "@/components/clinical/NotificationStatus";
+import { NotificationBell } from "@/components/clinical/NotificationBell";
+import { BirthdaysCard } from "@/components/clinical/BirthdaysCard";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
@@ -478,7 +480,6 @@ function Painel() {
 
   const confirmedCount = weekAppointments?.filter((a) => a.status === "confirmed").length ?? 0;
 
-  const pendingCount = pending?.length ?? 0;
   const pendingTodayCount = pending?.filter((a) => a.appointment_date === todayISO).length ?? 0;
   const pendingTomorrowCount =
     pending?.filter((a) => a.appointment_date === tomorrowISO).length ?? 0;
@@ -836,22 +837,13 @@ function Painel() {
               <span>Copiar Link</span>
             </button>
 
-            <button
-              onClick={() => {
-                setMainTab("crc");
-                setCrcSubTab("confirmacoes");
+            <NotificationBell
+              enabled={!!session}
+              onSelect={(apt) => {
+                setMainTab("agenda");
+                setSelected(apt);
               }}
-              aria-label="Notificações e confirmações pendentes de hoje"
-              title="Agendamentos aguardando confirmação hoje e alertas CRC"
-              className="relative h-11 w-11 flex items-center justify-center rounded-full text-white/90 hover:bg-white/12 hover:text-white transition-colors cursor-pointer"
-            >
-              <Bell className="h-4 w-4" />
-              {(pendingTodayCount > 0 || returnAlertPatients.length > 0) && (
-                <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-400 text-[11px] font-bold text-neutral-950 flex items-center justify-center shadow-sm">
-                  {pendingTodayCount + returnAlertPatients.length}
-                </span>
-              )}
-            </button>
+            />
 
             {/* Perfil Dra. Michelle */}
             <div className="hidden sm:flex items-center gap-2.5 rounded-full bg-white/10 border border-white/20 pl-1.5 pr-3.5 py-1">
@@ -1035,7 +1027,7 @@ function Painel() {
         ) : (
           <>
             {/* Stats with Uiverse-inspired glassmorphic cards */}
-            <div className="mt-2 grid gap-6 sm:grid-cols-3">
+            <div className="mt-2 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
               {/* Card 1: Hoje */}
               <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-primary/40 hover:shadow-raised">
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-primary/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
@@ -1084,15 +1076,15 @@ function Painel() {
                 </div>
               </div>
 
-              {/* Card 3: Pendentes */}
+              {/* Card 3: Pendentes de amanhã (envio das confirmações às 16h) */}
               <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-card via-card to-amber-500/[0.04] p-7 shadow-soft transition-all duration-500 hover:-translate-y-1 hover:border-amber-500/40 hover:shadow-raised">
                 <div className="absolute top-0 right-0 h-28 w-28 rounded-bl-full bg-amber-500/5 transition-transform duration-500 group-hover:scale-125 pointer-events-none" />
                 <div className="flex items-center justify-between">
-                  <span className="text-kicker text-muted-foreground">Aguardando confirmação</span>
+                  <span className="text-kicker text-muted-foreground">Confirmar amanhã</span>
                   <div
                     className={cn(
                       "flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner transition-transform duration-300 group-hover:scale-110",
-                      pendingCount > 0
+                      pendingTomorrowCount > 0
                         ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                         : "bg-muted text-muted-foreground",
                     )}
@@ -1102,31 +1094,42 @@ function Painel() {
                 </div>
                 <div className="mt-5 flex items-baseline gap-3">
                   <span className="font-display text-5xl font-light tracking-tight text-foreground transition-colors duration-300 group-hover:text-amber-600 dark:group-hover:text-amber-400">
-                    {pendingCount}
+                    {pendingTomorrowCount}
                   </span>
                   <span
                     className={cn(
                       "text-xs font-medium",
-                      pendingCount > 0
+                      pendingTomorrowCount > 0
                         ? "font-semibold text-amber-700 dark:text-amber-400"
                         : "text-muted-foreground",
                     )}
                   >
-                    {pendingCount === 0 ? "fila em dia" : "requer atenção"}
+                    {pendingTomorrowCount === 0 ? "fila em dia" : "requer atenção"}
                   </span>
                 </div>
                 <div className="mt-4 flex items-center gap-2 border-t border-border/40 pt-3 text-xs text-muted-foreground">
                   <span
                     className={cn(
                       "inline-block h-2 w-2 rounded-full",
-                      pendingCount > 0 ? "bg-amber-500 animate-pulse" : "bg-muted-foreground/40",
+                      pendingTomorrowCount > 0
+                        ? "bg-amber-500 animate-pulse"
+                        : "bg-muted-foreground/40",
                     )}
                   />
                   <span>
-                    {pendingCount > 0 ? `${pendingCount} aguardando resposta` : "Todas confirmadas"}
+                    {pendingTomorrowCount > 0
+                      ? `${pendingTomorrowCount} aguardando · ${formatLongDate(tomorrowISO)}`
+                      : `Todas confirmadas · ${formatLongDate(tomorrowISO)}`}
                   </span>
                 </div>
               </div>
+              {/* Card 4: Aniversariantes do dia e da semana */}
+              <BirthdaysCard
+                onOpenCRC={() => {
+                  setMainTab("crc");
+                  setCrcSubTab("aniversariantes");
+                }}
+              />
             </div>
 
             {/* Week navigation with Segmented Controls */}
