@@ -46,3 +46,6 @@ dist-ssr
 .vercel
 .env*
 scripts/
+
+# Estado local do CLI do Supabase (link)
+supabase/.temp/
