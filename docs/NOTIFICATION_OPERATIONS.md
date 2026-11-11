@@ -22,7 +22,7 @@ Para interromper novos processamentos, desativar o job e `CLINICAL_NOTIFICATIONS
 
 ## Pendências operacionais do design completo
 
-O painel administrativo mostra a fila e permite marcar falhas terminais como revisadas. O monitor interno registra os ciclos, e o código emite check-ins quando encontra um DSN do Sentry. Ainda falta confirmar a regra de ausência no painel do Sentry e o recebimento do alerta.
+O painel administrativo mostra a fila e permite marcar falhas terminais como revisadas. O monitor interno registra os ciclos, e o código emite check-ins quando encontra um DSN do Sentry. A regra de alerta do Sentry e a entrega por e-mail foram verificadas em teste de falha simulada. O teste de ausência real exigiria interromper os check-ins.
 
 ## Validação local
 
@@ -49,3 +49,8 @@ Publicação final confirmada: deployment READY e promovido; os aliases `dramich
 - Agendamentos públicos ficam sem vínculo automático com prontuário. A anamnese pública é registrada em cadastro isolado para verificação pela recepção. O novo token usa `ANAMNESIS_TOKEN_SECRET` e identifica somente a consulta. Para links anteriores, use o acesso por protocolo.
 
 - A concorrência foi validada em um schema privado temporário no PostgreSQL do projeto, com dados fictícios e duas sessões distintas. Duas confirmações simultâneas geraram um evento. Dois processadores reservaram eventos e concessões diferentes. O schema foi removido.
+
+## Monitor externo no Sentry
+
+- O servidor usa `SENTRY_DSN` do projeto `dramichelle`. O [monitor clinical-notifications](https://ij-49.sentry.io/monitors/10915874/) recebe check-ins de produção a cada minuto e detecta ausência após dois minutos de tolerância.
+- A [regra de falha](https://ij-49.sentry.io/monitors/alerts/6324382/) notifica o membro administrador do projeto. O check-in sintético com status de erro abriu o incidente `DRAMICHELLE-3`. Os e-mails de teste apareceram no Gmail do destinatário. Check-ins de produção continuaram durante a verificação.
