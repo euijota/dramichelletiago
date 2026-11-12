@@ -68,12 +68,7 @@ function createWindow() {
 
 const menuTemplate =
   process.platform === "darwin"
-    ? [
-        { role: "appMenu" },
-        { role: "editMenu" },
-        { role: "viewMenu" },
-        { role: "windowMenu" },
-      ]
+    ? [{ role: "appMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" }]
     : [{ role: "editMenu" }, { role: "viewMenu" }];
 
 app.on("second-instance", () => {
