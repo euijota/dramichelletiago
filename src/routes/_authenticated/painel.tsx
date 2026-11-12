@@ -605,7 +605,7 @@ function Painel() {
     <div className="min-h-screen bg-background">
       {/* BARRA SUPERIOR GLOBAL — APPLE HIG TRANSLUCENT WINE CHROME + LOGO DRA. MICHELLE */}
       <header className="sticky top-0 z-40 apple-glass-header text-white border-b border-white/15">
-        <div className="mx-auto flex min-h-16 max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 py-2">
+        <div className="mx-auto flex min-h-16 flex-wrap max-w-[1600px] items-center justify-between gap-x-3 gap-y-2 px-4 sm:px-6 py-2">
           {/* Lado Esquerdo: Menu Hambúrguer (≡) + Logomarca Oficial + Voltar ou Módulos */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative">
@@ -702,7 +702,7 @@ function Painel() {
               className="flex items-center gap-2.5 pr-2 border-r border-white/15 cursor-pointer"
               title="Início do Sistema — Dra. Michelle Barbosa Tiago"
             >
-              <Logo onWine className="h-9 sm:h-11 max-w-[155px] sm:max-w-[190px]" />
+              <Logo onWine className="h-7 sm:h-11 max-w-[130px] sm:max-w-[190px]" />
             </button>
 
             {mainTab === "pacientes" && activeChartPatient ? (
@@ -766,8 +766,11 @@ function Painel() {
             )}
           </div>
 
-          {/* Centro: Smartbar Global ("Encontre pacientes ou funções do sistema") */}
-          <div className="relative flex-1 max-w-xl">
+          {/* Centro: Smartbar Global ("Encontre pacientes ou funções do sistema").
+              No mobile vira linha própria (order-3 + w-full) para não estourar
+              a largura da tela — sem isso o corpo da página fica rolável na
+              horizontal e o header "flutua" deslocado ao dar pinça. */}
+          <div className="relative order-3 w-full min-w-0 sm:order-none sm:w-auto sm:flex-1 sm:max-w-xl">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
