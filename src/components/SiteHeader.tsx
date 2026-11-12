@@ -16,7 +16,7 @@ export function SiteHeader() {
           {/* Mobile menu button */}
           <button
             type="button"
-            className="md:hidden p-2 rounded-lg text-muted-foreground hover:bg-accent transition-silk"
+            className="md:hidden p-2.5 -ml-2.5 rounded-lg text-muted-foreground hover:bg-accent transition-silk min-h-[44px] min-w-[44px] flex items-center justify-center"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-menu"
@@ -76,7 +76,7 @@ export function SiteHeader() {
           <div className="flex flex-1 justify-end">
             <Link
               to="/agendar"
-              className="rounded-full bg-primary px-4 sm:px-6 py-2 text-xs sm:text-sm text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
+              className="inline-flex items-center min-h-[44px] rounded-full bg-primary px-5 sm:px-6 py-2 text-xs sm:text-sm text-kicker text-primary-foreground transition-silk hover:bg-primary-deep"
             >
               Agendar
             </Link>
@@ -90,11 +90,11 @@ export function SiteHeader() {
             className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-xl px-6 pb-6 animate-slide-down"
             aria-label="Menu mobile"
           >
-            <ul className="flex flex-col gap-4 pt-6">
+            <ul className="flex flex-col gap-1 pt-6">
               <li>
                 <Link
                   to="/sobre"
-                  className="flex items-center gap-3 text-kicker text-foreground transition-silk hover:text-primary"
+                  className="flex items-center gap-3 min-h-[44px] text-kicker text-foreground transition-silk hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Sobre
@@ -103,7 +103,7 @@ export function SiteHeader() {
               <li>
                 <Link
                   to="/tratamentos"
-                  className="flex items-center gap-3 text-kicker text-foreground transition-silk hover:text-primary"
+                  className="flex items-center gap-3 min-h-[44px] text-kicker text-foreground transition-silk hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Tratamentos
@@ -112,7 +112,7 @@ export function SiteHeader() {
               <li>
                 <Link
                   to="/contato"
-                  className="flex items-center gap-3 text-kicker text-foreground transition-silk hover:text-primary"
+                  className="flex items-center gap-3 min-h-[44px] text-kicker text-foreground transition-silk hover:text-primary"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Contato

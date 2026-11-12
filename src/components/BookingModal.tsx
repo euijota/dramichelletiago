@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getOccupiedSlots } from "@/lib/ical-server";
 import { saveAppointmentAndNotify } from "@/lib/notify-server";
 import {
@@ -73,6 +73,29 @@ export function BookingModal({
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
 
   const carouselRef = useRef<HTMLDivElement>(null);
+  // Indica se há mais abas de mês fora da área visível (para o degradê de affordance)
+  const monthTabsRef = useRef<HTMLDivElement>(null);
+  const [monthTabsOverflow, setMonthTabsOverflow] = useState({ left: false, right: false });
+  const updateMonthTabsOverflow = useCallback(() => {
+    const el = monthTabsRef.current;
+    if (!el) return;
+    setMonthTabsOverflow({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  useEffect(() => {
+    updateMonthTabsOverflow();
+    const el = monthTabsRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", updateMonthTabsOverflow, { passive: true });
+    window.addEventListener("resize", updateMonthTabsOverflow);
+    return () => {
+      el.removeEventListener("scroll", updateMonthTabsOverflow);
+      window.removeEventListener("resize", updateMonthTabsOverflow);
+    };
+  }, [availableMonths, updateMonthTabsOverflow]);
 
   // Form State
   const [patientName, setPatientName] = useState("");
@@ -647,30 +670,47 @@ export function BookingModal({
                 <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5 shrink-0">
                   <CalendarIcon className="w-4 h-4" /> 1. Data da consulta
                 </Label>
-                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border overflow-x-auto scrollbar-none max-w-full">
-                  {availableMonths.map((month) => {
-                    const isSelected = selectedMonth === month;
-                    return (
-                      <button
-                        key={month}
-                        type="button"
-                        onClick={() => {
-                          setSelectedMonth(month);
-                          const firstDayOfMonth = days.find((d) => d.monthYear === month);
-                          if (firstDayOfMonth) {
-                            setSelectedDay(firstDayOfMonth);
-                          }
-                        }}
-                        className={`flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-                          isSelected
-                            ? "bg-[#90464f] text-white shadow-sm"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {month}
-                      </button>
-                    );
-                  })}
+                <div className="relative min-w-0 max-w-full">
+                  {monthTabsOverflow.left && (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 rounded-l-xl bg-gradient-to-r from-background to-transparent"
+                    />
+                  )}
+                  {monthTabsOverflow.right && (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 rounded-r-xl bg-gradient-to-l from-background to-transparent"
+                    />
+                  )}
+                  <div
+                    ref={monthTabsRef}
+                    className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border overflow-x-auto scrollbar-none max-w-full"
+                  >
+                    {availableMonths.map((month) => {
+                      const isSelected = selectedMonth === month;
+                      return (
+                        <button
+                          key={month}
+                          type="button"
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            const firstDayOfMonth = days.find((d) => d.monthYear === month);
+                            if (firstDayOfMonth) {
+                              setSelectedDay(firstDayOfMonth);
+                            }
+                          }}
+                          className={`flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                            isSelected
+                              ? "bg-[#90464f] text-white shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          {month}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

@@ -29,20 +29,35 @@ export function SiteFooter() {
 
           <div className="space-y-4">
             <p className="text-kicker text-primary-foreground/50">Navegação</p>
-            <div className="flex flex-col items-start gap-3 text-sm">
-              <Link to="/sobre" className="transition-silk hover:opacity-70">
+            <div className="flex flex-col items-start gap-1 text-sm">
+              <Link
+                to="/sobre"
+                className="inline-flex items-center min-h-[44px] transition-silk hover:opacity-70"
+              >
                 Sobre a Dra. Michelle
               </Link>
-              <Link to="/tratamentos" className="transition-silk hover:opacity-70">
+              <Link
+                to="/tratamentos"
+                className="inline-flex items-center min-h-[44px] transition-silk hover:opacity-70"
+              >
                 Tratamentos
               </Link>
-              <Link to="/contato" className="transition-silk hover:opacity-70">
+              <Link
+                to="/contato"
+                className="inline-flex items-center min-h-[44px] transition-silk hover:opacity-70"
+              >
                 Contato
               </Link>
-              <Link to="/agendar" className="transition-silk hover:opacity-70">
+              <Link
+                to="/agendar"
+                className="inline-flex items-center min-h-[44px] transition-silk hover:opacity-70"
+              >
                 Agendar consulta
               </Link>
-              <Link to="/auth" className="transition-silk hover:opacity-70">
+              <Link
+                to="/auth"
+                className="inline-flex items-center min-h-[44px] transition-silk hover:opacity-70"
+              >
                 Área da Dra.
               </Link>
             </div>
