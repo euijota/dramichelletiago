@@ -185,6 +185,23 @@ function RootComponent() {
     }
   }, []);
 
+  // Dois apps instaláveis no mesmo domínio: visitantes instalam pela home
+  // ("/manifest.webmanifest", abre o site) e a equipe instala a partir do
+  // /painel ("/painel-manifest.webmanifest", abre direto na gestão).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (manifestLink) {
+      manifestLink.href = isAdminRoute ? "/painel-manifest.webmanifest" : "/manifest.webmanifest";
+    }
+    const appleTitle = document.querySelector<HTMLMetaElement>(
+      'meta[name="apple-mobile-web-app-title"]',
+    );
+    if (appleTitle) {
+      appleTitle.content = isAdminRoute ? "Painel" : "Dra. Michelle";
+    }
+  }, [isAdminRoute]);
+
   useEffect(() => {
     if (typeof window !== "undefined" && import.meta.env.VITE_SENTRY_DSN) {
       try {

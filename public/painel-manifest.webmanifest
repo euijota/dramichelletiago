@@ -1,0 +1,30 @@
+{
+  "name": "Painel Dra. Michelle",
+  "short_name": "Painel",
+  "description": "Painel interno de gestão da agenda, pacientes e confirmações da clínica Dra. Michelle Barbosa Tiago.",
+  "start_url": "/painel",
+  "scope": "/painel",
+  "display": "standalone",
+  "background_color": "#FAF5F5",
+  "theme_color": "#8a4a52",
+  "icons": [
+    {
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
