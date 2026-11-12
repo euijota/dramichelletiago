@@ -1,17 +1,45 @@
 {
   "name": "Dra. Michelle Barbosa Tiago",
-  "short_name": "Dra. Michelle Tiago",
+  "short_name": "Dra. Michelle",
   "description": "Consultório de Odontologia Estética em Macapá/AP. Atendimento para adultos e crianças.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#8a4a52",
   "icons": [
     {
-      "src": "/favicon.png",
+      "src": "/icons/pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Agendar consulta",
+      "short_name": "Agendar",
+      "url": "/agendar",
+      "icons": [{ "src": "/icons/pwa-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Painel da clínica",
+      "short_name": "Painel",
+      "url": "/painel",
+      "icons": [{ "src": "/icons/pwa-192.png", "sizes": "192x192" }]
     }
   ]
 }

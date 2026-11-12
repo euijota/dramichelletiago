@@ -18,6 +18,11 @@ coverage
 .env.*.local
 
 node_modules
+
+# Electron desktop app
+desktop/release/
+desktop/*.dmg
+desktop/*.exe
 dist
 dist-ssr
 .output

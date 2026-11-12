@@ -1,0 +1,32 @@
+appId: br.com.dramichelletiago.painel
+productName: Painel Dra. Michelle
+copyright: © Dra. Michelle Barbosa Tiago
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - main.js
+  - package.json
+
+# Sem certificados de assinatura (uso interno). Assinados = sem avisos do
+# SmartScreen/Gatekeeper; ver docs/APP_INSTALADORES.md.
+mac:
+  category: public.app-category.medical
+  icon: build/icon.png
+  identity: null
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+  artifactName: Painel-Dra-Michelle-Setup-${version}.${ext}

@@ -1,0 +1,19 @@
+{
+  "name": "painel-dramichelle",
+  "productName": "Painel Dra. Michelle",
+  "version": "1.0.0",
+  "description": "Painel de gestão da clínica Dra. Michelle Barbosa Tiago",
+  "private": true,
+  "main": "main.js",
+  "author": "Dra. Michelle Barbosa Tiago",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0"
+  }
+}

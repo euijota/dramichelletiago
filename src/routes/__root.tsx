@@ -89,6 +89,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:locale", content: "pt_BR" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "theme-color", content: "#8a4a52" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "Dra. Michelle" },
       { name: "geo.region", content: "BR-AP" },
       { name: "geo.placename", content: "Macapá" },
       { name: "ICBM", content: "0.037, -51.07" },
@@ -171,6 +175,15 @@ function RootComponent() {
   const location = useLocation();
   const isAdminRoute =
     location.pathname.startsWith("/auth") || location.pathname.startsWith("/painel");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      // SW mínimo de instalabilidade (pass-through, sem cache) — ver public/sw.js
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        // Instalabilidade é progressiva: falha no registro não deve impactar o uso.
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined" && import.meta.env.VITE_SENTRY_DSN) {
