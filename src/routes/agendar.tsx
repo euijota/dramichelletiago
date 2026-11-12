@@ -34,8 +34,8 @@ function Agendar() {
     <div className="min-h-screen bg-background">
       <SiteHeader />
 
-      <main className="mx-auto max-w-4xl px-4 py-12 sm:py-16">
-        <div className="text-center space-y-3 mb-10">
+      <main className="mx-auto max-w-4xl px-4 py-8 sm:py-16">
+        <div className="text-center space-y-3 mb-6 sm:mb-10">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-3.5 py-1 text-xs font-semibold uppercase tracking-widest text-primary">
             <Sparkles className="h-3.5 w-3.5" />
             Agendamento Direto

@@ -409,22 +409,11 @@ export function BookingModal({
       setConfirmedBooking(confirmed);
       toast.success("Solicitação de agendamento realizada com sucesso!");
       setIsSubmitting(false);
-
-      // Notificação imediata: abre WhatsApp da Dra. Michelle com os dados do agendamento
-      const anamnesisUrl = (result as any).anamnesisToken
-        ? `https://dramichelletiago.com.br/anamnese?token=${(result as any).anamnesisToken}&protocolo=${protocol}`
-        : `https://dramichelletiago.com.br/anamnese?protocolo=${protocol}`;
-      const dentistMsg = encodeURIComponent(
-        `🦷 *NOVO AGENDAMENTO RECEBIDO*\n\n` +
-          `📌 Protocolo: ${protocol}\n` +
-          `👤 Paciente: ${patientName.trim()}\n` +
-          `📞 Telefone: ${patientPhone.trim()}\n` +
-          `📅 Data: ${selectedDay.fullFormatted} às ${selectedSlot}\n` +
-          `💼 Serviço: ${serviceName}\n` +
-          `📋 Ficha: ${anamnesisUrl}\n` +
-          `📝 Obs: ${notes.trim() || "Nenhuma"}`,
-      );
-      window.open(`https://wa.me/${CLINIC.whatsapp}?text=${dentistMsg}`, "_blank");
+      // Nota: o popup automático wa.me foi removido — navegadores mobile
+      // bloqueiam window.open após await (fora do gesto direto do usuário).
+      // A recepção é notificada pelo Google Calendar + e-mail clínico
+      // (server-side) e o paciente tem o botão "Enviar Confirmação pelo
+      // WhatsApp" na tela seguinte.
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro desconhecido";
       console.error("Booking error:", msg);
@@ -480,7 +469,7 @@ export function BookingModal({
           <CalendarCheck className="w-3.5 h-3.5 text-[#90464f]" /> Hora Marcada
         </div>
         <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium border-x border-[#90464f]/10">
-          <Clock className="w-3.5 h-3.5 text-[#90464f]" /> Seg a Sex
+          <Clock className="w-3.5 h-3.5 text-[#90464f]" /> Seg a Sáb
         </div>
         <div className="flex items-center justify-center gap-1.5 text-foreground/80 font-medium">
           <ShieldCheck className="w-3.5 h-3.5 text-[#90464f]" /> Confirmado
@@ -654,11 +643,11 @@ export function BookingModal({
 
             {/* Month Tabs & Day Carousel */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                  <CalendarIcon className="w-4 h-4" /> 1. Selecione a data da consulta
+              <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5 shrink-0">
+                  <CalendarIcon className="w-4 h-4" /> 1. Data da consulta
                 </Label>
-                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border">
+                <div className="flex gap-1.5 bg-muted/60 p-1 rounded-xl border border-border overflow-x-auto scrollbar-none max-w-full">
                   {availableMonths.map((month) => {
                     const isSelected = selectedMonth === month;
                     return (
@@ -672,7 +661,7 @@ export function BookingModal({
                             setSelectedDay(firstDayOfMonth);
                           }
                         }}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                        className={`flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                           isSelected
                             ? "bg-[#90464f] text-white shadow-sm"
                             : "text-muted-foreground hover:text-foreground"
@@ -689,7 +678,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={() => scrollCarousel("left")}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  className="hidden sm:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm items-center justify-center text-foreground hover:bg-accent transition-all"
                   aria-label="Anterior"
                 >
                   <ChevronLeft className="w-4 h-4" />
@@ -729,7 +718,7 @@ export function BookingModal({
                 <button
                   type="button"
                   onClick={() => scrollCarousel("right")}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm flex items-center justify-center text-foreground hover:bg-accent transition-all"
+                  className="hidden sm:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 rounded-full bg-background/90 border border-border shadow-sm items-center justify-center text-foreground hover:bg-accent transition-all"
                   aria-label="Próximo"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -739,10 +728,9 @@ export function BookingModal({
 
             {/* Time Slots */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-[#90464f] flex items-center gap-1.5">
-                  <Clock className="w-4 h-4" /> 2. Próximo horário disponível para atendimento (
-                  {selectedDay?.fullFormatted})
+                  <Clock className="w-4 h-4" /> 2. Horários · {selectedDay?.fullFormatted}
                 </Label>
                 {selectedSlot && (
                   <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
@@ -792,7 +780,7 @@ export function BookingModal({
                 <User className="w-4 h-4" /> 3. Dados do Paciente
               </Label>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="type" className="text-xs font-semibold">
                     Tipo de Atendimento
@@ -841,18 +829,22 @@ export function BookingModal({
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
                   placeholder="Seu nome completo"
+                  autoComplete="name"
                   className="rounded-xl"
                   required
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="phone" className="text-xs font-semibold">
                     Celular / WhatsApp *
                   </Label>
                   <Input
                     id="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={patientPhone}
                     onChange={handlePhoneChange}
                     placeholder="(00) 00000-0000"
@@ -868,6 +860,9 @@ export function BookingModal({
                   <Input
                     id="email"
                     type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    autoCapitalize="none"
                     value={patientEmail}
                     onChange={(e) => setPatientEmail(e.target.value)}
                     placeholder="seu@email.com"
