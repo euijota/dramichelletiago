@@ -22,9 +22,9 @@ npm run dist:win     # só Windows
 
 Artefatos em `desktop/release/`:
 
-- `Painel Dra. Michelle-1.0.0-arm64.dmg` — Macs Apple Silicon (M1…)
-- `Painel Dra. Michelle-1.0.0.dmg` — Macs Intel
-- `Painel-Dra-Michelle-Setup-1.0.0.exe` — Windows 10/11
+- `Painel Dra. Michelle-1.0.1-arm64.dmg` — Macs Apple Silicon (M1…)
+- `Painel Dra. Michelle-1.0.1.dmg` — Macs Intel
+- `Painel-Dra-Michelle-Setup-1.0.1.exe` — Windows 10/11
 
 ### Primeira abertura sem assinatura
 
@@ -44,7 +44,9 @@ Code Signing) e configurando `mac.identity` / `win.certificateFile` no
 - Carrega `https://dramichelletiago.com.br/painel` (autenticação Supabase
   persiste entre sessões — login uma vez só).
 - Links externos (WhatsApp `wa.me`, Google Calendar) abrem no navegador do
-  sistema, nunca dentro do app.
+  sistema, nunca dentro do app. No Windows, links de WhatsApp abrem direto
+  no app WhatsApp Desktop (protocolo `whatsapp://`), com fallback para o
+  navegador se ele não estiver instalado; no Mac abrem no navegador.
 - Instância única (segundo clique traz a janela existente à frente).
 - Seguro por padrão: `contextIsolation`, `sandbox`, `nodeIntegration: false`.
 

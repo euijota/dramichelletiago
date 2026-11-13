@@ -1,7 +1,7 @@
 {
   "name": "painel-dramichelle",
   "productName": "Painel Dra. Michelle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Painel de gestão da clínica Dra. Michelle Barbosa Tiago",
   "private": true,
   "main": "main.js",

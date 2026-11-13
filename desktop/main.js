@@ -17,6 +17,28 @@ function isInternal(url) {
   return url.startsWith(ORIGIN);
 }
 
+// Windows tem o app WhatsApp Desktop: converte links de WhatsApp (wa.me,
+// api.whatsapp.com, web.whatsapp.com) para o esquema whatsapp:// para abrir
+// direto no app com a conversa pronta. Se o app não estiver instalado,
+// cai para o navegador com a URL original. No Mac mantemos o navegador.
+function openExternal(url) {
+  const isWhatsAppLink = /^https?:\/\/(wa\.me|api\.whatsapp\.com|web\.whatsapp\.com)/.test(url);
+  if (process.platform === "win32" && isWhatsAppLink) {
+    try {
+      const u = new URL(url);
+      const phone = u.searchParams.get("phone") ?? (u.pathname.match(/\d{10,15}/) ?? [null])[0];
+      const text = u.searchParams.get("text");
+      if (phone) {
+        const target = `whatsapp://send?phone=${phone}${text ? `&text=${encodeURIComponent(text)}` : ""}`;
+        return shell.openExternal(target).catch(() => shell.openExternal(url));
+      }
+    } catch {
+      // URL inválida para o esquema: cai para o navegador abaixo.
+    }
+  }
+  return shell.openExternal(url);
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1360,
@@ -44,17 +66,16 @@ function createWindow() {
     if (isInternal(url)) {
       return { action: "allow", overrideBrowserWindowOptions: { autoHideMenuBar: true } };
     }
-    shell.openExternal(url);
+    openExternal(url);
     return { action: "deny" };
   });
 
   win.webContents.on("will-navigate", (event, url) => {
     if (!isInternal(url)) {
       event.preventDefault();
-      shell.openExternal(url);
+      openExternal(url);
     }
   });
-
   win.webContents.on("render-process-gone", (_event, details) => {
     if (details.reason !== "clean-exit") {
       win.reload();
