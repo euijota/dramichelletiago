@@ -420,7 +420,7 @@ export function NewAppointmentModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-background border border-primary/20 shadow-2xl">
+      <DialogContent className="max-w-2xl rounded-3xl p-0 bg-background border border-primary/20 shadow-2xl">
         {/* Header */}
         <div className="bg-[#90464f] py-6 px-6 text-white border-b border-white/10">
           <div className="flex items-center justify-between">

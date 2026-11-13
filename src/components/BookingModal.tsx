@@ -999,7 +999,7 @@ export function BookingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden bg-background border border-[#90464f]/20 shadow-2xl">
+      <DialogContent className="max-w-2xl rounded-3xl p-0 bg-background border border-[#90464f]/20 shadow-2xl">
         {cardContent}
       </DialogContent>
     </Dialog>
