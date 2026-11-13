@@ -89,7 +89,10 @@ export function buildWhatsAppReminderUrl(phone: string, data: ReminderData): str
   const message = buildWhatsAppReminderMessage(data);
   const cleanPhone = phone.replace(/\D/g, ""); // Remove non-digits
   const fullPhone = cleanPhone.length > 11 ? cleanPhone : `55${cleanPhone}`;
-  return `https://web.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`;
+  // Link universal do WhatsApp: abre o app no celular e o WhatsApp Web no
+  // desktop (web.whatsapp.com direto abriria o QR até no celular — ver
+  // buildWhatsAppUniversalUrl em src/lib/crc.ts).
+  return `https://api.whatsapp.com/send?phone=${fullPhone}&text=${encodeURIComponent(message)}`;
 }
 
 /**

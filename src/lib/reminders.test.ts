@@ -41,7 +41,7 @@ describe("Reminder Templates", () => {
   it("should build WhatsApp reminder URL", () => {
     const url = buildWhatsAppReminderUrl("(96) 98765-4321", mockData);
 
-    expect(url).toContain("https://web.whatsapp.com/send?phone=55");
+    expect(url).toContain("https://api.whatsapp.com/send?phone=55");
     expect(url).toContain("96987654321");
     expect(url).toContain("text=");
     expect(decodeURIComponent(url)).toContain("João Silva");
