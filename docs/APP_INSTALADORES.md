@@ -22,9 +22,9 @@ npm run dist:win     # só Windows
 
 Artefatos em `desktop/release/`:
 
-- `Painel Dra. Michelle-1.0.1-arm64.dmg` — Macs Apple Silicon (M1…)
-- `Painel Dra. Michelle-1.0.1.dmg` — Macs Intel
-- `Painel-Dra-Michelle-Setup-1.0.1.exe` — Windows 10/11
+- `Painel Dra. Michelle-1.0.2-arm64.dmg` — Macs Apple Silicon (M1…)
+- `Painel Dra. Michelle-1.0.2.dmg` — Macs Intel
+- `Painel-Dra-Michelle-Setup-1.0.2.exe` — Windows 10/11
 
 ### Primeira abertura sem assinatura
 
@@ -33,7 +33,16 @@ Os binários não são assinados (uso interno, sem certificado pago):
 - **macOS**: no primeiro abrir, clique com o botão direito no app → **Abrir** →
   **Abrir** (ou Ajustes → Privacidade e Segurança → "Abrir mesmo assim").
 - **Windows**: o SmartScreen pode avisar — **Mais informações** → **Executar
-  assim mesmo**.
+  assim mesmo**. Se o antivírus remover o exe após a instalação, criar
+  exclusão de pasta para `%LOCALAPPDATA%\Programs\painel-dramichelle` e
+  restaurar o arquivo pelo Histórico de proteção.
+
+### Nota de versões
+
+- **1.0.2**: corrige o bug da 1.0.1 — o Setup do Windows saía ARM64 (herdava
+  a arquitetura do Mac de build) e não rodava em Windows Intel/AMD. Agora é
+  x64 explícito (`win.target.arch: [x64]`). WhatsApp Desktop no Windows
+  (protocolo `whatsapp://`) vem da 1.0.1.
 
 Comprando um certificado de assinatura (Apple Developer US$99/ano; Windows
 Code Signing) e configurando `mac.identity` / `win.certificateFile` no

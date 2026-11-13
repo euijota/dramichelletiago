@@ -23,7 +23,10 @@ mac:
 win:
   icon: build/icon.png
   target:
+    # x64 explícito: sem isso, build feito no Mac (ARM) herda a arquitetura
+    # e o exe sai Aarch64 — não roda em Windows Intel/AMD.
     - target: nsis
+      arch: [x64]
 
 nsis:
   oneClick: true
