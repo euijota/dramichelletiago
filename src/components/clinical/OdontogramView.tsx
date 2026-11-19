@@ -1,9 +1,22 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Plus, Trash2, CheckCircle2, Clock, Baby, Smile, Layers, Check } from "lucide-react";
+import { Plus, Trash2, Baby, Smile, Layers, Check, Search, Settings2, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  PROCEDURE_CATEGORIES,
+  REGION_OPTIONS,
+  type ClinicalProcedureCatalogItem,
+  loadProcedureCatalog,
+  filterProcedures,
+  getSuggestedProcedurePrice,
+  isToothNumber,
+  formatProcedureTarget,
+  buildProcedureEvolutionText,
+  formatBRLValue,
+} from "@/lib/procedures";
+import { ProcedureCatalogModal } from "./ProcedureCatalogModal";
 
 interface ToothProcedure {
   id?: string;
@@ -19,6 +32,9 @@ interface ToothProcedure {
 interface OdontogramViewProps {
   patientId: string;
   patientName?: string;
+  patientInsurance?: string | null;
+  catalog?: ClinicalProcedureCatalogItem[];
+  onOpenCatalog?: () => void;
 }
 
 const PERMANENT_UPPER: [number[], number[]] = [
@@ -41,19 +57,6 @@ const DECIDUOUS_LOWER: [number[], number[]] = [
   [71, 72, 73, 74, 75],
 ];
 
-const COMMON_PROCEDURES = [
-  { name: "Restauração em Resina", defaultStatus: "planned" },
-  { name: "Profilaxia + ATF + OHB", defaultStatus: "completed" },
-  { name: "Raspagem Supragengival", defaultStatus: "completed" },
-  { name: "Selante Dental Preventivo", defaultStatus: "planned" },
-  { name: "Tratamento de Canal (Endo)", defaultStatus: "planned" },
-  { name: "Exodontia / Extração Indicada", defaultStatus: "planned" },
-  { name: "Dente Ausente / Extraído", defaultStatus: "completed" },
-  { name: "Coroa / Prótese", defaultStatus: "planned" },
-  { name: "Curativo / Forramento (CIV/Dycal)", defaultStatus: "completed" },
-  { name: "Clareamento Dental", defaultStatus: "planned" },
-];
-
 const SURFACE_LABELS: Record<string, string> = {
   V: "Vestibular (V)",
   L: "Lingual / Palatina (L/P)",
@@ -72,15 +75,78 @@ function normalizeSurfaceCode(s: string): string {
   return u;
 }
 
-export function OdontogramView({ patientId, patientName }: OdontogramViewProps) {
+export function OdontogramView({
+  patientId,
+  patientName,
+  patientInsurance,
+  catalog: externalCatalog,
+  onOpenCatalog,
+}: OdontogramViewProps) {
   const queryClient = useQueryClient();
+  const [internalCatalog, setInternalCatalog] = useState<ClinicalProcedureCatalogItem[]>(() =>
+    loadProcedureCatalog(),
+  );
+  const [showInternalCatalogModal, setShowInternalCatalogModal] = useState(false);
+
+  const activeCatalog = externalCatalog ?? internalCatalog;
+
   const [dentition, setDentition] = useState<"permanent" | "deciduous" | "mixed">("permanent");
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [selectedSurfaces, setSelectedSurfaces] = useState<string[]>([]);
-  const [procName, setProcName] = useState(COMMON_PROCEDURES[0].name);
-  const [procStatus, setProcStatus] = useState<"planned" | "in_progress" | "completed">("planned");
-  const [procCost, setProcCost] = useState<string>("");
+
+  const [procCategory, setProcCategory] = useState<string>("Todas");
+  const [procSearch, setProcSearch] = useState<string>("");
+  const [selectedCatalogId, setSelectedCatalogId] = useState<string>(
+    () => activeCatalog[0]?.id || "",
+  );
+  const [procName, setProcName] = useState<string>(
+    () => activeCatalog[0]?.name || "Restauração em Resina Composta (1 Face)",
+  );
+  const [procStatus, setProcStatus] = useState<"planned" | "in_progress" | "completed">(
+    () => activeCatalog[0]?.defaultStatus || "planned",
+  );
+  const [procCost, setProcCost] = useState<string>(() => {
+    const first = activeCatalog[0];
+    if (!first) return "";
+    const suggested = getSuggestedProcedurePrice(first, patientInsurance);
+    return suggested > 0 ? suggested.toFixed(2) : "";
+  });
   const [procNotes, setProcNotes] = useState("");
+
+  const filteredCatalog = useMemo(
+    () => filterProcedures(activeCatalog, { query: procSearch, category: procCategory }),
+    [activeCatalog, procSearch, procCategory],
+  );
+
+  // Sincroniza quando o catálogo externo muda ou a busca filtra o item atual
+  useEffect(() => {
+    if (filteredCatalog.length > 0 && !filteredCatalog.some((p) => p.id === selectedCatalogId)) {
+      const first = filteredCatalog[0];
+      setSelectedCatalogId(first.id);
+      setProcName(first.name);
+      setProcStatus(first.defaultStatus);
+      const suggested = getSuggestedProcedurePrice(first, patientInsurance);
+      setProcCost(suggested > 0 ? suggested.toFixed(2) : "");
+    }
+  }, [filteredCatalog, selectedCatalogId, patientInsurance]);
+
+  const selectedCatalogItem = useMemo(
+    () =>
+      activeCatalog.find((p) => p.id === selectedCatalogId) ||
+      activeCatalog.find((p) => p.name === procName) ||
+      null,
+    [activeCatalog, selectedCatalogId, procName],
+  );
+
+  function handleSelectCatalogProc(procId: string) {
+    const proc = activeCatalog.find((p) => p.id === procId);
+    setSelectedCatalogId(procId);
+    if (!proc) return;
+    setProcName(proc.name);
+    setProcStatus(proc.defaultStatus);
+    const suggested = getSuggestedProcedurePrice(proc, patientInsurance);
+    setProcCost(suggested > 0 ? suggested.toFixed(2) : "");
+  }
 
   // Buscar odontograma do paciente
   const { data: odontogram } = useQuery({
@@ -130,7 +196,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
     [procedures],
   );
 
-  // Mapa de dentes com procedimentos
+  // Mapa de dentes/regiões com procedimentos
   const toothMap = useMemo(() => {
     const map = new Map<number, ToothProcedure[]>();
     for (const p of procedures) {
@@ -144,12 +210,13 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
   // Salvar novo procedimento
   const saveProcedureMutation = useMutation({
     mutationFn: async () => {
-      if (!odontogram?.id || !selectedTooth) return;
-      const costNum = procCost ? parseFloat(procCost) : null;
+      if (!odontogram?.id || selectedTooth === null) return;
+      const surfacesToSave = isToothNumber(selectedTooth) ? selectedSurfaces : [];
+      const costNum = procCost ? parseFloat(procCost.replace(",", ".")) : null;
       const { error } = await supabase.from("odontogram_procedures").insert({
         odontogram_id: odontogram.id,
         tooth_number: selectedTooth,
-        surfaces: selectedSurfaces,
+        surfaces: surfacesToSave,
         procedure_name: procName,
         status: procStatus,
         cost: costNum,
@@ -159,24 +226,30 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
       // Se já foi marcado como concluído, registrar também na linha do tempo do prontuário
       if (procStatus === "completed") {
-        const surfText = selectedSurfaces.length > 0 ? ` (${selectedSurfaces.join(", ")})` : "";
-        const costText = costNum ? ` · R$ ${costNum.toFixed(2)}` : "";
-        const noteText = procNotes.trim() ? ` — ${procNotes.trim()}` : "";
+        const targetLabel = formatProcedureTarget(selectedTooth, surfacesToSave);
+        const evolutionContent = buildProcedureEvolutionText({
+          procedureName: procName,
+          catalogItem: selectedCatalogItem,
+          toothNumber: selectedTooth,
+          surfaces: surfacesToSave,
+          notes: procNotes.trim() || undefined,
+          cost: costNum,
+        });
         await supabase.from("clinical_records").insert({
           patient_id: patientId,
           record_type: "evolucao",
           record_date: new Date().toISOString(),
-          title: `Odontograma · Dente ${selectedTooth}`,
-          content: `${procName} no dente ${selectedTooth}${surfText}${costText}${noteText} [Concluído]`,
+          title: `${procName} · ${targetLabel}`,
+          content: evolutionContent,
         });
       }
     },
     onSuccess: () => {
-      toast.success(`Procedimento registrado no dente ${selectedTooth}!`);
+      const label = selectedTooth !== null ? formatProcedureTarget(selectedTooth) : "";
+      toast.success(`Procedimento registrado (${label})!`);
       queryClient.invalidateQueries({ queryKey: ["odontogram_procedures", odontogram?.id] });
       queryClient.invalidateQueries({ queryKey: ["clinical_records", patientId] });
       setSelectedSurfaces([]);
-      setProcCost("");
       setProcNotes("");
     },
     onError: (err: any) => {
@@ -201,13 +274,22 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
       if (error) throw error;
 
       if (newStatus === "completed") {
-        const surfText = proc.surfaces?.length ? ` (${proc.surfaces.join(", ")})` : "";
+        const catalogMatch = activeCatalog.find((c) => c.name === proc.procedure_name) || null;
+        const targetLabel = formatProcedureTarget(proc.tooth_number, proc.surfaces);
+        const evolutionContent = buildProcedureEvolutionText({
+          procedureName: proc.procedure_name,
+          catalogItem: catalogMatch,
+          toothNumber: proc.tooth_number,
+          surfaces: proc.surfaces || [],
+          notes: proc.notes || undefined,
+          cost: proc.cost ?? null,
+        });
         await supabase.from("clinical_records").insert({
           patient_id: patientId,
           record_type: "evolucao",
           record_date: new Date().toISOString(),
-          title: `Procedimento Concluído · Dente ${proc.tooth_number}`,
-          content: `${proc.procedure_name} realizado no dente ${proc.tooth_number}${surfText}.`,
+          title: `${proc.procedure_name} · ${targetLabel}`,
+          content: evolutionContent,
         });
       }
     },
@@ -252,7 +334,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
         : "fill-muted hover:fill-primary/30";
     }
 
-    // Verificar procedimentos que afetam esta face específica (ou o dente inteiro se surfaces estiver vazio)
     const matching = procs.filter((p) => {
       const norm = (p.surfaces || []).map(normalizeSurfaceCode);
       return norm.length === 0 || norm.includes(surfaceCode);
@@ -288,13 +369,8 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
         p.status === "planned",
     );
 
-    // Mapeamento anatômico fiel aos quadrantes odontológicos:
-    // No arco superior: Topo = Vestibular (V), Base = Palatina/Lingual (L)
-    // No arco inferior: Topo = Lingual (L), Base = Vestibular (V)
     const topFace: "V" | "L" = isUpper ? "V" : "L";
     const bottomFace: "V" | "L" = isUpper ? "L" : "V";
-    // No lado direito (Q1/Q4/Q5/Q8): Esquerda = Distal (D), Direita = Mesial (M, perto da linha mediana)
-    // No lado esquerdo (Q2/Q3/Q6/Q7): Esquerda = Mesial (M, perto da linha mediana), Direita = Distal (D)
     const leftFace: "M" | "D" = isRightSide ? "D" : "M";
     const rightFace: "M" | "D" = isRightSide ? "M" : "D";
 
@@ -338,7 +414,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
             </div>
           ) : (
             <svg viewBox="0 0 40 40" className="w-full h-full drop-shadow-xs">
-              {/* Face Topo */}
               <polygon
                 points="0,0 40,0 30,10 10,10"
                 className={cn(
@@ -351,7 +426,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                   toggleSurface(topFace);
                 }}
               />
-              {/* Face Base */}
               <polygon
                 points="10,30 30,30 40,40 0,40"
                 className={cn(
@@ -364,7 +438,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                   toggleSurface(bottomFace);
                 }}
               />
-              {/* Face Esquerda */}
               <polygon
                 points="0,0 10,10 10,30 0,40"
                 className={cn(
@@ -377,7 +450,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                   toggleSurface(leftFace);
                 }}
               />
-              {/* Face Direita */}
               <polygon
                 points="40,0 40,40 30,30 30,10"
                 className={cn(
@@ -390,7 +462,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                   toggleSurface(rightFace);
                 }}
               />
-              {/* Centro: Face Oclusal / Incisal (O) */}
               <rect
                 x="10"
                 y="10"
@@ -444,7 +515,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
     lowerLabel: string,
   ) => (
     <div className="space-y-4">
-      {/* Arcada Superior */}
       <div className="space-y-1.5">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 sm:gap-2">
           <div className={cn("grid gap-1", colsClass)}>
@@ -464,7 +534,6 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
       <div className="border-t border-dashed border-border/80" />
 
-      {/* Arcada Inferior */}
       <div className="space-y-1.5">
         <div className="text-center">
           <span className="text-[11px] uppercase font-bold tracking-widest text-muted-foreground/70">
@@ -489,6 +558,14 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
     [procedures],
   );
 
+  const handleOpenCatalogClick = () => {
+    if (onOpenCatalog) {
+      onOpenCatalog();
+    } else {
+      setShowInternalCatalogModal(true);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header com controles de dentição */}
@@ -499,53 +576,112 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
             Odontograma Clínico {patientName ? `— ${patientName}` : ""}
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Clique no dente ou diretamente nas faces (V, L/P, M, D, O) para registrar procedimentos.
+            Clique em um dente, nas faces (V, L/P, M, D, O) ou em uma região geral (Arcadas, Boca
+            Toda, HOF) para registrar procedimentos.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setDentition("permanent")}
-            className={cn(
-              "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer",
-              dentition === "permanent"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
+            type="button"
+            onClick={handleOpenCatalogClick}
+            className="px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
           >
-            Permanente (32)
-            {hasPermanentProcs && " •"}
+            <Settings2 className="h-3.5 w-3.5 text-primary" />
+            <span>Tabela de Preços</span>
           </button>
-          <button
-            onClick={() => setDentition("deciduous")}
-            className={cn(
-              "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1",
-              dentition === "deciduous"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Baby className="h-3.5 w-3.5" />
-            Decíduo (20)
-            {hasDeciduousProcs && " •"}
-          </button>
-          <button
-            onClick={() => setDentition("mixed")}
-            className={cn(
-              "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1",
-              dentition === "mixed"
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Layers className="h-3.5 w-3.5" />
-            Mista (52)
-          </button>
+
+          <div className="flex flex-wrap items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border text-xs">
+            <button
+              type="button"
+              onClick={() => setDentition("permanent")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer",
+                dentition === "permanent"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Permanente (32)
+              {hasPermanentProcs && " •"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDentition("deciduous")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1",
+                dentition === "deciduous"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Baby className="h-3.5 w-3.5" />
+              Decíduo (20)
+              {hasDeciduousProcs && " •"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDentition("mixed")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer flex items-center gap-1",
+                dentition === "mixed"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Mista (52)
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Grade Responsiva da Arcada Dentária (Sem cortar os dentes 18/28/48/38) */}
+      {/* Grade Responsiva da Arcada Dentária + Regiões Gerais */}
       <div className="p-4 sm:p-6 rounded-3xl bg-card border border-border shadow-petal space-y-5">
+        {/* Botões rápidos de Região Geral (Clinicorp style: Boca toda, Arcadas, HOF, Sextantes) */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/70">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5 text-primary" />
+            Regiões Gerais (Profilaxia, Clareamento, Alinhadores, HOF):
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {REGION_OPTIONS.map((reg) => {
+              const count = (toothMap.get(reg.code) || []).length;
+              const active = selectedTooth === reg.code;
+              return (
+                <button
+                  key={reg.code}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTooth(reg.code);
+                    setSelectedSurfaces([]);
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5",
+                    active
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : count > 0
+                        ? "bg-primary/8 text-foreground border-primary/35 hover:border-primary"
+                        : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted/50",
+                  )}
+                >
+                  <span>{reg.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                        active ? "bg-white/20 text-white" : "bg-primary/15 text-primary",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Legenda de Orientação */}
         <div className="flex items-center justify-between text-[11px] sm:text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
           <span>Quadrante Direito (Q1 / Q4)</span>
@@ -612,72 +748,139 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
         </div>
       </div>
 
-      {/* Painel de Ações do Dente Selecionado */}
-      {selectedTooth && (
+      {/* Painel de Ações do Dente ou Região Selecionada */}
+      {selectedTooth !== null && (
         <div className="p-6 rounded-3xl bg-card border border-primary/30 shadow-petal space-y-5">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b border-border">
             <div>
-              <h4 className="font-display text-xl text-foreground flex items-center gap-2">
-                Dente{" "}
-                <span className="text-primary font-mono font-bold text-2xl">{selectedTooth}</span>
-                {selectedSurfaces.length > 0 && (
-                  <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-sans font-semibold">
-                    Faces: {selectedSurfaces.join(", ")}
+              <h4 className="font-display text-xl text-foreground flex items-center gap-2 flex-wrap">
+                {isToothNumber(selectedTooth) ? (
+                  <>
+                    Dente{" "}
+                    <span className="text-primary font-mono font-bold text-2xl">
+                      {selectedTooth}
+                    </span>
+                    {selectedSurfaces.length > 0 && (
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-sans font-semibold">
+                        Faces: {selectedSurfaces.join(", ")}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-primary font-bold">
+                    {formatProcedureTarget(selectedTooth)}
                   </span>
                 )}
               </h4>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Selecione as faces do dente e adicione o procedimento realizado ou planejado.
+                {isToothNumber(selectedTooth)
+                  ? "Selecione as faces do dente e escolha o procedimento na tabela da clínica."
+                  : "Região geral selecionada — escolha o procedimento e registre como planejado ou concluído."}
               </p>
             </div>
 
-            <button
-              onClick={() => setSelectedTooth(null)}
-              className="text-xs text-muted-foreground hover:text-foreground cursor-pointer underline"
-            >
-              Fechar dente {selectedTooth}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleOpenCatalogClick}
+                className="text-xs font-semibold text-primary hover:underline cursor-pointer flex items-center gap-1"
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                <span>Gerenciar Tabela de Preços</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTooth(null)}
+                className="text-xs text-muted-foreground hover:text-foreground cursor-pointer underline"
+              >
+                Fechar seleção
+              </button>
+            </div>
           </div>
 
-          {/* Seletor rápido de faces por botões */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground mr-1">Faces:</span>
-            {(["O", "M", "D", "V", "L"] as const).map((code) => {
-              const active = selectedSurfaces.includes(code);
-              return (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => toggleSurface(code)}
-                  className={cn(
-                    "px-3 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
-                    active
-                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                      : "bg-background text-foreground border-border hover:bg-muted",
-                  )}
-                >
-                  {SURFACE_LABELS[code]}
-                </button>
-              );
-            })}
+          {/* Seletor rápido de faces por botões (apenas para dentes 11..85) */}
+          {isToothNumber(selectedTooth) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-muted-foreground mr-1">Faces:</span>
+              {(["O", "M", "D", "V", "L"] as const).map((code) => {
+                const active = selectedSurfaces.includes(code);
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => toggleSurface(code)}
+                    className={cn(
+                      "px-3 py-1 rounded-xl text-xs font-semibold border transition-all cursor-pointer",
+                      active
+                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                        : "bg-background text-foreground border-border hover:bg-muted",
+                    )}
+                  >
+                    {SURFACE_LABELS[code]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Filtros do Catálogo (Especialidade + Busca rápida) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                Filtrar por Especialidade
+              </label>
+              <select
+                value={procCategory}
+                onChange={(e) => setProcCategory(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-xl border border-border bg-background text-foreground"
+              >
+                <option value="Todas">Todas as Especialidades</option>
+                {PROCEDURE_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                Busca Rápida de Procedimento
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={procSearch}
+                  onChange={(e) => setProcSearch(e.target.value)}
+                  placeholder="Digite resina, canal, limpeza, siso, clareamento..."
+                  className="w-full text-xs pl-8 pr-3 py-2.5 rounded-xl border border-border bg-background text-foreground"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Formulário de Adicionar Procedimento */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                Procedimento
+                Procedimento ({filteredCatalog.length})
               </label>
               <select
-                value={procName}
-                onChange={(e) => setProcName(e.target.value)}
+                value={selectedCatalogId}
+                onChange={(e) => handleSelectCatalogProc(e.target.value)}
                 className="w-full text-xs p-2.5 rounded-xl border border-border bg-background text-foreground"
               >
-                {COMMON_PROCEDURES.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
+                {filteredCatalog.length === 0 ? (
+                  <option value="">Nenhum procedimento encontrado</option>
+                ) : (
+                  filteredCatalog.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      [{p.code}] {p.name} — R${" "}
+                      {formatBRLValue(getSuggestedProcedurePrice(p, patientInsurance))}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
 
@@ -698,11 +901,16 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
             <div>
               <label className="block text-xs font-semibold text-muted-foreground mb-1">
-                Valor (R$ opcional)
+                Valor (R${" "}
+                {patientInsurance && patientInsurance !== "PARTICULAR"
+                  ? patientInsurance
+                  : "Particular"}
+                )
               </label>
               <input
                 type="number"
-                placeholder="Ex: 200.00"
+                step="0.01"
+                placeholder="Ex: 230.00"
                 value={procCost}
                 onChange={(e) => setProcCost(e.target.value)}
                 className="w-full text-xs p-2.5 rounded-xl border border-border bg-background text-foreground"
@@ -711,12 +919,13 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
             <div className="flex items-end">
               <button
+                type="button"
                 onClick={() => saveProcedureMutation.mutate()}
-                disabled={saveProcedureMutation.isPending}
-                className="w-full text-xs font-semibold px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                disabled={saveProcedureMutation.isPending || !procName}
+                className="w-full text-xs font-semibold px-4 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
-                Salvar no Dente {selectedTooth}
+                Salvar ({formatProcedureTarget(selectedTooth)})
               </button>
             </div>
           </div>
@@ -741,12 +950,13 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
               Procedimentos Registrados no Odontograma ({procedures.length})
             </h4>
             <p className="text-[11px] text-muted-foreground">
-              Visão consolidada de todos os dentes tratados ou planejados para este paciente.
+              Visão consolidada de todos os dentes e regiões tratados ou planejados para este
+              paciente.
             </p>
           </div>
           {totalBudget > 0 && (
             <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold">
-              Total Orçado/Realizado: R$ {totalBudget.toFixed(2)}
+              Total Orçado/Realizado: R$ {formatBRLValue(totalBudget)}
             </span>
           )}
         </div>
@@ -754,7 +964,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
         {procedures.length === 0 ? (
           <p className="text-xs text-muted-foreground italic py-4 text-center">
             Nenhum procedimento odontológico registrado no odontograma deste paciente. Clique em um
-            dente acima para adicionar.
+            dente ou região acima para adicionar.
           </p>
         ) : (
           <div className="divide-y divide-border rounded-2xl border border-border overflow-hidden">
@@ -767,17 +977,12 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-mono font-bold">
-                      Dente {item.tooth_number}
+                      {formatProcedureTarget(item.tooth_number, item.surfaces)}
                     </span>
                     <span className="font-semibold text-foreground">{item.procedure_name}</span>
-                    {item.surfaces?.length > 0 && (
-                      <span className="text-muted-foreground font-mono">
-                        [{item.surfaces.join(", ")}]
-                      </span>
-                    )}
                     {item.cost != null && Number(item.cost) > 0 && (
                       <span className="text-primary font-bold">
-                        R$ {Number(item.cost).toFixed(2)}
+                        R$ {formatBRLValue(Number(item.cost))}
                       </span>
                     )}
                   </div>
@@ -792,6 +997,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
                 >
                   {item.status !== "completed" && item.id && (
                     <button
+                      type="button"
                       onClick={() =>
                         updateStatusMutation.mutate({ proc: item, newStatus: "completed" })
                       }
@@ -822,6 +1028,7 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
 
                   {item.id && (
                     <button
+                      type="button"
                       onClick={() => deleteProcedureMutation.mutate(item.id!)}
                       className="p-1 text-muted-foreground hover:text-rose-600 transition-colors cursor-pointer"
                       title="Remover procedimento"
@@ -835,6 +1042,16 @@ export function OdontogramView({ patientId, patientName }: OdontogramViewProps) 
           </div>
         )}
       </div>
+
+      {!onOpenCatalog && (
+        <ProcedureCatalogModal
+          open={showInternalCatalogModal}
+          onClose={() => setShowInternalCatalogModal(false)}
+          catalog={activeCatalog}
+          onCatalogChange={setInternalCatalog}
+          onSelectProcedure={(proc) => handleSelectCatalogProc(proc.id)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { toast } from "sonner";
 import {
   Search,
@@ -35,11 +36,48 @@ import {
   Layers,
   Check,
   Printer,
+  Settings2,
+  Play,
+  Download,
+  ListChecks,
+  RefreshCw,
+  Users,
+  Baby,
 } from "lucide-react";
 import { OdontogramView } from "./OdontogramView";
 import { DocumentGenerator } from "./DocumentGenerator";
 import { NewAppointmentModal } from "./NewAppointmentModal";
+import { ProcedureCatalogModal } from "./ProcedureCatalogModal";
 import { STATUS_LABELS, trimSeconds } from "@/lib/clinic";
+import { buildWhatsAppUniversalUrl } from "@/lib/crc";
+import {
+  GUARDIAN_RELATIONSHIPS,
+  EMPTY_GUARDIANS_DATA,
+  getPatientAge,
+  isMinorPatient,
+  formatPatientAgeLabel,
+  serializePatientNotes,
+  parsePatientNotes,
+} from "@/lib/patient-guardians";
+import {
+  PROCEDURE_CATEGORIES,
+  REGION_OPTIONS,
+  PERMANENT_TOOTH_NUMBERS,
+  DECIDUOUS_TOOTH_NUMBERS,
+  type ClinicalProcedureCatalogItem,
+  type TreatmentPlanItemInput,
+  loadProcedureCatalog,
+  filterProcedures,
+  getSuggestedProcedurePrice,
+  isToothNumber,
+  formatProcedureTarget,
+  targetTypeToDefaultToothNumber,
+  parseMoneyInput,
+  formatBRLValue,
+  buildProcedureEvolutionText,
+  calculateTreatmentPlanTotals,
+  formatBudgetRecordContent,
+} from "@/lib/procedures";
 import { cn } from "@/lib/utils";
 
 export interface Patient {
@@ -82,6 +120,19 @@ interface ClinicalRecord {
   record_date: string;
   title: string | null;
   content: string;
+  metadata?: Json | null;
+}
+
+interface ToothProcedureRecord {
+  id: string;
+  odontogram_id: string;
+  tooth_number: number;
+  surfaces: string[] | null;
+  procedure_name: string;
+  status: "planned" | "in_progress" | "completed";
+  cost: number | null;
+  notes: string | null;
+  created_at: string;
 }
 
 interface PatientAppointment {
@@ -259,14 +310,45 @@ export function PatientsManager({
   const [showGeneralNoteModal, setShowGeneralNoteModal] = useState(false);
   const [generalNoteText, setGeneralNoteText] = useState("");
 
-  // Orçamentos state
-  const [budgetForm, setBudgetForm] = useState({
-    description: "",
-    tooth: "",
-    amount: "",
-    paymentForm: "PIX / À vista",
-    status: "Aberto",
+  // Tabela de Procedimentos (Catálogo Clinicorp)
+  const [procedureCatalog, setProcedureCatalog] = useState<ClinicalProcedureCatalogItem[]>(() =>
+    loadProcedureCatalog(),
+  );
+  const [showProcedureCatalogModal, setShowProcedureCatalogModal] = useState(false);
+  const [catalogSelectTarget, setCatalogSelectTarget] = useState<
+    "orcamento" | "evolucao" | "plano_add" | null
+  >(null);
+
+  // Orçamentos / Planejamento Multi-Procedimentos state
+  const [budgetPlanTitle, setBudgetPlanTitle] = useState("Planejamento Clínico");
+  const [budgetInsuranceTable, setBudgetInsuranceTable] = useState("PARTICULAR");
+  const [budgetCategoryFilter, setBudgetCategoryFilter] = useState("Todas");
+  const [budgetProcSearch, setBudgetProcSearch] = useState("");
+  const [budgetSelectedCatalogId, setBudgetSelectedCatalogId] = useState(
+    () => loadProcedureCatalog()[0]?.id || "",
+  );
+  const [budgetDraftItem, setBudgetDraftItem] = useState<{
+    description: string;
+    toothNumber: number;
+    surfaces: string[];
+    amount: string;
+    notes: string;
+  }>(() => {
+    const first = loadProcedureCatalog()[0];
+    return {
+      description: first?.name || "",
+      toothNumber: first ? targetTypeToDefaultToothNumber(first.defaultTargetType, 11) : 0,
+      surfaces: [],
+      amount: first ? formatBRLValue(first.defaultPriceParticular) : "",
+      notes: "",
+    };
   });
+  const [budgetItems, setBudgetItems] = useState<TreatmentPlanItemInput[]>([]);
+  const [budgetDiscount, setBudgetDiscount] = useState("");
+  const [budgetPaymentForm, setBudgetPaymentForm] = useState("PIX / À vista");
+  const [budgetStatus, setBudgetStatus] = useState<"Aberto" | "Aprovado" | "Executado">("Aberto");
+  const [budgetPlanNotes, setBudgetPlanNotes] = useState("");
+  const [syncBudgetToOdontogram, setSyncBudgetToOdontogram] = useState(true);
 
   // Financeiro state
   const [financeForm, setFinanceForm] = useState({
@@ -276,7 +358,28 @@ export function PatientsManager({
     status: "Pago",
   });
 
-  // Plano e Ficha Clínica state
+  // Plano de Tratamento e Lançamento na Ficha Clínica state
+  const [planStatusFilter, setPlanStatusFilter] = useState<"pending" | "completed" | "all">(
+    "pending",
+  );
+  const [showQuickAddPlanProc, setShowQuickAddPlanProc] = useState(false);
+  const [quickPlanProcId, setQuickPlanProcId] = useState(() => loadProcedureCatalog()[0]?.id || "");
+  const [quickPlanToothNumber, setQuickPlanToothNumber] = useState<number>(11);
+  const [quickPlanSurfaces, setQuickPlanSurfaces] = useState<string[]>([]);
+  const [quickPlanCost, setQuickPlanCost] = useState<string>("");
+  const [quickPlanNotes, setQuickPlanNotes] = useState<string>("");
+
+  const [executingProc, setExecutingProc] = useState<ToothProcedureRecord | null>(null);
+  const [evolutionCategoryFilter, setEvolutionCategoryFilter] = useState("Todas");
+  const [evolutionProcSearch, setEvolutionProcSearch] = useState("");
+  const [evolutionCatalogId, setEvolutionCatalogId] = useState<string>("");
+  const [evolutionProcName, setEvolutionProcName] = useState<string>("");
+  const [evolutionToothNumber, setEvolutionToothNumber] = useState<number>(0);
+  const [evolutionSurfaces, setEvolutionSurfaces] = useState<string[]>([]);
+  const [evolutionMaterial, setEvolutionMaterial] = useState("");
+  const [evolutionAnesthetic, setEvolutionAnesthetic] = useState("");
+  const [evolutionCost, setEvolutionCost] = useState("");
+  const [markOdontogramCompleted, setMarkOdontogramCompleted] = useState(true);
   const [newEvolutionText, setNewEvolutionText] = useState("");
   const [newEvolutionTitle, setNewEvolutionTitle] = useState("Evolução em Consulta");
 
@@ -349,6 +452,19 @@ export function PatientsManager({
     medical_warning: "",
     notes: "",
     funnel_stage: "tratamento",
+    hasGuardian: EMPTY_GUARDIANS_DATA.hasGuardian,
+    guardianName: EMPTY_GUARDIANS_DATA.guardianName,
+    guardianRelationship: EMPTY_GUARDIANS_DATA.guardianRelationship,
+    guardianCpf: EMPTY_GUARDIANS_DATA.guardianCpf,
+    guardianRg: EMPTY_GUARDIANS_DATA.guardianRg,
+    guardianPhone: EMPTY_GUARDIANS_DATA.guardianPhone,
+    guardianEmail: EMPTY_GUARDIANS_DATA.guardianEmail,
+    guardianIsFinancialResponsible: EMPTY_GUARDIANS_DATA.guardianIsFinancialResponsible,
+    hasSecondGuardian: EMPTY_GUARDIANS_DATA.hasSecondGuardian,
+    secondGuardianName: EMPTY_GUARDIANS_DATA.secondGuardianName,
+    secondGuardianRelationship: EMPTY_GUARDIANS_DATA.secondGuardianRelationship,
+    secondGuardianCpf: EMPTY_GUARDIANS_DATA.secondGuardianCpf,
+    secondGuardianPhone: EMPTY_GUARDIANS_DATA.secondGuardianPhone,
   });
 
   // Notificar barra superior global quando um paciente é aberto ou fechado
@@ -357,6 +473,28 @@ export function PatientsManager({
       onSelectedPatientChange(selectedPatient);
     }
   }, [selectedPatient, onSelectedPatientChange]);
+
+  // Resetar estados de planejamento/execução ao trocar de paciente
+  useEffect(() => {
+    setBudgetItems([]);
+    setBudgetDiscount("");
+    setBudgetPlanNotes("");
+    setExecutingProc(null);
+    setNewEvolutionText("");
+    setNewEvolutionTitle("Evolução em Consulta");
+    setEvolutionProcName("");
+    setEvolutionCatalogId("");
+    setEvolutionMaterial("");
+    setEvolutionAnesthetic("");
+    setEvolutionCost("");
+    setEvolutionSurfaces([]);
+    setShowQuickAddPlanProc(false);
+  }, [selectedPatient?.id]);
+
+  // Sincronizar tabela de preços padrão com o convênio do paciente
+  useEffect(() => {
+    setBudgetInsuranceTable(selectedPatient?.insurance || "PARTICULAR");
+  }, [selectedPatient?.id, selectedPatient?.insurance]);
 
   // Carregar paciente vindo da Agenda ou Smartbar automaticamente
   useEffect(() => {
@@ -408,11 +546,25 @@ export function PatientsManager({
       medical_warning: "",
       notes: "",
       funnel_stage: "tratamento",
+      hasGuardian: false,
+      guardianName: "",
+      guardianRelationship: "Mãe",
+      guardianCpf: "",
+      guardianRg: "",
+      guardianPhone: "",
+      guardianEmail: "",
+      guardianIsFinancialResponsible: true,
+      hasSecondGuardian: false,
+      secondGuardianName: "",
+      secondGuardianRelationship: "Pai",
+      secondGuardianCpf: "",
+      secondGuardianPhone: "",
     });
     setPatientFormMode("create");
   }
 
   function openEditPatientModal(p: Patient) {
+    const parsed = parsePatientNotes(p.notes, p.birth_date);
     setPatientForm({
       name: p.name || "",
       nickname: p.nickname || "",
@@ -436,8 +588,21 @@ export function PatientsManager({
       city: p.city || "Macapá",
       state: p.state || "AP",
       medical_warning: p.medical_warning || "",
-      notes: p.notes || "",
+      notes: parsed.generalNotes,
       funnel_stage: p.funnel_stage || "tratamento",
+      hasGuardian: parsed.hasGuardian,
+      guardianName: parsed.guardianName,
+      guardianRelationship: parsed.guardianRelationship,
+      guardianCpf: parsed.guardianCpf,
+      guardianRg: parsed.guardianRg,
+      guardianPhone: parsed.guardianPhone,
+      guardianEmail: parsed.guardianEmail,
+      guardianIsFinancialResponsible: parsed.guardianIsFinancialResponsible,
+      hasSecondGuardian: parsed.hasSecondGuardian,
+      secondGuardianName: parsed.secondGuardianName,
+      secondGuardianRelationship: parsed.secondGuardianRelationship,
+      secondGuardianCpf: parsed.secondGuardianCpf,
+      secondGuardianPhone: parsed.secondGuardianPhone,
     });
     setPatientFormMode("edit");
   }
@@ -447,6 +612,26 @@ export function PatientsManager({
       if (!patientForm.name.trim()) {
         throw new Error("O nome do paciente é obrigatório.");
       }
+      const patientIsMinor = isMinorPatient(patientForm.birth_date);
+      if (patientIsMinor && !patientForm.guardianName.trim()) {
+        throw new Error("Para paciente menor de 18 anos, informe o nome do responsável legal.");
+      }
+      const serializedNotes = serializePatientNotes({
+        hasGuardian: patientForm.hasGuardian || patientIsMinor,
+        guardianName: patientForm.guardianName,
+        guardianRelationship: patientForm.guardianRelationship,
+        guardianCpf: patientForm.guardianCpf,
+        guardianRg: patientForm.guardianRg,
+        guardianPhone: patientForm.guardianPhone,
+        guardianEmail: patientForm.guardianEmail,
+        guardianIsFinancialResponsible: patientForm.guardianIsFinancialResponsible,
+        hasSecondGuardian: patientForm.hasSecondGuardian,
+        secondGuardianName: patientForm.secondGuardianName,
+        secondGuardianRelationship: patientForm.secondGuardianRelationship,
+        secondGuardianCpf: patientForm.secondGuardianCpf,
+        secondGuardianPhone: patientForm.secondGuardianPhone,
+        generalNotes: patientForm.notes,
+      });
       const payload = {
         name: patientForm.name.trim(),
         nickname: patientForm.nickname.trim() || null,
@@ -470,7 +655,7 @@ export function PatientsManager({
         city: patientForm.city.trim() || "Macapá",
         state: patientForm.state.trim() || "AP",
         medical_warning: patientForm.medical_warning.trim() || null,
-        notes: patientForm.notes.trim() || null,
+        notes: serializedNotes,
         funnel_stage: patientForm.funnel_stage || "tratamento",
       };
 
@@ -503,6 +688,7 @@ export function PatientsManager({
       setPatientFormMode(null);
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+      queryClient.invalidateQueries({ queryKey: ["patients_quick_jump"] });
     },
     onError: (err: Error) => {
       toast.error(err.message || "Não foi possível salvar os dados do paciente.");
@@ -595,7 +781,7 @@ export function PatientsManager({
       const { data } = await supabase
         .from("patients")
         .select("*")
-        .or(`name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%`)
+        .or(`name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%`)
         .order("name")
         .limit(8);
       return (data || []) as Patient[];
@@ -623,11 +809,11 @@ export function PatientsManager({
         const num = parseInt(term.replace("#", ""), 10);
         if (!isNaN(num) && num > 0) {
           query = query.or(
-            `name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,record_number.eq.${num},legacy_patient_id.eq.${num}`,
+            `name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,notes.ilike.%${term}%,record_number.eq.${num},legacy_patient_id.eq.${num}`,
           );
         } else {
           query = query.or(
-            `name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,medical_warning.ilike.%${term}%`,
+            `name.ilike.%${term}%,cpf.ilike.%${term}%,phone.ilike.%${term}%,medical_warning.ilike.%${term}%,notes.ilike.%${term}%`,
           );
         }
       }
@@ -708,6 +894,103 @@ export function PatientsManager({
     },
   });
 
+  // Buscar odontograma compartilhado do paciente (sincroniza Orçamentos, Plano e Odontograma)
+  const { data: patientOdontogram } = useQuery({
+    queryKey: ["odontogram", selectedPatient?.id],
+    enabled: !!selectedPatient?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("odontograms")
+        .select("id, dentition_type, notes")
+        .eq("patient_id", selectedPatient!.id)
+        .maybeSingle();
+
+      if (error && error.code !== "PGRST116") throw error;
+      if (data) return data;
+
+      const { data: created, error: createErr } = await supabase
+        .from("odontograms")
+        .insert({ patient_id: selectedPatient!.id, dentition_type: "permanent" })
+        .select("id, dentition_type, notes")
+        .single();
+      if (createErr) throw createErr;
+      return created;
+    },
+  });
+
+  // Buscar procedimentos do plano de tratamento / odontograma
+  const { data: patientProcedures = [] } = useQuery({
+    queryKey: ["odontogram_procedures", patientOdontogram?.id],
+    enabled: !!patientOdontogram?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("odontogram_procedures")
+        .select("*")
+        .eq("odontogram_id", patientOdontogram!.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as ToothProcedureRecord[];
+    },
+  });
+
+  async function ensurePatientOdontogramId(patientId: string): Promise<string> {
+    if (patientOdontogram?.id) return patientOdontogram.id;
+    const { data: existing, error: fetchErr } = await supabase
+      .from("odontograms")
+      .select("id")
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (fetchErr && fetchErr.code !== "PGRST116") throw fetchErr;
+    if (existing?.id) return existing.id;
+
+    const { data: created, error: createErr } = await supabase
+      .from("odontograms")
+      .insert({ patient_id: patientId, dentition_type: "permanent" })
+      .select("id")
+      .single();
+    if (createErr) throw createErr;
+    return created.id;
+  }
+
+  // Filtros do Catálogo para Orçamentos e Execução Clínica
+  const budgetFilteredCatalog = useMemo(
+    () =>
+      filterProcedures(procedureCatalog, {
+        query: budgetProcSearch,
+        category: budgetCategoryFilter,
+      }),
+    [procedureCatalog, budgetProcSearch, budgetCategoryFilter],
+  );
+
+  const evolutionFilteredCatalog = useMemo(
+    () =>
+      filterProcedures(procedureCatalog, {
+        query: evolutionProcSearch,
+        category: evolutionCategoryFilter,
+      }),
+    [procedureCatalog, evolutionProcSearch, evolutionCategoryFilter],
+  );
+
+  const treatmentPlanSummary = useMemo(
+    () => calculateTreatmentPlanTotals(patientProcedures),
+    [patientProcedures],
+  );
+
+  const filteredPlanProcedures = useMemo(() => {
+    if (planStatusFilter === "pending") {
+      return patientProcedures.filter((p) => p.status !== "completed");
+    }
+    if (planStatusFilter === "completed") {
+      return patientProcedures.filter((p) => p.status === "completed");
+    }
+    return patientProcedures;
+  }, [patientProcedures, planStatusFilter]);
+
+  const budgetTotals = useMemo(
+    () => calculateTreatmentPlanTotals(budgetItems, parseMoneyInput(budgetDiscount)),
+    [budgetItems, budgetDiscount],
+  );
+
   // Categorizar os registros clínicos para cada aba do Clinicorp
   const categorizedRecords = useMemo(() => {
     const anamneses = records.filter((r) => r.record_type === "formulario");
@@ -756,6 +1039,7 @@ export function PatientsManager({
       title: string;
       content: string;
       promoteStage?: string;
+      metadata?: Json;
     }) => {
       if (!selectedPatient) return;
       const { error } = await supabase.from("clinical_records").insert({
@@ -764,6 +1048,7 @@ export function PatientsManager({
         record_date: new Date().toISOString(),
         title: payload.title,
         content: payload.content,
+        ...(payload.metadata !== undefined ? { metadata: payload.metadata } : {}),
       });
       if (error) throw error;
 
@@ -781,9 +1066,416 @@ export function PatientsManager({
       queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
       queryClient.invalidateQueries({ queryKey: ["patients"] });
       queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+      queryClient.invalidateQueries({ queryKey: ["crc_orcamento_records"] });
+      queryClient.invalidateQueries({ queryKey: ["clinic_financial_records"] });
     },
     onError: (err: Error) => {
       toast.error(`Erro ao salvar registro: ${err.message}`);
+    },
+  });
+
+  // Salvar Planejamento / Orçamento Multi-Procedimentos + Sincronizar Odontograma
+  const saveTreatmentBudgetMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPatient) return;
+
+      const itemsToSave: TreatmentPlanItemInput[] =
+        budgetItems.length > 0
+          ? budgetItems
+          : budgetDraftItem.description.trim()
+            ? [
+                {
+                  id: `draft-${Date.now()}`,
+                  procedureId: budgetSelectedCatalogId || undefined,
+                  procedureCode: procedureCatalog.find((p) => p.id === budgetSelectedCatalogId)
+                    ?.code,
+                  procedureName: budgetDraftItem.description.trim(),
+                  toothNumber: budgetDraftItem.toothNumber,
+                  surfaces: isToothNumber(budgetDraftItem.toothNumber)
+                    ? budgetDraftItem.surfaces
+                    : [],
+                  cost: parseMoneyInput(budgetDraftItem.amount),
+                  notes: budgetDraftItem.notes.trim() || undefined,
+                },
+              ]
+            : [];
+
+      if (itemsToSave.length === 0) {
+        throw new Error("Adicione ao menos um procedimento ao planejamento antes de salvar.");
+      }
+
+      const discountVal = parseMoneyInput(budgetDiscount);
+      const totals = calculateTreatmentPlanTotals(itemsToSave, discountVal);
+      const content = formatBudgetRecordContent({
+        title: budgetPlanTitle,
+        items: itemsToSave,
+        discount: discountVal,
+        paymentForm: budgetPaymentForm,
+        status: budgetStatus,
+        insuranceTable: budgetInsuranceTable,
+        notes: budgetPlanNotes,
+      });
+
+      const recordTitle = `${budgetPlanTitle.trim() || "Planejamento"} [${budgetStatus}] — ${itemsToSave.length} ${itemsToSave.length === 1 ? "proc." : "procs."} — R$ ${formatBRLValue(totals.total)}`;
+
+      const { error: recErr } = await supabase.from("clinical_records").insert({
+        patient_id: selectedPatient.id,
+        record_type: "orcamento",
+        record_date: new Date().toISOString(),
+        title: recordTitle,
+        content,
+        metadata: {
+          kind: "treatment_plan_budget",
+          insuranceTable: budgetInsuranceTable,
+          paymentForm: budgetPaymentForm,
+          status: budgetStatus,
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          total: totals.total,
+          items: itemsToSave,
+        } as unknown as Json,
+      });
+      if (recErr) throw recErr;
+
+      let syncedCount = 0;
+      if (syncBudgetToOdontogram) {
+        const itemsToInsert = itemsToSave.filter((item) => !item.odontogramProcedureId);
+        if (itemsToInsert.length > 0) {
+          const odontogramId = await ensurePatientOdontogramId(selectedPatient.id);
+          const procStatus = budgetStatus === "Executado" ? "completed" : "planned";
+          const rows = itemsToInsert.map((item) => ({
+            odontogram_id: odontogramId,
+            tooth_number: item.toothNumber,
+            surfaces: isToothNumber(item.toothNumber) ? item.surfaces : [],
+            procedure_name: item.procedureName,
+            status: procStatus,
+            cost: item.cost > 0 ? item.cost : null,
+            notes: item.notes?.trim() || null,
+          }));
+          const { error: odoErr } = await supabase.from("odontogram_procedures").insert(rows);
+          if (odoErr) throw odoErr;
+          syncedCount = rows.length;
+        }
+      }
+
+      const nextStage =
+        budgetStatus === "Aprovado" || budgetStatus === "Executado"
+          ? "tratamento"
+          : selectedPatient.funnel_stage === "triagem" ||
+              selectedPatient.funnel_stage === "anamnese"
+            ? "orcamento"
+            : null;
+
+      if (nextStage && selectedPatient.funnel_stage !== "tratamento") {
+        const { data: updated } = await supabase
+          .from("patients")
+          .update({ funnel_stage: nextStage })
+          .eq("id", selectedPatient.id)
+          .select("*")
+          .single();
+        if (updated) setSelectedPatient(updated as Patient);
+      }
+
+      return { count: itemsToSave.length, syncedCount };
+    },
+    onSuccess: (res) => {
+      toast.success(
+        res && res.syncedCount > 0
+          ? `Planejamento salvo (${res.count} proc.) e sincronizado com Odontograma/Plano!`
+          : "Planejamento / Orçamento salvo!",
+      );
+      setBudgetItems([]);
+      setBudgetDiscount("");
+      setBudgetPlanNotes("");
+      queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["odontogram", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["odontogram_procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+      queryClient.invalidateQueries({ queryKey: ["crc_orcamento_records"] });
+      queryClient.invalidateQueries({ queryKey: ["clinic_financial_records"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erro ao salvar planejamento.");
+    },
+  });
+
+  // Aprovar orçamento salvo -> atualiza status do orçamento + lança no Financeiro + promove para Tratamento
+  const approveBudgetMutation = useMutation({
+    mutationFn: async (budget: ClinicalRecord) => {
+      if (!selectedPatient) return;
+
+      const updatedTitle = (budget.title || "Orçamento").includes("[Aberto]")
+        ? (budget.title || "Orçamento").replace("[Aberto]", "[Aprovado]")
+        : (budget.title || "Orçamento").toLowerCase().includes("aprovado")
+          ? budget.title
+          : `${budget.title || "Orçamento"} [Aprovado]`;
+
+      const updatedContent = budget.content.includes("Status: Em Aberto")
+        ? budget.content.replace("Status: Em Aberto", "Status: Aprovado pelo Paciente")
+        : budget.content.includes("Status: Aberto")
+          ? budget.content.replace("Status: Aberto", "Status: Aprovado pelo Paciente")
+          : budget.content;
+
+      await supabase
+        .from("clinical_records")
+        .update({ title: updatedTitle, content: updatedContent })
+        .eq("id", budget.id);
+
+      const { error: payErr } = await supabase.from("clinical_records").insert({
+        patient_id: selectedPatient.id,
+        record_type: "pagamento",
+        record_date: new Date().toISOString(),
+        title: `Recebimento de Orçamento — ${(budget.title || "").replace("Orçamento ", "")}`,
+        content: `${updatedContent}\nStatus Financeiro: Pago / Aprovado`,
+      });
+      if (payErr) throw payErr;
+
+      if (selectedPatient.funnel_stage !== "tratamento") {
+        const { data: updated } = await supabase
+          .from("patients")
+          .update({ funnel_stage: "tratamento" })
+          .eq("id", selectedPatient.id)
+          .select("*")
+          .single();
+        if (updated) setSelectedPatient(updated as Patient);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Orçamento aprovado e lançado na aba Financeiro e Tratamento!");
+      queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+      queryClient.invalidateQueries({ queryKey: ["crc_orcamento_records"] });
+      queryClient.invalidateQueries({ queryKey: ["clinic_financial_records"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao aprovar orçamento: ${err.message}`);
+    },
+  });
+
+  // Adicionar procedimento diretamente ao Plano de Tratamento Ativo (status planned)
+  const quickAddPlanProcedureMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPatient) return;
+      const catalogItem = procedureCatalog.find((p) => p.id === quickPlanProcId);
+      if (!catalogItem) throw new Error("Selecione um procedimento.");
+
+      const odontogramId = await ensurePatientOdontogramId(selectedPatient.id);
+      const costNum = quickPlanCost ? parseMoneyInput(quickPlanCost) : null;
+      const { error } = await supabase.from("odontogram_procedures").insert({
+        odontogram_id: odontogramId,
+        tooth_number: quickPlanToothNumber,
+        surfaces: isToothNumber(quickPlanToothNumber) ? quickPlanSurfaces : [],
+        procedure_name: catalogItem.name,
+        status: "planned",
+        cost: costNum && costNum > 0 ? costNum : null,
+        notes: quickPlanNotes.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Procedimento adicionado ao Plano de Tratamento!");
+      setShowQuickAddPlanProc(false);
+      setQuickPlanSurfaces([]);
+      setQuickPlanNotes("");
+      queryClient.invalidateQueries({ queryKey: ["odontogram", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["odontogram_procedures"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao adicionar ao plano: ${err.message}`);
+    },
+  });
+
+  // Atualizar status de um procedimento do plano (Iniciar ou Concluir 1-Clique)
+  const updatePlanProcedureStatusMutation = useMutation({
+    mutationFn: async ({
+      proc,
+      newStatus,
+      createEvolution = false,
+    }: {
+      proc: ToothProcedureRecord;
+      newStatus: "planned" | "in_progress" | "completed";
+      createEvolution?: boolean;
+    }) => {
+      if (!selectedPatient) return;
+      const { error } = await supabase
+        .from("odontogram_procedures")
+        .update({ status: newStatus })
+        .eq("id", proc.id);
+      if (error) throw error;
+
+      if (newStatus === "completed" && createEvolution) {
+        const catalogMatch = procedureCatalog.find((c) => c.name === proc.procedure_name) || null;
+        const targetLabel = formatProcedureTarget(proc.tooth_number, proc.surfaces);
+        const evolutionContent = buildProcedureEvolutionText({
+          procedureName: proc.procedure_name,
+          catalogItem: catalogMatch,
+          toothNumber: proc.tooth_number,
+          surfaces: proc.surfaces || [],
+          notes: proc.notes || undefined,
+          cost: proc.cost ?? null,
+        });
+        const { error: recErr } = await supabase.from("clinical_records").insert({
+          patient_id: selectedPatient.id,
+          record_type: "evolucao",
+          record_date: new Date().toISOString(),
+          title: `${proc.procedure_name} · ${targetLabel}`,
+          content: evolutionContent,
+          metadata: {
+            kind: "procedure_execution",
+            procedureName: proc.procedure_name,
+            toothNumber: proc.tooth_number,
+            surfaces: proc.surfaces || [],
+            odontogramProcedureId: proc.id,
+          } as unknown as Json,
+        });
+        if (recErr) throw recErr;
+
+        if (selectedPatient.funnel_stage !== "tratamento") {
+          const { data: updated } = await supabase
+            .from("patients")
+            .update({ funnel_stage: "tratamento" })
+            .eq("id", selectedPatient.id)
+            .select("*")
+            .single();
+          if (updated) setSelectedPatient(updated as Patient);
+        }
+      }
+    },
+    onSuccess: (_data, vars) => {
+      toast.success(
+        vars.newStatus === "completed"
+          ? "Procedimento concluído e evolução registrada no prontuário!"
+          : "Status do procedimento atualizado!",
+      );
+      if (executingProc?.id === vars.proc.id && vars.newStatus === "completed") {
+        setExecutingProc(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["odontogram_procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao atualizar procedimento: ${err.message}`);
+    },
+  });
+
+  const deletePlanProcedureMutation = useMutation({
+    mutationFn: async (procId: string) => {
+      const { error } = await supabase.from("odontogram_procedures").delete().eq("id", procId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Procedimento removido do plano.");
+      queryClient.invalidateQueries({ queryKey: ["odontogram_procedures"] });
+    },
+    onError: (err: Error) => {
+      toast.error(`Erro ao remover procedimento: ${err.message}`);
+    },
+  });
+
+  // Lançar Procedimento Realizado / Evolução Estruturada na Ficha Clínica
+  const launchClinicalProcedureMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedPatient) return;
+      if (!newEvolutionText.trim()) {
+        throw new Error("Descreva o procedimento ou evolução clínica.");
+      }
+
+      const effectiveProcName =
+        executingProc?.procedure_name ||
+        evolutionProcName.trim() ||
+        newEvolutionTitle.trim() ||
+        "Evolução Clínica";
+      const effectiveSurfaces = isToothNumber(evolutionToothNumber) ? evolutionSurfaces : [];
+      const effectiveTitle = newEvolutionTitle.trim() || effectiveProcName;
+
+      const { error: recErr } = await supabase.from("clinical_records").insert({
+        patient_id: selectedPatient.id,
+        record_type: "evolucao",
+        record_date: new Date().toISOString(),
+        title: effectiveTitle,
+        content: newEvolutionText.trim(),
+        metadata: {
+          kind: "procedure_execution",
+          procedureName: effectiveProcName,
+          toothNumber: evolutionToothNumber,
+          surfaces: effectiveSurfaces,
+          materialOrShade: evolutionMaterial.trim() || null,
+          anesthetic: evolutionAnesthetic.trim() || null,
+          odontogramProcedureId: executingProc?.id || null,
+        } as unknown as Json,
+      });
+      if (recErr) throw recErr;
+
+      if (markOdontogramCompleted) {
+        if (executingProc?.id) {
+          const { error: updErr } = await supabase
+            .from("odontogram_procedures")
+            .update({ status: "completed" })
+            .eq("id", executingProc.id);
+          if (updErr) throw updErr;
+        } else if (evolutionProcName.trim()) {
+          const existingMatch = patientProcedures.find(
+            (p) =>
+              p.status !== "completed" &&
+              p.tooth_number === evolutionToothNumber &&
+              p.procedure_name.toLowerCase() === evolutionProcName.trim().toLowerCase(),
+          );
+          if (existingMatch) {
+            const { error: updErr } = await supabase
+              .from("odontogram_procedures")
+              .update({ status: "completed" })
+              .eq("id", existingMatch.id);
+            if (updErr) throw updErr;
+          } else {
+            const odontogramId = await ensurePatientOdontogramId(selectedPatient.id);
+            const costNum = evolutionCost ? parseMoneyInput(evolutionCost) : null;
+            const { error: insErr } = await supabase.from("odontogram_procedures").insert({
+              odontogram_id: odontogramId,
+              tooth_number: evolutionToothNumber,
+              surfaces: effectiveSurfaces,
+              procedure_name: evolutionProcName.trim(),
+              status: "completed",
+              cost: costNum && costNum > 0 ? costNum : null,
+              notes: evolutionMaterial.trim() || null,
+            });
+            if (insErr) throw insErr;
+          }
+        }
+      }
+
+      if (selectedPatient.funnel_stage !== "tratamento") {
+        const { data: updated } = await supabase
+          .from("patients")
+          .update({ funnel_stage: "tratamento" })
+          .eq("id", selectedPatient.id)
+          .select("*")
+          .single();
+        if (updated) setSelectedPatient(updated as Patient);
+      }
+    },
+    onSuccess: () => {
+      toast.success("Procedimento realizado lançado na Ficha Clínica!");
+      setExecutingProc(null);
+      setNewEvolutionText("");
+      setNewEvolutionTitle("Evolução em Consulta");
+      setEvolutionProcName("");
+      setEvolutionCatalogId("");
+      setEvolutionMaterial("");
+      setEvolutionAnesthetic("");
+      setEvolutionCost("");
+      setEvolutionSurfaces([]);
+      queryClient.invalidateQueries({ queryKey: ["clinical_records", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["odontogram", selectedPatient?.id] });
+      queryClient.invalidateQueries({ queryKey: ["odontogram_procedures"] });
+      queryClient.invalidateQueries({ queryKey: ["patients"] });
+      queryClient.invalidateQueries({ queryKey: ["funnel_counts"] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || "Erro ao lançar procedimento na ficha clínica.");
     },
   });
 
@@ -839,6 +1531,211 @@ export function PatientsManager({
     setPage(1);
   }
 
+  function selectCatalogItemForBudget(
+    proc: ClinicalProcedureCatalogItem,
+    insuranceOverride?: string,
+  ) {
+    const ins = insuranceOverride ?? budgetInsuranceTable;
+    const price = getSuggestedProcedurePrice(proc, ins);
+    const defaultTooth = targetTypeToDefaultToothNumber(
+      proc.defaultTargetType,
+      isToothNumber(budgetDraftItem.toothNumber) ? budgetDraftItem.toothNumber : 11,
+    );
+    setBudgetSelectedCatalogId(proc.id);
+    setBudgetDraftItem((prev) => ({
+      ...prev,
+      description: proc.name,
+      toothNumber: defaultTooth,
+      surfaces: isToothNumber(defaultTooth) ? prev.surfaces : [],
+      amount: formatBRLValue(price),
+    }));
+  }
+
+  function selectCatalogItemForQuickPlan(proc: ClinicalProcedureCatalogItem) {
+    const price = getSuggestedProcedurePrice(proc, selectedPatient?.insurance);
+    const defaultTooth = targetTypeToDefaultToothNumber(
+      proc.defaultTargetType,
+      isToothNumber(quickPlanToothNumber) ? quickPlanToothNumber : 11,
+    );
+    setQuickPlanProcId(proc.id);
+    setQuickPlanToothNumber(defaultTooth);
+    if (!isToothNumber(defaultTooth)) setQuickPlanSurfaces([]);
+    setQuickPlanCost(price > 0 ? price.toFixed(2) : "");
+  }
+
+  function selectCatalogItemForEvolution(
+    proc: ClinicalProcedureCatalogItem,
+    keepCurrentTarget: boolean = false,
+  ) {
+    const nextTooth = keepCurrentTarget
+      ? evolutionToothNumber
+      : targetTypeToDefaultToothNumber(
+          proc.defaultTargetType,
+          isToothNumber(evolutionToothNumber) ? evolutionToothNumber : 11,
+        );
+    const nextSurfaces = isToothNumber(nextTooth) ? evolutionSurfaces : [];
+    const price = getSuggestedProcedurePrice(proc, selectedPatient?.insurance);
+
+    setEvolutionCatalogId(proc.id);
+    setEvolutionProcName(proc.name);
+    setEvolutionToothNumber(nextTooth);
+    if (!isToothNumber(nextTooth)) setEvolutionSurfaces([]);
+    setEvolutionCost(price > 0 ? price.toFixed(2) : "");
+    setNewEvolutionTitle(`${proc.name} · ${formatProcedureTarget(nextTooth, nextSurfaces)}`);
+    setNewEvolutionText(
+      buildProcedureEvolutionText({
+        procedureName: proc.name,
+        catalogItem: proc,
+        toothNumber: nextTooth,
+        surfaces: nextSurfaces,
+        materialOrShade: evolutionMaterial,
+        anesthetic: evolutionAnesthetic,
+        cost: price > 0 ? price : null,
+      }),
+    );
+  }
+
+  function startExecutingPlanProcedure(proc: ToothProcedureRecord) {
+    const match = procedureCatalog.find((c) => c.name === proc.procedure_name) || null;
+    const surfaces = proc.surfaces || [];
+    setExecutingProc(proc);
+    setEvolutionCatalogId(match?.id || "");
+    setEvolutionProcName(proc.procedure_name);
+    setEvolutionToothNumber(proc.tooth_number);
+    setEvolutionSurfaces(surfaces);
+    setEvolutionMaterial("");
+    setEvolutionAnesthetic("");
+    setEvolutionCost(proc.cost != null && Number(proc.cost) > 0 ? String(proc.cost) : "");
+    setMarkOdontogramCompleted(true);
+    setNewEvolutionTitle(
+      `${proc.procedure_name} · ${formatProcedureTarget(proc.tooth_number, surfaces)}`,
+    );
+    setNewEvolutionText(
+      buildProcedureEvolutionText({
+        procedureName: proc.procedure_name,
+        catalogItem: match,
+        toothNumber: proc.tooth_number,
+        surfaces,
+        notes: proc.notes || undefined,
+        cost: proc.cost ?? null,
+      }),
+    );
+    setTimeout(() => {
+      document
+        .getElementById("clinical-execution-form")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 50);
+  }
+
+  function importPlannedToBudget() {
+    const planned = patientProcedures.filter((p) => p.status !== "completed");
+    if (planned.length === 0) {
+      toast.info("Não há procedimentos planejados no Odontograma para importar.");
+      return;
+    }
+    const existingIds = new Set(budgetItems.map((i) => i.odontogramProcedureId).filter(Boolean));
+    const toImport = planned.filter((p) => !existingIds.has(p.id));
+    if (toImport.length === 0) {
+      toast.info("Todos os procedimentos planejados do Odontograma já estão neste orçamento.");
+      return;
+    }
+    const imported: TreatmentPlanItemInput[] = toImport.map((p) => {
+      const match = procedureCatalog.find((c) => c.name === p.procedure_name);
+      const cost =
+        p.cost != null && Number(p.cost) > 0
+          ? Number(p.cost)
+          : match
+            ? getSuggestedProcedurePrice(match, budgetInsuranceTable)
+            : 0;
+      return {
+        id: `odo-${p.id}`,
+        procedureId: match?.id,
+        procedureCode: match?.code,
+        procedureName: p.procedure_name,
+        category: match?.category,
+        toothNumber: p.tooth_number,
+        surfaces: p.surfaces || [],
+        cost,
+        notes: p.notes || undefined,
+        odontogramProcedureId: p.id,
+      };
+    });
+    setBudgetItems((prev) => [...prev, ...imported]);
+    toast.success(`${imported.length} procedimento(s) importado(s) do Odontograma!`);
+  }
+
+  function renderToothRegionSelect(
+    value: number,
+    onChange: (toothNumber: number) => void,
+    className?: string,
+  ) {
+    return (
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={cn(
+          "w-full rounded-xl border border-border bg-background px-3 py-2 text-xs text-foreground",
+          className,
+        )}
+      >
+        <optgroup label="Regiões Gerais">
+          {REGION_OPTIONS.map((reg) => (
+            <option key={reg.code} value={reg.code}>
+              {reg.label}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Dentes Permanentes (11–48)">
+          {PERMANENT_TOOTH_NUMBERS.map((num) => (
+            <option key={num} value={num}>
+              Dente {num}
+            </option>
+          ))}
+        </optgroup>
+        <optgroup label="Dentes Decíduos (51–85)">
+          {DECIDUOUS_TOOTH_NUMBERS.map((num) => (
+            <option key={num} value={num}>
+              Dente {num} (Decíduo)
+            </option>
+          ))}
+        </optgroup>
+      </select>
+    );
+  }
+
+  function renderSurfaceToggleRow(
+    toothNumber: number,
+    surfaces: string[],
+    onChange: (next: string[]) => void,
+  ) {
+    if (!isToothNumber(toothNumber)) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-semibold text-muted-foreground mr-1">Faces:</span>
+        {(["O", "M", "D", "V", "L"] as const).map((code) => {
+          const active = surfaces.includes(code);
+          return (
+            <button
+              key={code}
+              type="button"
+              onClick={() =>
+                onChange(active ? surfaces.filter((s) => s !== code) : [...surfaces, code])
+              }
+              className={cn(
+                "px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer",
+                active
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-border hover:bg-muted",
+              )}
+            >
+              {code}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   const isFiltered =
     search.trim() !== "" ||
     selectedInsurance !== "all" ||
@@ -854,6 +1751,13 @@ export function PatientsManager({
     const currentStageObj =
       FUNNEL_STAGES.find((s) => s.id === (selectedPatient.funnel_stage || "triagem")) ||
       FUNNEL_STAGES[1];
+    const parsedSelectedGuardians = parsePatientNotes(
+      selectedPatient.notes,
+      selectedPatient.birth_date,
+    );
+    const selectedPatientAge = getPatientAge(selectedPatient.birth_date);
+    const selectedPatientIsMinor = isMinorPatient(selectedPatient.birth_date);
+    const selectedAgeLabel = formatPatientAgeLabel(selectedPatient.birth_date);
 
     return (
       <div className="space-y-4">
@@ -945,6 +1849,19 @@ export function PatientsManager({
             <h2 className="font-display text-xl sm:text-2xl font-normal text-foreground">
               {selectedPatient.name}
             </h2>
+            {selectedPatientIsMinor && selectedPatientAge !== null && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold uppercase">
+                <Baby className="h-3 w-3" />
+                Menor · {selectedPatientAge} {selectedPatientAge === 1 ? "ano" : "anos"}
+              </span>
+            )}
+            {parsedSelectedGuardians.guardianName && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/12 text-indigo-800 dark:text-indigo-300 border border-indigo-500/25 text-[11px] font-semibold">
+                <Users className="h-3 w-3" />
+                Resp.: {parsedSelectedGuardians.guardianName} (
+                {parsedSelectedGuardians.guardianRelationship})
+              </span>
+            )}
             {selectedPatient.insurance && (
               <span className="px-2.5 py-0.5 rounded-full bg-muted text-[11px] font-semibold uppercase text-foreground border border-border/60">
                 {selectedPatient.insurance}
@@ -1081,9 +1998,7 @@ export function PatientsManager({
                     {
                       label: "Data de nascimento",
                       value: selectedPatient.birth_date
-                        ? new Date(selectedPatient.birth_date + "T12:00:00").toLocaleDateString(
-                            "pt-BR",
-                          )
+                        ? `${new Date(selectedPatient.birth_date + "T12:00:00").toLocaleDateString("pt-BR")}${selectedAgeLabel ? ` · ${selectedAgeLabel}` : ""}`
                         : "-",
                     },
                     { label: "CPF", value: selectedPatient.cpf || "-" },
@@ -1102,7 +2017,7 @@ export function PatientsManager({
                       label: "Cadastrado em",
                       value: new Date(selectedPatient.created_at).toLocaleDateString("pt-BR"),
                     },
-                    { label: "Observações", value: selectedPatient.notes || "-" },
+                    { label: "Observações", value: parsedSelectedGuardians.generalNotes || "-" },
                   ].map((row) => (
                     <div key={row.label} className="py-2.5 flex items-center justify-between gap-3">
                       <span className="font-semibold text-foreground shrink-0">{row.label}</span>
@@ -1159,13 +2074,116 @@ export function PatientsManager({
                       label: "Alerta Clínico",
                       value: selectedPatient.medical_warning || "Sem alertas registrados",
                     },
-                    { label: "Responsável / Notas", value: selectedPatient.notes || "-" },
+                    {
+                      label: "Notas do Cadastro",
+                      value: parsedSelectedGuardians.generalNotes || "-",
+                    },
                   ].map((row) => (
                     <div key={row.label} className="py-2.5 flex items-center justify-between gap-3">
                       <span className="font-semibold text-foreground shrink-0">{row.label}</span>
                       <span className="text-muted-foreground text-right">{row.value}</span>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* Card Destacado: Responsável Legal / Financeiro */}
+              {(selectedPatientIsMinor ||
+                parsedSelectedGuardians.guardianName ||
+                parsedSelectedGuardians.secondGuardianName) && (
+                <div className="p-4 rounded-xl border border-indigo-500/25 bg-indigo-500/[0.05] space-y-3 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-foreground flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-primary" />
+                      <span>Responsável Legal / Financeiro</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => openEditPatientModal(selectedPatient)}
+                      className="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+                    >
+                      Editar
+                    </button>
+                  </div>
+
+                  {parsedSelectedGuardians.guardianName ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-foreground">
+                          {parsedSelectedGuardians.guardianName}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold">
+                          {parsedSelectedGuardians.guardianRelationship}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground space-y-0.5">
+                        {parsedSelectedGuardians.guardianCpf && (
+                          <div>CPF: {parsedSelectedGuardians.guardianCpf}</div>
+                        )}
+                        {parsedSelectedGuardians.guardianRg && (
+                          <div>RG: {parsedSelectedGuardians.guardianRg}</div>
+                        )}
+                        {parsedSelectedGuardians.guardianPhone && (
+                          <div>Tel: {parsedSelectedGuardians.guardianPhone}</div>
+                        )}
+                        {parsedSelectedGuardians.guardianEmail && (
+                          <div>E-mail: {parsedSelectedGuardians.guardianEmail}</div>
+                        )}
+                        <div>
+                          Resp. Financeiro:{" "}
+                          <strong className="text-foreground">
+                            {parsedSelectedGuardians.guardianIsFinancialResponsible ? "Sim" : "Não"}
+                          </strong>
+                        </div>
+                      </div>
+                      {parsedSelectedGuardians.guardianPhone && (
+                        <a
+                          href={buildWhatsAppUniversalUrl(parsedSelectedGuardians.guardianPhone)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1.5 w-full py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold flex items-center justify-center gap-1.5 hover:bg-emerald-500/20 transition-colors text-[11px]"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          <span>WhatsApp do Responsável</span>
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                        Paciente menor de 18 anos sem dados do responsável cadastrados.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openEditPatientModal(selectedPatient)}
+                        className="w-full py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 font-semibold cursor-pointer text-[11px]"
+                      >
+                        + Cadastrar Responsável Legal
+                      </button>
+                    </div>
+                  )}
+
+                  {parsedSelectedGuardians.secondGuardianName && (
+                    <div className="pt-2.5 border-t border-border/60 space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-foreground">
+                          2º Resp.: {parsedSelectedGuardians.secondGuardianName}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[10px] font-semibold">
+                          {parsedSelectedGuardians.secondGuardianRelationship}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {parsedSelectedGuardians.secondGuardianCpf &&
+                          `CPF: ${parsedSelectedGuardians.secondGuardianCpf}`}
+                        {parsedSelectedGuardians.secondGuardianCpf &&
+                          parsedSelectedGuardians.secondGuardianPhone &&
+                          " · "}
+                        {parsedSelectedGuardians.secondGuardianPhone &&
+                          `Tel: ${parsedSelectedGuardians.secondGuardianPhone}`}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1368,7 +2386,8 @@ export function PatientsManager({
                   </button>
                 </div>
 
-                {categorizedRecords.generalNotes.length === 0 && !selectedPatient.notes ? (
+                {categorizedRecords.generalNotes.length === 0 &&
+                !parsedSelectedGuardians.generalNotes ? (
                   <div className="py-4 flex items-center gap-3.5">
                     <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
                       <FileText className="h-6 w-6" />
@@ -1383,12 +2402,14 @@ export function PatientsManager({
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {selectedPatient.notes && (
+                    {parsedSelectedGuardians.generalNotes && (
                       <div className="p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
                         <span className="font-semibold text-foreground block mb-0.5">
                           Observação do Cadastro:
                         </span>
-                        <span className="text-muted-foreground">{selectedPatient.notes}</span>
+                        <span className="text-muted-foreground whitespace-pre-line">
+                          {parsedSelectedGuardians.generalNotes}
+                        </span>
                       </div>
                     )}
                     {categorizedRecords.generalNotes.map((n) => (
@@ -1421,172 +2442,479 @@ export function PatientsManager({
         )}
 
         {/* ====================================================================
-            ABA 2: ORÇAMENTOS (CRIAR E APROVAR PROPOSTAS / TRATAMENTOS)
+            ABA 2: ORÇAMENTOS (MONTADOR DE PLANEJAMENTO CLINICORP)
            ==================================================================== */}
         {activeTab === "orcamentos" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            <div className="lg:col-span-5 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <Plus className="h-4 w-4 text-primary" />
-                Novo Orçamento / Proposta de Tratamento
-              </h3>
-              <div className="space-y-3 text-xs">
-                <div>
-                  <label className="font-semibold text-foreground block mb-1">
-                    Procedimento / Plano *
-                  </label>
-                  <input
-                    type="text"
-                    value={budgetForm.description}
-                    onChange={(e) => setBudgetForm({ ...budgetForm, description: e.target.value })}
-                    placeholder="Ex: Restauração em Resina, Clareamento, Prótese, Profilaxia..."
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">
-                      Dente / Região
-                    </label>
-                    <input
-                      type="text"
-                      value={budgetForm.tooth}
-                      onChange={(e) => setBudgetForm({ ...budgetForm, tooth: e.target.value })}
-                      placeholder="Ex: 24, Arcada Sup..."
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">Valor (R$) *</label>
-                    <input
-                      type="text"
-                      value={budgetForm.amount}
-                      onChange={(e) => setBudgetForm({ ...budgetForm, amount: e.target.value })}
-                      placeholder="Ex: 350,00"
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">
-                      Forma de Pagamento
-                    </label>
-                    <select
-                      value={budgetForm.paymentForm}
-                      onChange={(e) =>
-                        setBudgetForm({ ...budgetForm, paymentForm: e.target.value })
-                      }
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-                    >
-                      <option value="PIX / À vista">PIX / À vista</option>
-                      <option value="Cartão de Crédito">Cartão de Crédito</option>
-                      <option value="Parcelado">Parcelado</option>
-                      <option value="Convênio">Convênio</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="font-semibold text-foreground block mb-1">Status</label>
-                    <select
-                      value={budgetForm.status}
-                      onChange={(e) => setBudgetForm({ ...budgetForm, status: e.target.value })}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-                    >
-                      <option value="Aberto">Em Aberto</option>
-                      <option value="Aprovado">Aprovado pelo Paciente</option>
-                      <option value="Executado">Executado</option>
-                    </select>
-                  </div>
-                </div>
+          <div className="space-y-4">
+            {/* Barra de ações rápidas do Planejamento */}
+            <div className="rounded-2xl bg-card border border-border px-5 py-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  <span>Planejamento Clínico & Orçamentos</span>
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Monte orçamentos com múltiplos procedimentos da tabela clínica, selecione dentes e
+                  faces e sincronize direto com o Odontograma e Plano de Tratamento.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => {
-                    if (!budgetForm.description.trim()) {
-                      toast.error("Informe a descrição do orçamento.");
-                      return;
-                    }
-                    createClinicalRecordMutation.mutate(
-                      {
-                        record_type: "orcamento",
-                        title: `Orçamento [${budgetForm.status}] — ${budgetForm.description}`,
-                        content: `Procedimento: ${budgetForm.description}\nDente/Região: ${budgetForm.tooth || "Geral"}\nValor: R$ ${budgetForm.amount || "0,00"}\nForma de Pagamento: ${budgetForm.paymentForm}\nStatus: ${budgetForm.status}`,
-                        promoteStage: budgetForm.status === "Aprovado" ? "tratamento" : "orcamento",
-                      },
-                      {
-                        onSuccess: () => {
-                          toast.success("Orçamento registrado!");
-                          setBudgetForm({
-                            description: "",
-                            tooth: "",
-                            amount: "",
-                            paymentForm: "PIX / À vista",
-                            status: "Aberto",
-                          });
-                        },
-                      },
-                    );
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold transition-colors cursor-pointer"
+                  type="button"
+                  onClick={importPlannedToBudget}
+                  className="px-3.5 py-2 rounded-xl border border-primary/30 bg-primary/8 hover:bg-primary/15 text-xs font-semibold text-primary flex items-center gap-1.5 cursor-pointer"
                 >
-                  Salvar Orçamento
+                  <Download className="h-3.5 w-3.5" />
+                  <span>
+                    Importar Planejados do Odontograma (
+                    {patientProcedures.filter((p) => p.status !== "completed").length})
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCatalogSelectTarget("orcamento");
+                    setShowProcedureCatalogModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Settings2 className="h-3.5 w-3.5 text-primary" />
+                  <span>Tabela de Procedimentos e Preços</span>
                 </button>
               </div>
             </div>
 
-            <div className="lg:col-span-7 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
-              <h3 className="text-sm font-bold text-foreground">
-                Orçamentos do Paciente ({categorizedRecords.budgets.length})
-              </h3>
-              {categorizedRecords.budgets.length === 0 ? (
-                <div className="py-12 text-center text-xs text-muted-foreground">
-                  Nenhum orçamento cadastrado ainda para este paciente.
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* COLUNA ESQUERDA: MONTADOR MULTI-PROCEDIMENTOS */}
+              <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <Plus className="h-4 w-4 text-primary" />
+                    <span>Montar Novo Planejamento / Orçamento</span>
+                  </h4>
+                  <select
+                    value={budgetInsuranceTable}
+                    onChange={(e) => {
+                      const nextIns = e.target.value;
+                      setBudgetInsuranceTable(nextIns);
+                      const currentCatItem = procedureCatalog.find(
+                        (p) => p.id === budgetSelectedCatalogId,
+                      );
+                      if (currentCatItem) {
+                        selectCatalogItemForBudget(currentCatItem, nextIns);
+                      }
+                    }}
+                    className="rounded-lg border border-border bg-background px-2.5 py-1 text-[11px] font-semibold text-foreground"
+                    title="Tabela de Preços Aplicada"
+                  >
+                    <option value="PARTICULAR">Tabela: Particular</option>
+                    {selectedPatient.insurance && selectedPatient.insurance !== "PARTICULAR" && (
+                      <option value={selectedPatient.insurance}>
+                        Tabela: {selectedPatient.insurance} (Convênio)
+                      </option>
+                    )}
+                    <option value="CONVÊNIO">Tabela: Convênio / Reduzida</option>
+                  </select>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {categorizedRecords.budgets.map((b) => (
-                    <div
-                      key={b.id}
-                      className="p-4 rounded-xl border border-border bg-background flex items-start justify-between gap-3 text-xs"
-                    >
-                      <div className="space-y-1">
-                        <div className="font-bold text-foreground">{b.title}</div>
-                        <p className="text-muted-foreground whitespace-pre-line">{b.content}</p>
-                        <div className="text-[11px] text-muted-foreground font-mono pt-1">
-                          Criado em {new Date(b.record_date).toLocaleDateString("pt-BR")}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => {
-                            createClinicalRecordMutation.mutate(
-                              {
-                                record_type: "pagamento",
-                                title: `Recebimento de Orçamento — ${b.title?.replace("Orçamento ", "")}`,
-                                content: `${b.content}\nStatus Financeiro: Pago / Aprovado`,
-                                promoteStage: "tratamento",
-                              },
-                              {
-                                onSuccess: () =>
-                                  toast.success(
-                                    "Orçamento aprovado e lançado na aba Financeiro e Tratamento!",
-                                  ),
-                              },
-                            );
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer"
-                        >
-                          Aprovar & Lançar Financeiro
-                        </button>
-                        <button
-                          onClick={() => deleteClinicalRecordMutation.mutate(b.id)}
-                          className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+
+                {/* Construtor de Item do Planejamento */}
+                <div className="p-4 rounded-2xl bg-muted/25 border border-border/80 space-y-3 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="font-semibold text-muted-foreground block mb-1">
+                        Especialidade
+                      </label>
+                      <select
+                        value={budgetCategoryFilter}
+                        onChange={(e) => setBudgetCategoryFilter(e.target.value)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      >
+                        <option value="Todas">Todas as Especialidades</option>
+                        {PROCEDURE_CATEGORIES.map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-muted-foreground block mb-1">
+                        Buscar na Tabela
+                      </label>
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={budgetProcSearch}
+                          onChange={(e) => setBudgetProcSearch(e.target.value)}
+                          placeholder="Resina, canal, clareamento..."
+                          className="w-full rounded-xl border border-border bg-background pl-8 pr-3 py-2 text-xs"
+                        />
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Selecionar Procedimento do Catálogo ({budgetFilteredCatalog.length})
+                    </label>
+                    <select
+                      value={budgetSelectedCatalogId}
+                      onChange={(e) => {
+                        const chosen = procedureCatalog.find((p) => p.id === e.target.value);
+                        if (chosen) selectCatalogItemForBudget(chosen);
+                      }}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      {budgetFilteredCatalog.length === 0 ? (
+                        <option value="">Nenhum procedimento encontrado</option>
+                      ) : (
+                        budgetFilteredCatalog.map((proc) => (
+                          <option key={proc.id} value={proc.id}>
+                            [{proc.code}] {proc.name} — R${" "}
+                            {formatBRLValue(getSuggestedProcedurePrice(proc, budgetInsuranceTable))}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Descrição do Item *
+                    </label>
+                    <input
+                      type="text"
+                      value={budgetDraftItem.description}
+                      onChange={(e) =>
+                        setBudgetDraftItem({ ...budgetDraftItem, description: e.target.value })
+                      }
+                      placeholder="Nome do procedimento no orçamento"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">
+                        Dente / Região
+                      </label>
+                      {renderToothRegionSelect(budgetDraftItem.toothNumber, (toothNumber) =>
+                        setBudgetDraftItem((prev) => ({
+                          ...prev,
+                          toothNumber,
+                          surfaces: isToothNumber(toothNumber) ? prev.surfaces : [],
+                        })),
+                      )}
+                    </div>
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">
+                        Valor (R$) *
+                      </label>
+                      <input
+                        type="text"
+                        value={budgetDraftItem.amount}
+                        onChange={(e) =>
+                          setBudgetDraftItem({ ...budgetDraftItem, amount: e.target.value })
+                        }
+                        placeholder="Ex: 290,00"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold"
+                      />
+                    </div>
+                  </div>
+
+                  {renderSurfaceToggleRow(
+                    budgetDraftItem.toothNumber,
+                    budgetDraftItem.surfaces,
+                    (surfaces) => setBudgetDraftItem((prev) => ({ ...prev, surfaces })),
+                  )}
+
+                  <div>
+                    <input
+                      type="text"
+                      value={budgetDraftItem.notes}
+                      onChange={(e) =>
+                        setBudgetDraftItem({ ...budgetDraftItem, notes: e.target.value })
+                      }
+                      placeholder="Observação técnica do item (opcional: cor A2, siso incluso...)"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!budgetDraftItem.description.trim()) {
+                        toast.error("Informe ou selecione o procedimento.");
+                        return;
+                      }
+                      const catProc = procedureCatalog.find(
+                        (p) => p.id === budgetSelectedCatalogId,
+                      );
+                      const newItem: TreatmentPlanItemInput = {
+                        id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        procedureId: catProc?.id,
+                        procedureCode: catProc?.code,
+                        procedureName: budgetDraftItem.description.trim(),
+                        category: catProc?.category,
+                        toothNumber: budgetDraftItem.toothNumber,
+                        surfaces: isToothNumber(budgetDraftItem.toothNumber)
+                          ? budgetDraftItem.surfaces
+                          : [],
+                        cost: parseMoneyInput(budgetDraftItem.amount),
+                        notes: budgetDraftItem.notes.trim() || undefined,
+                      };
+                      setBudgetItems((prev) => [...prev, newItem]);
+                      setBudgetDraftItem((prev) => ({ ...prev, notes: "", surfaces: [] }));
+                      toast.success("Item adicionado ao planejamento!");
+                    }}
+                    className="w-full py-2 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/20 text-primary font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Adicionar Item ao Planejamento</span>
+                  </button>
                 </div>
-              )}
+
+                {/* Lista de Itens do Planejamento em Montagem */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">
+                      Itens do Planejamento ({budgetItems.length})
+                    </span>
+                    {budgetItems.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setBudgetItems([])}
+                        className="text-[11px] text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Limpar lista
+                      </button>
+                    )}
+                  </div>
+
+                  {budgetItems.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-border text-center text-[11px] text-muted-foreground">
+                      Adicione procedimentos acima ou importe do Odontograma. (Se salvar direto,
+                      usaremos o procedimento preenchido no formulário acima.)
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-border rounded-xl border border-border overflow-hidden bg-background">
+                      {budgetItems.map((item) => (
+                        <div key={item.id} className="p-3 flex items-center justify-between gap-2">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-mono font-bold text-[11px]">
+                                {formatProcedureTarget(item.toothNumber, item.surfaces)}
+                              </span>
+                              <span className="font-semibold text-foreground">
+                                {item.procedureName}
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <p className="text-[11px] text-muted-foreground">{item.notes}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="font-bold text-foreground">
+                              R$ {formatBRLValue(item.cost)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setBudgetItems((prev) => prev.filter((i) => i.id !== item.id))
+                              }
+                              className="text-muted-foreground hover:text-rose-600 cursor-pointer p-1"
+                              title="Remover item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Fechamento do Orçamento */}
+                <div className="space-y-3 pt-2 border-t border-border text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">
+                        Título do Planejamento
+                      </label>
+                      <input
+                        type="text"
+                        value={budgetPlanTitle}
+                        onChange={(e) => setBudgetPlanTitle(e.target.value)}
+                        placeholder="Ex: Reabilitação Estética"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">
+                        Desconto (R$ opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={budgetDiscount}
+                        onChange={(e) => setBudgetDiscount(e.target.value)}
+                        placeholder="Ex: 100,00"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">
+                        Forma de Pagamento
+                      </label>
+                      <select
+                        value={budgetPaymentForm}
+                        onChange={(e) => setBudgetPaymentForm(e.target.value)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      >
+                        <option value="PIX / À vista">PIX / À vista</option>
+                        <option value="Cartão de Crédito">Cartão de Crédito</option>
+                        <option value="Parcelado">Parcelado</option>
+                        <option value="Convênio">Convênio</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-foreground block mb-1">Status</label>
+                      <select
+                        value={budgetStatus}
+                        onChange={(e) =>
+                          setBudgetStatus(e.target.value as "Aberto" | "Aprovado" | "Executado")
+                        }
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      >
+                        <option value="Aberto">Em Aberto</option>
+                        <option value="Aprovado">Aprovado pelo Paciente</option>
+                        <option value="Executado">Executado</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={budgetPlanNotes}
+                    onChange={(e) => setBudgetPlanNotes(e.target.value)}
+                    placeholder="Condições / observações do orçamento (ex: 50% entrada + 3x no cartão)"
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                  />
+
+                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={syncBudgetToOdontogram}
+                      onChange={(e) => setSyncBudgetToOdontogram(e.target.checked)}
+                      className="rounded border-border text-primary"
+                    />
+                    <span>Sincronizar procedimentos no Odontograma e no Plano de Tratamento</span>
+                  </label>
+
+                  {budgetItems.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-primary/8 border border-primary/20 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="text-[11px] text-muted-foreground">
+                          Subtotal: R$ {formatBRLValue(budgetTotals.subtotal)}
+                          {budgetTotals.discount > 0 &&
+                            ` · Desconto: - R$ ${formatBRLValue(budgetTotals.discount)}`}
+                        </div>
+                        <div className="text-sm font-bold text-primary">
+                          Total Final: R$ {formatBRLValue(budgetTotals.total)}
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-card border border-border">
+                        {budgetItems.length} {budgetItems.length === 1 ? "item" : "itens"}
+                      </span>
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => saveTreatmentBudgetMutation.mutate()}
+                    disabled={saveTreatmentBudgetMutation.isPending}
+                    className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {saveTreatmentBudgetMutation.isPending
+                      ? "Salvando Planejamento..."
+                      : "Salvar Planejamento / Orçamento"}
+                  </button>
+                </div>
+              </div>
+
+              {/* COLUNA DIREITA: ORÇAMENTOS SALVOS */}
+              <div className="lg:col-span-6 rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+                <h4 className="text-sm font-bold text-foreground">
+                  Orçamentos e Planejamentos Salvos ({categorizedRecords.budgets.length})
+                </h4>
+                {categorizedRecords.budgets.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-muted-foreground">
+                    Nenhum orçamento cadastrado ainda para este paciente.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {categorizedRecords.budgets.map((b) => {
+                      const isApproved =
+                        (b.title || "").toLowerCase().includes("aprovado") ||
+                        b.content.toLowerCase().includes("aprovado pelo paciente");
+                      return (
+                        <div
+                          key={b.id}
+                          className="p-4 rounded-xl border border-border bg-background flex flex-col gap-3 text-xs"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-foreground">{b.title}</span>
+                                <span
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                    isApproved
+                                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                      : "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+                                  )}
+                                >
+                                  {isApproved ? "Aprovado" : "Em Aberto"}
+                                </span>
+                              </div>
+                              <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
+                                {b.content}
+                              </p>
+                              <div className="text-[11px] text-muted-foreground font-mono pt-1">
+                                Criado em {new Date(b.record_date).toLocaleDateString("pt-BR")}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/60">
+                            <button
+                              type="button"
+                              onClick={() => approveBudgetMutation.mutate(b)}
+                              disabled={approveBudgetMutation.isPending}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 cursor-pointer disabled:opacity-50"
+                            >
+                              {isApproved
+                                ? "Lançar Novo Recebimento"
+                                : "Aprovar & Lançar Financeiro"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteClinicalRecordMutation.mutate(b.id)}
+                              className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                              title="Excluir orçamento"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1826,38 +3154,345 @@ export function PatientsManager({
         )}
 
         {/* ====================================================================
-            ABA 5: PLANO E FICHA CLÍNICA (EVOLUÇÃO DE TRATAMENTO)
+            ABA 5: PLANO E FICHA CLÍNICA (PLANO ATIVO + EXECUÇÃO CLINICORP)
            ==================================================================== */}
         {activeTab === "plano_ficha" && (
           <div className="space-y-5">
-            <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
+            {/* PAINEL 1: PLANO DE TRATAMENTO ATIVO */}
+            <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <ListChecks className="h-4 w-4 text-primary" />
+                    <span>Plano de Tratamento Ativo</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
+                      {treatmentPlanSummary.completedCount} de {treatmentPlanSummary.totalCount}{" "}
+                      concluídos · {treatmentPlanSummary.completionPercent}%
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    A realizar:{" "}
+                    <strong className="text-foreground">
+                      R$ {formatBRLValue(treatmentPlanSummary.plannedValue)}
+                    </strong>{" "}
+                    · Já realizado:{" "}
+                    <strong className="text-emerald-700 dark:text-emerald-400">
+                      R$ {formatBRLValue(treatmentPlanSummary.completedValue)}
+                    </strong>
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickAddPlanProc((prev) => !prev);
+                      if (!showQuickAddPlanProc && !quickPlanCost && procedureCatalog[0]) {
+                        selectCatalogItemForQuickPlan(procedureCatalog[0]);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary-deep text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Adicionar Procedimento ao Plano</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogSelectTarget("evolucao");
+                      setShowProcedureCatalogModal(true);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Settings2 className="h-3.5 w-3.5 text-primary" />
+                    <span>Tabela de Procedimentos</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Barra de Progresso */}
+              {treatmentPlanSummary.totalCount > 0 && (
+                <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: `${treatmentPlanSummary.completionPercent}%` }}
+                  />
+                </div>
+              )}
+
+              {/* Formulário Rápido: Adicionar Procedimento ao Plano */}
+              {showQuickAddPlanProc && (
+                <div className="p-4 rounded-2xl border border-primary/30 bg-primary/[0.03] space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground">
+                      Novo Procedimento Planejado (sincroniza com Odontograma)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickAddPlanProc(false)}
+                      className="text-muted-foreground hover:text-foreground cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="font-semibold text-muted-foreground block mb-1">
+                        Procedimento
+                      </label>
+                      <select
+                        value={quickPlanProcId}
+                        onChange={(e) => {
+                          const p = procedureCatalog.find((c) => c.id === e.target.value);
+                          if (p) selectCatalogItemForQuickPlan(p);
+                        }}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      >
+                        {procedureCatalog.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [{p.code}] {p.name} — R${" "}
+                            {formatBRLValue(
+                              getSuggestedProcedurePrice(p, selectedPatient.insurance),
+                            )}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-muted-foreground block mb-1">
+                        Dente / Região
+                      </label>
+                      {renderToothRegionSelect(quickPlanToothNumber, (num) => {
+                        setQuickPlanToothNumber(num);
+                        if (!isToothNumber(num)) setQuickPlanSurfaces([]);
+                      })}
+                    </div>
+                    <div>
+                      <label className="font-semibold text-muted-foreground block mb-1">
+                        Valor (R$)
+                      </label>
+                      <input
+                        type="text"
+                        value={quickPlanCost}
+                        onChange={(e) => setQuickPlanCost(e.target.value)}
+                        placeholder="Ex: 250,00"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+                  {renderSurfaceToggleRow(
+                    quickPlanToothNumber,
+                    quickPlanSurfaces,
+                    setQuickPlanSurfaces,
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={quickPlanNotes}
+                      onChange={(e) => setQuickPlanNotes(e.target.value)}
+                      placeholder="Observação opcional do planejamento..."
+                      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => quickAddPlanProcedureMutation.mutate()}
+                      disabled={quickAddPlanProcedureMutation.isPending}
+                      className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary-deep cursor-pointer shrink-0"
+                    >
+                      Incluir no Plano
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Abas de Filtro do Plano */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                {[
+                  {
+                    id: "pending" as const,
+                    label: `A Realizar (${treatmentPlanSummary.plannedCount + treatmentPlanSummary.inProgressCount})`,
+                  },
+                  {
+                    id: "completed" as const,
+                    label: `Concluídos (${treatmentPlanSummary.completedCount})`,
+                  },
+                  {
+                    id: "all" as const,
+                    label: `Todos (${treatmentPlanSummary.totalCount})`,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setPlanStatusFilter(tab.id)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full font-semibold border transition-colors cursor-pointer",
+                      planStatusFilter === tab.id
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground border-border hover:text-foreground",
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Checklist de Procedimentos */}
+              {filteredPlanProcedures.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border">
+                  {patientProcedures.length === 0
+                    ? "Nenhum procedimento no Plano de Tratamento ainda. Adicione acima, no Odontograma ou crie um Orçamento."
+                    : "Nenhum procedimento nesta categoria de filtro."}
+                </div>
+              ) : (
+                <div className="divide-y divide-border rounded-2xl border border-border overflow-hidden bg-background">
+                  {filteredPlanProcedures.map((proc) => {
+                    const isCurrentlyExecuting = executingProc?.id === proc.id;
+                    return (
+                      <div
+                        key={proc.id}
+                        className={cn(
+                          "p-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs transition-colors",
+                          isCurrentlyExecuting ? "bg-primary/8" : "hover:bg-muted/30",
+                        )}
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-mono font-bold">
+                              {formatProcedureTarget(proc.tooth_number, proc.surfaces)}
+                            </span>
+                            <span className="font-bold text-foreground">{proc.procedure_name}</span>
+                            {proc.cost != null && Number(proc.cost) > 0 && (
+                              <span className="font-bold text-primary">
+                                R$ {formatBRLValue(Number(proc.cost))}
+                              </span>
+                            )}
+                            <span
+                              className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                                proc.status === "completed"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                  : proc.status === "in_progress"
+                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                    : "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+                              )}
+                            >
+                              {proc.status === "completed"
+                                ? "Concluído"
+                                : proc.status === "in_progress"
+                                  ? "Em Andamento"
+                                  : "Planejado"}
+                            </span>
+                          </div>
+                          {proc.notes && (
+                            <p className="text-[11px] text-muted-foreground">{proc.notes}</p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+                          {proc.status === "planned" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updatePlanProcedureStatusMutation.mutate({
+                                  proc,
+                                  newStatus: "in_progress",
+                                })
+                              }
+                              className="px-2.5 py-1.5 rounded-lg border border-amber-500/35 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Play className="h-3 w-3" />
+                              <span>Iniciar</span>
+                            </button>
+                          )}
+                          {proc.status !== "completed" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => startExecutingPlanProcedure(proc)}
+                                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary-deep text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                                title="Abrir no formulário abaixo com template clínico para detalhar e lançar no prontuário"
+                              >
+                                <Stethoscope className="h-3 w-3" />
+                                <span>Executar / Lançar Evolução</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updatePlanProcedureStatusMutation.mutate({
+                                    proc,
+                                    newStatus: "completed",
+                                    createEvolution: true,
+                                  })
+                                }
+                                disabled={updatePlanProcedureStatusMutation.isPending}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer"
+                                title="Concluir direto com evolução padrão"
+                              >
+                                <Check className="h-3 w-3" />
+                                <span>Concluir 1-Clique</span>
+                              </button>
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => deletePlanProcedureMutation.mutate(proc.id)}
+                            className="p-1.5 text-muted-foreground hover:text-rose-600 cursor-pointer"
+                            title="Remover do plano"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* PAINEL 2: LANÇAR PROCEDIMENTO REALIZADO / EVOLUÇÃO CLÍNICA */}
+            <div
+              id="clinical-execution-form"
+              className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-4"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                   <Stethoscope className="h-4 w-4 text-primary" />
-                  Novo Item no Plano e Ficha Clínica
+                  Lançar Procedimento Realizado / Evolução na Ficha Clínica
                 </h3>
                 <div className="flex flex-wrap items-center gap-1.5">
                   {[
                     {
-                      label: "+ Evolução de Consulta",
+                      label: "+ Evolução Livre",
                       title: "Evolução Clínica",
                       text: "Procedimento executado:\nDente / Região:\nAnestésico / Material utilizado:\nOrientações e conduta para próxima sessão:",
                     },
                     {
                       label: "+ Profilaxia / Limpeza",
-                      title: "Profilaxia + Raspagem Periodontal",
-                      text: "Realizada evidenciação de placa, raspagem supragengival por ultrassom, polimento coronário com pasta profilática e aplicação tópica de flúor neutro. Orientação de higiene oral e uso de fio dental.",
+                      title: "Profilaxia + ATF + OHB · Boca Toda / Geral",
+                      text: buildProcedureEvolutionText({
+                        procedureName: "Profilaxia + ATF + OHB",
+                        catalogItem: procedureCatalog.find((p) => p.id === "proc-profilaxia-atf"),
+                        toothNumber: 0,
+                      }),
                     },
                     {
                       label: "+ Restauração em Resina",
-                      title: "Restauração Direta em Resina Composta",
-                      text: "Dente: \nFaces envolvidas: \nAnestesia infiltrativa + isolamento relativo. Remoção de tecido cariado, condicionamento ácido seletivo, sistema adesivo fotopolimerizável e restauração incremental em resina composta (Cor: ). Ajuste oclusal e acabamento/polimento.",
+                      title: "Restauração em Resina Composta",
+                      text: buildProcedureEvolutionText({
+                        procedureName: "Restauração em Resina Composta (1 Face)",
+                        catalogItem: procedureCatalog.find(
+                          (p) => p.id === "proc-restauracao-resina-1f",
+                        ),
+                        toothNumber: 11,
+                      }),
                     },
                   ].map((tpl) => (
                     <button
                       key={tpl.label}
                       type="button"
                       onClick={() => {
+                        setExecutingProc(null);
                         setNewEvolutionTitle(tpl.title);
                         setNewEvolutionText(tpl.text);
                       }}
@@ -1868,6 +3503,168 @@ export function PatientsManager({
                   ))}
                 </div>
               </div>
+
+              {executingProc && (
+                <div className="px-4 py-3 rounded-xl bg-primary/10 border border-primary/30 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="font-semibold text-primary">
+                    Executando procedimento do plano:{" "}
+                    <span className="font-bold text-foreground">
+                      {executingProc.procedure_name}
+                    </span>{" "}
+                    — {formatProcedureTarget(executingProc.tooth_number, executingProc.surfaces)}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setExecutingProc(null)}
+                    className="text-xs font-semibold text-muted-foreground hover:text-foreground underline cursor-pointer"
+                  >
+                    Desvincular (lançar avulso)
+                  </button>
+                </div>
+              )}
+
+              {/* Seletor Estruturado de Procedimento do Catálogo */}
+              <div className="p-4 rounded-2xl bg-muted/25 border border-border/80 space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-semibold text-muted-foreground block mb-1">
+                      Especialidade
+                    </label>
+                    <select
+                      value={evolutionCategoryFilter}
+                      onChange={(e) => setEvolutionCategoryFilter(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="Todas">Todas as Especialidades</option>
+                      {PROCEDURE_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-muted-foreground block mb-1">
+                      Buscar Procedimento
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        value={evolutionProcSearch}
+                        onChange={(e) => setEvolutionProcSearch(e.target.value)}
+                        placeholder="Ex: resina, canal, endo, exo..."
+                        className="w-full rounded-xl border border-border bg-background pl-8 pr-3 py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Procedimento Realizado (Catálogo)
+                    </label>
+                    <select
+                      value={evolutionCatalogId}
+                      onChange={(e) => {
+                        const proc = procedureCatalog.find((p) => p.id === e.target.value);
+                        if (proc) {
+                          selectCatalogItemForEvolution(proc, !!executingProc);
+                        } else {
+                          setEvolutionCatalogId("");
+                        }
+                      }}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      <option value="">-- Selecionar procedimento do catálogo --</option>
+                      {evolutionFilteredCatalog.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          [{p.code}] {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Dente / Região
+                    </label>
+                    {renderToothRegionSelect(evolutionToothNumber, (num) => {
+                      setEvolutionToothNumber(num);
+                      if (!isToothNumber(num)) setEvolutionSurfaces([]);
+                    })}
+                  </div>
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Material / Cor / Lote
+                    </label>
+                    <input
+                      type="text"
+                      value={evolutionMaterial}
+                      onChange={(e) => setEvolutionMaterial(e.target.value)}
+                      placeholder="Ex: Resina Z350 A2 + Single Bond"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-semibold text-foreground block mb-1">
+                      Anestésico / Técnica
+                    </label>
+                    <input
+                      type="text"
+                      value={evolutionAnesthetic}
+                      onChange={(e) => setEvolutionAnesthetic(e.target.value)}
+                      placeholder="Ex: Mepivacaína 2% c/ vaso (1 tubete)"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  {renderSurfaceToggleRow(
+                    evolutionToothNumber,
+                    evolutionSurfaces,
+                    setEvolutionSurfaces,
+                  ) || <span />}
+
+                  {(evolutionProcName || executingProc) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const procNameToUse = executingProc?.procedure_name || evolutionProcName;
+                        const catItem =
+                          procedureCatalog.find((c) => c.id === evolutionCatalogId) ||
+                          procedureCatalog.find((c) => c.name === procNameToUse) ||
+                          null;
+                        const costVal = evolutionCost ? parseMoneyInput(evolutionCost) : null;
+                        setNewEvolutionTitle(
+                          `${procNameToUse} · ${formatProcedureTarget(evolutionToothNumber, evolutionSurfaces)}`,
+                        );
+                        setNewEvolutionText(
+                          buildProcedureEvolutionText({
+                            procedureName: procNameToUse,
+                            catalogItem: catItem,
+                            toothNumber: evolutionToothNumber,
+                            surfaces: evolutionSurfaces,
+                            materialOrShade: evolutionMaterial,
+                            anesthetic: evolutionAnesthetic,
+                            notes: executingProc?.notes || undefined,
+                            cost: costVal,
+                          }),
+                        );
+                        toast.success("Texto clínico atualizado com os campos acima!");
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary font-semibold flex items-center gap-1.5 cursor-pointer text-[11px]"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Atualizar Texto com Dados Acima</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <input
                 type="text"
                 value={newEvolutionTitle}
@@ -1876,38 +3673,37 @@ export function PatientsManager({
                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-semibold"
               />
               <textarea
-                rows={4}
+                rows={5}
                 value={newEvolutionText}
                 onChange={(e) => setNewEvolutionText(e.target.value)}
                 placeholder="Descreva o procedimento executado na sessão, dente, materiais, intercorrências e próximo passo do plano..."
-                className="w-full rounded-xl border border-border bg-background p-3 text-xs"
+                className="w-full rounded-xl border border-border bg-background p-3 text-xs leading-relaxed"
               />
-              <div className="flex justify-end">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={markOdontogramCompleted}
+                    onChange={(e) => setMarkOdontogramCompleted(e.target.checked)}
+                    className="rounded border-border text-primary"
+                  />
+                  <span>Marcar como Concluído no Odontograma / Plano de Tratamento</span>
+                </label>
+
                 <button
-                  onClick={() => {
-                    if (!newEvolutionText.trim()) return;
-                    createClinicalRecordMutation.mutate(
-                      {
-                        record_type: "evolucao",
-                        title: newEvolutionTitle.trim() || "Evolução Clínica",
-                        content: newEvolutionText.trim(),
-                        promoteStage: "tratamento",
-                      },
-                      {
-                        onSuccess: () => {
-                          toast.success("Item registrado no Plano e Ficha Clínica!");
-                          setNewEvolutionText("");
-                        },
-                      },
-                    );
-                  }}
-                  className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer"
+                  type="button"
+                  onClick={() => launchClinicalProcedureMutation.mutate()}
+                  disabled={launchClinicalProcedureMutation.isPending}
+                  className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary-deep text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
-                  Salvar na Ficha Clínica
+                  {launchClinicalProcedureMutation.isPending
+                    ? "Lançando..."
+                    : "Lançar Procedimento Realizado na Ficha Clínica"}
                 </button>
               </div>
             </div>
 
+            {/* PAINEL 3: HISTÓRICO DA FICHA CLÍNICA */}
             <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
               <h3 className="text-sm font-bold text-foreground">
                 Histórico do Plano e Ficha Clínica ({categorizedRecords.evolutions.length})
@@ -2046,7 +3842,16 @@ export function PatientsManager({
             ABA 7: ODONTOGRAMA
            ==================================================================== */}
         {activeTab === "odontograma" && (
-          <OdontogramView patientId={selectedPatient.id} patientName={selectedPatient.name} />
+          <OdontogramView
+            patientId={selectedPatient.id}
+            patientName={selectedPatient.name}
+            patientInsurance={selectedPatient.insurance}
+            catalog={procedureCatalog}
+            onOpenCatalog={() => {
+              setCatalogSelectTarget(null);
+              setShowProcedureCatalogModal(true);
+            }}
+          />
         )}
 
         {/* ====================================================================
@@ -3105,6 +4910,29 @@ export function PatientsManager({
             queryClient.invalidateQueries({ queryKey: ["appointments"] });
           }}
         />
+
+        <ProcedureCatalogModal
+          open={showProcedureCatalogModal}
+          onClose={() => {
+            setShowProcedureCatalogModal(false);
+            setCatalogSelectTarget(null);
+          }}
+          catalog={procedureCatalog}
+          onCatalogChange={setProcedureCatalog}
+          onSelectProcedure={
+            catalogSelectTarget
+              ? (proc) => {
+                  if (catalogSelectTarget === "orcamento") {
+                    selectCatalogItemForBudget(proc);
+                  } else if (catalogSelectTarget === "plano_add") {
+                    selectCatalogItemForQuickPlan(proc);
+                  } else {
+                    selectCatalogItemForEvolution(proc, !!executingProc);
+                  }
+                }
+              : undefined
+          }
+        />
       </div>
     );
   }
@@ -3113,6 +4941,10 @@ export function PatientsManager({
   // FUNÇÃO AUXILIAR PARA RENDERIZAR O MODAL DE CRIAR / EDITAR PACIENTE (CLINICORP)
   // ============================================================================
   function renderPatientModal() {
+    const modalIsMinor = isMinorPatient(patientForm.birth_date);
+    const modalAgeLabel = formatPatientAgeLabel(patientForm.birth_date);
+    const showGuardianFields = patientForm.hasGuardian || modalIsMinor;
+
     return (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
@@ -3120,7 +4952,7 @@ export function PatientsManager({
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-2xl rounded-3xl bg-card border border-border p-7 shadow-bloom space-y-5 max-h-[90vh] overflow-y-auto"
+          className="w-full max-w-3xl rounded-3xl bg-card border border-border p-6 sm:p-7 shadow-bloom space-y-5 max-h-[92vh] overflow-y-auto"
         >
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div>
@@ -3128,10 +4960,11 @@ export function PatientsManager({
                 {patientFormMode === "edit" ? "Editar Cadastro do Paciente" : "Novo Paciente"}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Cadastro, Contato, Complemento e Alertas de Saúde.
+                Ficha Cadastral Padrão Clinicorp — Dados Pessoais, Responsáveis, Contato e Alertas.
               </p>
             </div>
             <button
+              type="button"
               onClick={() => setPatientFormMode(null)}
               className="p-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
             >
@@ -3139,177 +4972,513 @@ export function PatientsManager({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
-            <div className="sm:col-span-2 space-y-1">
-              <label className="font-semibold text-foreground">Nome Completo *</label>
-              <input
-                type="text"
-                value={patientForm.name}
-                onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })}
-                placeholder="Nome completo do paciente"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
+          {/* BLOCO 1: DADOS CADASTRAIS DO PACIENTE */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5" />
+              <span>1. Dados Cadastrais do Paciente</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+              <div className="sm:col-span-2 space-y-1">
+                <label className="font-semibold text-foreground">Nome Completo *</label>
+                <input
+                  type="text"
+                  value={patientForm.name}
+                  onChange={(e) => setPatientForm({ ...patientForm, name: e.target.value })}
+                  placeholder="Nome completo do paciente"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Apelido</label>
+                <input
+                  type="text"
+                  value={patientForm.nickname}
+                  onChange={(e) => setPatientForm({ ...patientForm, nickname: e.target.value })}
+                  placeholder="Como prefere ser chamado(a)"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <label className="font-semibold text-foreground">Data de Nascimento</label>
+                  {modalAgeLabel && (
+                    <span
+                      className={cn(
+                        "px-2 py-0.5 rounded-full text-[10px] font-bold",
+                        modalIsMinor
+                          ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                          : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {modalAgeLabel}
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="date"
+                  value={patientForm.birth_date}
+                  onChange={(e) => {
+                    const nextDate = e.target.value;
+                    const minor = isMinorPatient(nextDate);
+                    setPatientForm((prev) => ({
+                      ...prev,
+                      birth_date: nextDate,
+                      hasGuardian: minor ? true : prev.hasGuardian,
+                    }));
+                  }}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Sexo</label>
+                <select
+                  value={patientForm.gender}
+                  onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value })}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                >
+                  <option value="">Selecione</option>
+                  <option value="Feminino">Feminino</option>
+                  <option value="Masculino">Masculino</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">
+                  CPF {modalIsMinor ? "(opcional p/ menor)" : ""}
+                </label>
+                <input
+                  type="text"
+                  value={patientForm.cpf}
+                  onChange={(e) => setPatientForm({ ...patientForm, cpf: e.target.value })}
+                  placeholder="000.000.000-00"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">RG</label>
+                <input
+                  type="text"
+                  value={patientForm.rg}
+                  onChange={(e) => setPatientForm({ ...patientForm, rg: e.target.value })}
+                  placeholder="RG"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Estado civil</label>
+                <select
+                  value={patientForm.marital_status}
+                  onChange={(e) =>
+                    setPatientForm({ ...patientForm, marital_status: e.target.value })
+                  }
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                >
+                  <option value="">Selecione</option>
+                  <option value="Solteiro(a)">Solteiro(a)</option>
+                  <option value="Casado(a)">Casado(a)</option>
+                  <option value="Divorciado(a)">Divorciado(a)</option>
+                  <option value="Viúvo(a)">Viúvo(a)</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Profissão / Ocupação</label>
+                <input
+                  type="text"
+                  value={patientForm.profession}
+                  onChange={(e) => setPatientForm({ ...patientForm, profession: e.target.value })}
+                  placeholder={modalIsMinor ? "Ex: Estudante" : "Profissão"}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Plano / Convênio</label>
+                <select
+                  value={patientForm.insurance}
+                  onChange={(e) => setPatientForm({ ...patientForm, insurance: e.target.value })}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                >
+                  <option value="PARTICULAR">Particular</option>
+                  <option value="REDE UNNA">Rede Unna</option>
+                  <option value="ODONTOPREV">Odontoprev</option>
+                  <option value="BRADESCO">Bradesco Dental</option>
+                  <option value="AMIL DENTAL">Amil Dental</option>
+                  <option value="SESC">SESC</option>
+                  <option value="GEAP">GEAP</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Nº Plano (Carteirinha)</label>
+                <input
+                  type="text"
+                  value={patientForm.insurance_number}
+                  onChange={(e) =>
+                    setPatientForm({ ...patientForm, insurance_number: e.target.value })
+                  }
+                  placeholder="Número da carteirinha"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Como conheceu?</label>
+                <input
+                  type="text"
+                  value={patientForm.origin}
+                  onChange={(e) => setPatientForm({ ...patientForm, origin: e.target.value })}
+                  placeholder="Indicação / Instagram / Google / Site"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Apelido</label>
-              <input
-                type="text"
-                value={patientForm.nickname}
-                onChange={(e) => setPatientForm({ ...patientForm, nickname: e.target.value })}
-                placeholder="Como prefere ser chamado(a)"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
+          </div>
+
+          {/* BLOCO 2: RESPONSÁVEIS LEGAL & FINANCEIRO (PADRÃO CLINICORP) */}
+          <div className="rounded-2xl border border-indigo-500/25 bg-indigo-500/[0.04] p-4 space-y-3.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2 font-bold text-foreground cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showGuardianFields}
+                  disabled={modalIsMinor}
+                  onChange={(e) =>
+                    setPatientForm((prev) => ({ ...prev, hasGuardian: e.target.checked }))
+                  }
+                  className="rounded border-border text-primary"
+                />
+                <Users className="h-4 w-4 text-primary" />
+                <span>2. Paciente menor de idade / Possui responsável legal ou financeiro</span>
+              </label>
+
+              {modalIsMinor && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                  Menor de 18 anos — Obrigatório
+                </span>
+              )}
             </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Telefone / WhatsApp</label>
-              <input
-                type="text"
-                value={patientForm.phone}
-                onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
-                placeholder="(96) 99100-0000"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">CPF</label>
-              <input
-                type="text"
-                value={patientForm.cpf}
-                onChange={(e) => setPatientForm({ ...patientForm, cpf: e.target.value })}
-                placeholder="000.000.000-00"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">RG</label>
-              <input
-                type="text"
-                value={patientForm.rg}
-                onChange={(e) => setPatientForm({ ...patientForm, rg: e.target.value })}
-                placeholder="RG"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
+            {showGuardianFields && (
+              <div className="space-y-4 pt-2 border-t border-border/60">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-semibold text-foreground">
+                      Nome Completo do Responsável Legal {modalIsMinor ? "*" : ""}
+                    </label>
+                    <input
+                      type="text"
+                      value={patientForm.guardianName}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianName: e.target.value })
+                      }
+                      placeholder="Nome completo da mãe, pai ou tutor legal"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-foreground">Grau de Parentesco</label>
+                    <select
+                      value={patientForm.guardianRelationship}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianRelationship: e.target.value })
+                      }
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    >
+                      {GUARDIAN_RELATIONSHIPS.map((rel) => (
+                        <option key={rel} value={rel}>
+                          {rel}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Data de Nascimento</label>
-              <input
-                type="date"
-                value={patientForm.birth_date}
-                onChange={(e) => setPatientForm({ ...patientForm, birth_date: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Sexo</label>
-              <select
-                value={patientForm.gender}
-                onChange={(e) => setPatientForm({ ...patientForm, gender: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              >
-                <option value="">Selecione</option>
-                <option value="Feminino">Feminino</option>
-                <option value="Masculino">Masculino</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Estado civil</label>
-              <select
-                value={patientForm.marital_status}
-                onChange={(e) => setPatientForm({ ...patientForm, marital_status: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              >
-                <option value="">Selecione</option>
-                <option value="Solteiro(a)">Solteiro(a)</option>
-                <option value="Casado(a)">Casado(a)</option>
-                <option value="Divorciado(a)">Divorciado(a)</option>
-                <option value="Viúvo(a)">Viúvo(a)</option>
-              </select>
-            </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-foreground">CPF do Responsável</label>
+                    <input
+                      type="text"
+                      value={patientForm.guardianCpf}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianCpf: e.target.value })
+                      }
+                      placeholder="000.000.000-00"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-foreground">RG do Responsável</label>
+                    <input
+                      type="text"
+                      value={patientForm.guardianRg}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianRg: e.target.value })
+                      }
+                      placeholder="RG"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-foreground">
+                      Telefone / WhatsApp do Resp.
+                    </label>
+                    <input
+                      type="text"
+                      value={patientForm.guardianPhone}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianPhone: e.target.value })
+                      }
+                      placeholder="(96) 99100-0000"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Plano / Convênio</label>
-              <select
-                value={patientForm.insurance}
-                onChange={(e) => setPatientForm({ ...patientForm, insurance: e.target.value })}
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              >
-                <option value="PARTICULAR">Particular</option>
-                <option value="REDE UNNA">Rede Unna</option>
-                <option value="ODONTOPREV">Odontoprev</option>
-                <option value="BRADESCO">Bradesco Dental</option>
-                <option value="AMIL DENTAL">Amil Dental</option>
-                <option value="SESC">SESC</option>
-                <option value="GEAP">GEAP</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Nº Plano (Carteirinha)</label>
-              <input
-                type="text"
-                value={patientForm.insurance_number}
-                onChange={(e) =>
-                  setPatientForm({ ...patientForm, insurance_number: e.target.value })
-                }
-                placeholder="Número da carteirinha"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Como conheceu?</label>
-              <input
-                type="text"
-                value={patientForm.origin}
-                onChange={(e) => setPatientForm({ ...patientForm, origin: e.target.value })}
-                placeholder="Indicação / Instagram / Google / Site"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-semibold text-foreground">E-mail do Responsável</label>
+                    <input
+                      type="email"
+                      value={patientForm.guardianEmail}
+                      onChange={(e) =>
+                        setPatientForm({ ...patientForm, guardianEmail: e.target.value })
+                      }
+                      placeholder="responsavel@exemplo.com"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-end pb-1.5">
+                    <label className="flex items-center gap-2 text-xs font-medium text-foreground cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={patientForm.guardianIsFinancialResponsible}
+                        onChange={(e) =>
+                          setPatientForm({
+                            ...patientForm,
+                            guardianIsFinancialResponsible: e.target.checked,
+                          })
+                        }
+                        className="rounded border-border text-primary"
+                      />
+                      <span>É o Responsável Financeiro</span>
+                    </label>
+                  </div>
+                </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">E-mail</label>
-              <input
-                type="email"
-                value={patientForm.email}
-                onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })}
-                placeholder="email@exemplo.com"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Endereço</label>
-              <input
-                type="text"
-                value={patientForm.address}
-                onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
-                placeholder="Rua / Av. e Número"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="font-semibold text-foreground">Bairro</label>
-              <input
-                type="text"
-                value={patientForm.neighborhood}
-                onChange={(e) => setPatientForm({ ...patientForm, neighborhood: e.target.value })}
-                placeholder="Bairro"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
+                {/* Toggle para 2º Responsável */}
+                <div className="pt-2 border-t border-border/50 space-y-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPatientForm((prev) => ({
+                        ...prev,
+                        hasSecondGuardian: !prev.hasSecondGuardian,
+                      }))
+                    }
+                    className="text-xs font-semibold text-primary hover:underline flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>
+                      {patientForm.hasSecondGuardian
+                        ? "Ocultar 2º Responsável / Filiação"
+                        : "Informar 2º Responsável / Filiação (Pai, Mãe ou Resp. Financeiro)"}
+                    </span>
+                  </button>
 
-            <div className="sm:col-span-3 space-y-1">
-              <label className="font-semibold text-foreground">Observações / Responsável</label>
-              <input
-                type="text"
-                value={patientForm.notes}
-                onChange={(e) => setPatientForm({ ...patientForm, notes: e.target.value })}
-                placeholder="Nome do responsável legal ou observações gerais"
-                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
-              />
-            </div>
+                  {patientForm.hasSecondGuardian && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="font-semibold text-foreground">
+                          Nome do 2º Responsável
+                        </label>
+                        <input
+                          type="text"
+                          value={patientForm.secondGuardianName}
+                          onChange={(e) =>
+                            setPatientForm({ ...patientForm, secondGuardianName: e.target.value })
+                          }
+                          placeholder="Nome completo do 2º responsável"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-foreground">Parentesco</label>
+                        <select
+                          value={patientForm.secondGuardianRelationship}
+                          onChange={(e) =>
+                            setPatientForm({
+                              ...patientForm,
+                              secondGuardianRelationship: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                        >
+                          {GUARDIAN_RELATIONSHIPS.map((rel) => (
+                            <option key={rel} value={rel}>
+                              {rel}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-semibold text-foreground">CPF (2º Resp.)</label>
+                        <input
+                          type="text"
+                          value={patientForm.secondGuardianCpf}
+                          onChange={(e) =>
+                            setPatientForm({ ...patientForm, secondGuardianCpf: e.target.value })
+                          }
+                          placeholder="000.000.000-00"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                        />
+                      </div>
+                      <div className="sm:col-span-2 space-y-1">
+                        <label className="font-semibold text-foreground">
+                          Telefone / WhatsApp (2º Resp.)
+                        </label>
+                        <input
+                          type="text"
+                          value={patientForm.secondGuardianPhone}
+                          onChange={(e) =>
+                            setPatientForm({
+                              ...patientForm,
+                              secondGuardianPhone: e.target.value,
+                            })
+                          }
+                          placeholder="(96) 99100-0000"
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
-            <div className="sm:col-span-3 space-y-1 pt-1">
+          {/* BLOCO 3: CONTATO & ENDEREÇO COMPLETO */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" />
+              <span>3. Contato & Endereço</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Telefone / WhatsApp</label>
+                <input
+                  type="text"
+                  value={patientForm.phone}
+                  onChange={(e) => setPatientForm({ ...patientForm, phone: e.target.value })}
+                  placeholder="(96) 99100-0000"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">
+                  Telefone Secundário / Recado
+                </label>
+                <input
+                  type="text"
+                  value={patientForm.phone2}
+                  onChange={(e) => setPatientForm({ ...patientForm, phone2: e.target.value })}
+                  placeholder="(96) 99100-0000"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">E-mail</label>
+                <input
+                  type="email"
+                  value={patientForm.email}
+                  onChange={(e) => setPatientForm({ ...patientForm, email: e.target.value })}
+                  placeholder="email@exemplo.com"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">CEP</label>
+                <input
+                  type="text"
+                  value={patientForm.postal_code}
+                  onChange={(e) => setPatientForm({ ...patientForm, postal_code: e.target.value })}
+                  placeholder="68900-000"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="sm:col-span-2 space-y-1">
+                <label className="font-semibold text-foreground">Endereço (Rua / Av.)</label>
+                <input
+                  type="text"
+                  value={patientForm.address}
+                  onChange={(e) => setPatientForm({ ...patientForm, address: e.target.value })}
+                  placeholder="Rua / Av."
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Número</label>
+                <input
+                  type="text"
+                  value={patientForm.address_number}
+                  onChange={(e) =>
+                    setPatientForm({ ...patientForm, address_number: e.target.value })
+                  }
+                  placeholder="Nº"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Complemento</label>
+                <input
+                  type="text"
+                  value={patientForm.address_extra}
+                  onChange={(e) =>
+                    setPatientForm({ ...patientForm, address_extra: e.target.value })
+                  }
+                  placeholder="Apto / Bloco / Casa"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">Bairro</label>
+                <input
+                  type="text"
+                  value={patientForm.neighborhood}
+                  onChange={(e) => setPatientForm({ ...patientForm, neighborhood: e.target.value })}
+                  placeholder="Bairro"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+
+              <div className="sm:col-span-2 space-y-1">
+                <label className="font-semibold text-foreground">Cidade</label>
+                <input
+                  type="text"
+                  value={patientForm.city}
+                  onChange={(e) => setPatientForm({ ...patientForm, city: e.target.value })}
+                  placeholder="Macapá"
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-foreground">UF</label>
+                <input
+                  type="text"
+                  value={patientForm.state}
+                  onChange={(e) => setPatientForm({ ...patientForm, state: e.target.value })}
+                  placeholder="AP"
+                  maxLength={2}
+                  className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs uppercase"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* BLOCO 4: ALERTAS DE SAÚDE & OBSERVAÇÕES */}
+          <div className="space-y-3 text-xs pt-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              <span>4. Alertas Clínicos & Observações Gerais</span>
+            </h4>
+            <div className="space-y-1">
               <label className="font-semibold text-rose-600 flex items-center gap-1.5">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 Alerta Clínico / Alergias / Condições Sistêmicas
@@ -3322,6 +5491,19 @@ export function PatientsManager({
                 }
                 placeholder="Ex: Alergia a Dipirona, Hipertenso, Gestante..."
                 className="w-full rounded-xl border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="font-semibold text-foreground">
+                Observações Gerais do Cadastro
+              </label>
+              <textarea
+                rows={2}
+                value={patientForm.notes}
+                onChange={(e) => setPatientForm({ ...patientForm, notes: e.target.value })}
+                placeholder="Observações administrativas ou preferências de atendimento do paciente..."
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs"
               />
             </div>
           </div>
@@ -3421,7 +5603,7 @@ export function PatientsManager({
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Encontre pacientes por nome, CPF, telefone, alerta médico ou nº prontuário..."
+              placeholder="Encontre pacientes por nome, CPF, telefone, responsável, alerta médico ou nº prontuário..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -3579,6 +5761,9 @@ export function PatientsManager({
             const stageObj =
               FUNNEL_STAGES.find((s) => s.id === (patient.funnel_stage || "triagem")) ||
               FUNNEL_STAGES[1];
+            const rowGuardians = parsePatientNotes(patient.notes, patient.birth_date);
+            const rowAge = getPatientAge(patient.birth_date);
+            const rowIsMinor = isMinorPatient(patient.birth_date);
             return (
               <div
                 key={patient.id}
@@ -3602,6 +5787,18 @@ export function PatientsManager({
                     >
                       {stageObj.label.replace(/^\d+\.\s*/, "")}
                     </span>
+                    {rowIsMinor && rowAge !== null && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                        <Baby className="h-3 w-3" />
+                        Menor · {rowAge} {rowAge === 1 ? "ano" : "anos"}
+                      </span>
+                    )}
+                    {rowGuardians.guardianName && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-500/12 text-indigo-800 dark:text-indigo-300 border border-indigo-500/25 text-[11px] font-semibold">
+                        <Users className="h-3 w-3" />
+                        Resp.: {rowGuardians.guardianName} ({rowGuardians.guardianRelationship})
+                      </span>
+                    )}
                     {patient.insurance && (
                       <span className="px-2.5 py-0.5 rounded-full bg-muted text-[11px] font-semibold uppercase text-foreground">
                         {patient.insurance}
