@@ -24,6 +24,7 @@ import {
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
 import { getSingleAppointmentTokens } from "@/lib/cancellation";
 import { holidayFor, HOLIDAY_KIND_LABELS } from "@/lib/holidays";
+import { recessFor, type RecessPeriod } from "@/lib/recess";
 import { cn } from "@/lib/utils";
 import type { AppointmentExport } from "@/lib/export";
 import {
@@ -70,10 +71,12 @@ import {
   Gift,
   HeartHandshake,
   Package,
+  CalendarOff,
 } from "lucide-react";
 import { PatientsManager, type Patient } from "@/components/clinical/PatientsManager";
 import { InventoryManager } from "@/components/clinical/InventoryManager";
 import { CRCManager } from "@/components/clinical/CRCManager";
+import { RecessManager } from "@/components/clinical/RecessManager";
 import { buildWhatsAppUniversalUrl } from "@/lib/crc";
 
 export const Route = createFileRoute("/_authenticated/painel")({
@@ -133,6 +136,24 @@ function Painel() {
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
+  const [showRecessManager, setShowRecessManager] = useState(false);
+  const [recesses, setRecesses] = useState<RecessPeriod[]>([]);
+  const [recessRefresh, setRecessRefresh] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    let alive = true;
+    supabase
+      .from("clinic_recesses")
+      .select("id, name, start_date, end_date")
+      .order("start_date", { ascending: true })
+      .then(({ data }) => {
+        if (alive) setRecesses((data ?? []) as RecessPeriod[]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [session, recessRefresh]);
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
   const [newAppointmentMode, setNewAppointmentMode] = useState<"existing" | "new" | "block">(
     "existing",
@@ -872,6 +893,13 @@ function Painel() {
                         setGlobalSmartSearch("");
                       },
                     },
+                    {
+                      label: "Recessos e Férias",
+                      action: () => {
+                        setShowRecessManager(true);
+                        setGlobalSmartSearch("");
+                      },
+                    },
                   ].map((s) => (
                     <button
                       key={s.label}
@@ -911,6 +939,15 @@ function Painel() {
             >
               <Ban className="h-3.5 w-3.5 text-amber-300" />
               <span>Bloquear Horário</span>
+            </button>
+
+            <button
+              onClick={() => setShowRecessManager(true)}
+              title="Cadastrar recesso, férias ou viagem (bloqueia a agenda toda)"
+              className="hidden md:inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/20 bg-white/10 hover:bg-white/18 px-3.5 py-2 text-xs font-medium text-white transition-colors cursor-pointer"
+            >
+              <CalendarOff className="h-3.5 w-3.5 text-sky-300" />
+              <span>Recesso</span>
             </button>
 
             <button
@@ -1284,6 +1321,14 @@ function Painel() {
                   <Plus className="h-3.5 w-3.5" />
                   <span>Agendar Consulta</span>
                 </button>
+                <button
+                  onClick={() => setShowRecessManager(true)}
+                  title="Cadastrar recesso, férias ou feriado personalizado"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border/80 bg-card/80 px-4 py-2 text-xs font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-accent active:scale-95 cursor-pointer"
+                >
+                  <CalendarOff className="h-3.5 w-3.5 text-sky-600" />
+                  <span>Recessos</span>
+                </button>
                 <div className="flex items-center gap-1.5 rounded-full border border-border/80 bg-card/80 p-1.5 shadow-sm backdrop-blur-md">
                   <button
                     onClick={() => setWeekStart(addDays(weekStart, -7))}
@@ -1316,6 +1361,7 @@ function Painel() {
                   const iso = toISODate(day);
                   const isToday = iso === todayISO;
                   const holiday = holidayFor(iso);
+                  const recess = recessFor(iso, recesses);
                   const supaAppointments =
                     weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
 
@@ -1337,6 +1383,7 @@ function Painel() {
                         "min-h-[420px] p-4 transition-colors",
                         isToday && "bg-primary/[0.02]",
                         holiday && "bg-rose-50/50",
+                        recess && !holiday && "bg-sky-50/60",
                       )}
                     >
                       <div
@@ -1356,6 +1403,14 @@ function Painel() {
                               className="inline-flex items-center rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-700"
                             >
                               Feriado
+                            </span>
+                          )}
+                          {recess && (
+                            <span
+                              title={`Recesso: ${recess.name}`}
+                              className="inline-flex items-center rounded-full border border-sky-200 bg-sky-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-700"
+                            >
+                              Recesso
                             </span>
                           )}
                         </span>
@@ -1393,6 +1448,15 @@ function Painel() {
                                 </span>
                                 <span className="text-[11px] text-muted-foreground/80">
                                   {holiday.name}
+                                </span>
+                              </>
+                            ) : recess ? (
+                              <>
+                                <span className="text-[10px] font-bold tracking-wide text-sky-600 uppercase">
+                                  Recesso
+                                </span>
+                                <span className="text-[11px] text-muted-foreground/80">
+                                  {recess.name}
                                 </span>
                               </>
                             ) : (
@@ -1771,6 +1835,12 @@ function Painel() {
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ["appointments"] });
           }}
+        />
+
+        <RecessManager
+          open={showRecessManager}
+          onOpenChange={setShowRecessManager}
+          onChanged={() => setRecessRefresh((n) => n + 1)}
         />
       </main>
     </div>

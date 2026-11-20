@@ -36,6 +36,8 @@ import {
 } from "lucide-react";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, buildGoogleCalendarUrl } from "@/lib/clinic";
 import { holidayFor, type Holiday } from "@/lib/holidays";
+import { getRecesses } from "@/lib/recesses-server";
+import { recessFor, type RecessPeriod } from "@/lib/recess";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { generateBookingProtocol, normalizePatientEmail } from "@/lib/booking";
@@ -207,6 +209,7 @@ export function BookingModal({
   // Fetch booked slots from Supabase + iCal, auto-select first available time slot
   // Cache of occupied events by date: { "2026-08-10": ["15:00", "16:00", "17:00"] }
   const [occupiedMap, setOccupiedMap] = useState<Record<string, string[]>>({});
+  const [recesses, setRecesses] = useState<RecessPeriod[]>([]);
   const [isFeedLoaded, setIsFeedLoaded] = useState(false);
   const [firstAvailableSuggestion, setFirstAvailableSuggestion] = useState<{
     day: DayItem;
@@ -226,7 +229,11 @@ export function BookingModal({
 
         const now = new Date();
         const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const slots = await getOccupiedSlots();
+        const [slots, recessList] = await Promise.all([
+          getOccupiedSlots(),
+          getRecesses().catch(() => [] as RecessPeriod[]),
+        ]);
+        if (isMounted) setRecesses(recessList);
         for (const slot of slots) {
           (map[slot.date] ??= []).push(slot.time);
         }
@@ -248,7 +255,8 @@ export function BookingModal({
 
         for (const day of days) {
           const occupiedForDay = cleanMap[day.dateString] || [];
-          const allSlots = day.holiday ? [] : buildTimeSlots(day.weekday);
+          const isRecess = Boolean(recessFor(day.dateString, recessList));
+          const allSlots = day.holiday || isRecess ? [] : buildTimeSlots(day.weekday);
           const isToday = day.dateString === todayIso;
 
           const avail = allSlots.filter((slot) => {
@@ -318,8 +326,11 @@ export function BookingModal({
     const dateKey = selectedDay.dateString;
     const occupiedForDay = occupiedMap[dateKey] || [];
 
-    // Feriado: dia inteiro bloqueado, sem horários disponíveis.
-    const allSlots = selectedDay.holiday ? [] : buildTimeSlots(selectedDay.weekday);
+    // Feriado ou recesso: dia inteiro bloqueado, sem horários disponíveis.
+    const allSlots =
+      selectedDay.holiday || recessFor(dateKey, recesses)
+        ? []
+        : buildTimeSlots(selectedDay.weekday);
     const now = new Date();
     const year = now.getFullYear();
     const monthStr = String(now.getMonth() + 1).padStart(2, "0");
@@ -355,10 +366,10 @@ export function BookingModal({
     } else {
       setSelectedSlot(null);
     }
-  }, [selectedDay, isFeedLoaded, occupiedMap]);
+  }, [selectedDay, isFeedLoaded, occupiedMap, recesses]);
 
   const availableTimeSlots = selectedDay
-    ? selectedDay.holiday
+    ? selectedDay.holiday || recessFor(selectedDay.dateString, recesses)
       ? []
       : buildTimeSlots(selectedDay.weekday)
     : [];
@@ -707,7 +718,13 @@ export function BookingModal({
                           type="button"
                           onClick={() => {
                             setSelectedMonth(month);
-                            const firstDayOfMonth = days.find((d) => d.monthYear === month);
+                            const firstDayOfMonth =
+                              days.find(
+                                (d) =>
+                                  d.monthYear === month &&
+                                  !d.holiday &&
+                                  !recessFor(d.dateString, recesses),
+                              ) ?? days.find((d) => d.monthYear === month);
                             if (firstDayOfMonth) {
                               setSelectedDay(firstDayOfMonth);
                             }
@@ -742,24 +759,28 @@ export function BookingModal({
                 >
                   {filteredDays.map((day) => {
                     const isActive = selectedDay?.dateString === day.dateString;
+                    const recess = recessFor(day.dateString, recesses);
                     const isHoliday = Boolean(day.holiday);
+                    const isBlockedDay = isHoliday || Boolean(recess);
                     return (
                       <button
                         key={day.dateString}
                         type="button"
                         data-day-active={isActive ? "true" : "false"}
-                        disabled={isHoliday}
+                        disabled={isBlockedDay}
                         title={
-                          day.holiday
-                            ? `${day.holiday.name} — dia sem atendimento`
-                            : day.fullFormatted
+                          recess
+                            ? `${recess.name} (recesso) — dia sem atendimento`
+                            : day.holiday
+                              ? `${day.holiday.name} — dia sem atendimento`
+                              : day.fullFormatted
                         }
                         onClick={() => {
                           setSelectedDay(day);
                           setSelectedSlot(null);
                         }}
                         className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
-                          isHoliday
+                          isBlockedDay
                             ? "bg-muted/60 border-dashed border-border text-muted-foreground cursor-not-allowed line-through opacity-70"
                             : isActive
                               ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
@@ -771,7 +792,7 @@ export function BookingModal({
                         </div>
                         <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
                         <div className="text-[11px] opacity-80">
-                          {isHoliday ? "Feriado" : day.monthName}
+                          {recess ? "Recesso" : isHoliday ? "Feriado" : day.monthName}
                         </div>
                       </button>
                     );

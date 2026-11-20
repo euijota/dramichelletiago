@@ -30,6 +30,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, trimSeconds } from "@/lib/clinic";
 import { holidayFor, HOLIDAY_KIND_LABELS } from "@/lib/holidays";
+import { getRecesses } from "@/lib/recesses-server";
+import { recessFor, type RecessPeriod } from "@/lib/recess";
 import { generateBookingProtocol } from "@/lib/booking";
 import { toast } from "sonner";
 
@@ -96,7 +98,24 @@ export function NewAppointmentModal({
   const [date, setDate] = useState(() => defaultDate || new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState("15:00");
   const [allowHoliday, setAllowHoliday] = useState(false);
+  const [recesses, setRecesses] = useState<RecessPeriod[]>([]);
   const holiday = holidayFor(date);
+  const recess = recessFor(date, recesses);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    getRecesses()
+      .then((list) => {
+        if (alive) setRecesses(list);
+      })
+      .catch(() => {
+        /* recesso indisponível não deve travar o modal */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [service, setService] = useState(COMMON_SERVICES[0]);
   const [notes, setNotes] = useState("");
@@ -236,8 +255,9 @@ export function NewAppointmentModal({
       return;
     }
 
-    if (holiday && !allowHoliday && patientMode !== "block") {
-      toast.error(`${holiday.name}: dia bloqueado. Marque "Agendar mesmo assim" para prosseguir.`);
+    if ((holiday || recess) && !allowHoliday && patientMode !== "block") {
+      const reason = holiday ? holiday.name : recess?.name;
+      toast.error(`${reason}: dia bloqueado. Marque "Agendar mesmo assim" para prosseguir.`);
       return;
     }
 
@@ -724,7 +744,24 @@ export function NewAppointmentModal({
                   }}
                   className="rounded-2xl"
                 />
-                {holiday ? (
+                {recess ? (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-1.5">
+                      🏖️ Recesso: {recess.name} — agenda bloqueada
+                    </div>
+                    {patientMode !== "block" && (
+                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowHoliday}
+                          onChange={(e) => setAllowHoliday(e.target.checked)}
+                          className="accent-primary"
+                        />
+                        Agendar mesmo assim (recesso)
+                      </label>
+                    )}
+                  </div>
+                ) : holiday ? (
                   <div className="space-y-1.5">
                     <div className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-1.5">
                       🚫 {HOLIDAY_KIND_LABELS[holiday.kind]}: {holiday.name} — agenda bloqueada

@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { CLINIC } from "@/lib/clinic";
+import { holidayFor } from "@/lib/holidays";
 import { renderTemplate } from "@/lib/message-templates";
 import { getMessageTemplate } from "@/lib/message-templates-server";
 import { bookingSchema, type BookingPayload } from "@/lib/booking";
@@ -87,6 +88,25 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
 
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      if (holidayFor(data.appointmentDate)) {
+        throw new Error(
+          "Não há horário disponível nesta data (feriado ou recesso). Por favor, escolha outro dia.",
+        );
+      }
+
+      const { data: activeRecess } = await supabaseAdmin
+        .from("clinic_recesses")
+        .select("id")
+        .lte("start_date", data.appointmentDate)
+        .gte("end_date", data.appointmentDate)
+        .limit(1);
+
+      if (activeRecess && activeRecess.length > 0) {
+        throw new Error(
+          "Não há horário disponível nesta data (feriado ou recesso). Por favor, escolha outro dia.",
+        );
+      }
 
       // Look up service duration
       const { data: service } = await supabaseAdmin

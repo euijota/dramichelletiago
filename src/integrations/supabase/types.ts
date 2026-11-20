@@ -305,6 +305,33 @@ export type Database = {
         };
         Relationships: [];
       };
+      clinic_recesses: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          end_date: string;
+          id: string;
+          name: string;
+          start_date: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          end_date: string;
+          id?: string;
+          name: string;
+          start_date: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          end_date?: string;
+          id?: string;
+          name?: string;
+          start_date?: string;
+        };
+        Relationships: [];
+      };
       clinical_notification_events: {
         Row: {
           accepted_at: string | null;
