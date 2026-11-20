@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, trimSeconds } from "@/lib/clinic";
+import { holidayFor, HOLIDAY_KIND_LABELS } from "@/lib/holidays";
 import { generateBookingProtocol } from "@/lib/booking";
 import { toast } from "sonner";
 
@@ -94,6 +95,8 @@ export function NewAppointmentModal({
 
   const [date, setDate] = useState(() => defaultDate || new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState("15:00");
+  const [allowHoliday, setAllowHoliday] = useState(false);
+  const holiday = holidayFor(date);
   const [occupiedTimes, setOccupiedTimes] = useState<string[]>([]);
   const [service, setService] = useState(COMMON_SERVICES[0]);
   const [notes, setNotes] = useState("");
@@ -230,6 +233,11 @@ export function NewAppointmentModal({
 
     if (!date) {
       toast.error("Selecione a data.");
+      return;
+    }
+
+    if (holiday && !allowHoliday && patientMode !== "block") {
+      toast.error(`${holiday.name}: dia bloqueado. Marque "Agendar mesmo assim" para prosseguir.`);
       return;
     }
 
@@ -710,19 +718,45 @@ export function NewAppointmentModal({
                   type="date"
                   required
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    setAllowHoliday(false);
+                  }}
                   className="rounded-2xl"
                 />
-                <div className="text-[11px] text-muted-foreground flex items-center gap-1">
-                  <span className="font-semibold text-foreground">{dayName}</span>
-                  {weekday === 0 ? (
-                    <span className="text-amber-600 font-semibold">(Domingo Fechado)</span>
-                  ) : [1, 2, 4].includes(weekday) ? (
-                    <span className="text-emerald-700 font-medium">· Turno Tarde (15h às 18h)</span>
-                  ) : (
-                    <span className="text-emerald-700 font-medium">· Turno Manhã (09h às 12h)</span>
-                  )}
-                </div>
+                {holiday ? (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-2.5 py-1.5">
+                      🚫 {HOLIDAY_KIND_LABELS[holiday.kind]}: {holiday.name} — agenda bloqueada
+                    </div>
+                    {patientMode !== "block" && (
+                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowHoliday}
+                          onChange={(e) => setAllowHoliday(e.target.checked)}
+                          className="accent-primary"
+                        />
+                        Agendar mesmo assim (feriado)
+                      </label>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                    <span className="font-semibold text-foreground">{dayName}</span>
+                    {weekday === 0 ? (
+                      <span className="text-amber-600 font-semibold">(Domingo Fechado)</span>
+                    ) : [1, 2, 4].includes(weekday) ? (
+                      <span className="text-emerald-700 font-medium">
+                        · Turno Tarde (15h às 18h)
+                      </span>
+                    ) : (
+                      <span className="text-emerald-700 font-medium">
+                        · Turno Manhã (09h às 12h)
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {!blockAllShift && (

@@ -35,6 +35,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { CLINIC, INSURANCE_PLANS, buildTimeSlots, buildGoogleCalendarUrl } from "@/lib/clinic";
+import { holidayFor, type Holiday } from "@/lib/holidays";
 import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { generateBookingProtocol, normalizePatientEmail } from "@/lib/booking";
@@ -55,6 +56,8 @@ interface DayItem {
   monthYear: string;
   fullFormatted: string;
   weekday: number;
+  /** Feriado (nacional/estadual/municipal/facultativo) — dia bloqueado. */
+  holiday?: Holiday;
 }
 
 export function BookingModal({
@@ -178,6 +181,7 @@ export function BookingModal({
           monthYear,
           fullFormatted: `${dayNames[weekday]}, ${dateNum} de ${monthNamesFull[monthNum]}`,
           weekday,
+          holiday: holidayFor(dateString),
         });
       }
       curr.setDate(curr.getDate() + 1);
@@ -190,7 +194,10 @@ export function BookingModal({
     if (monthsArr.length > 0) {
       setSelectedMonth(monthsArr[0]);
     }
-    if (nextDays.length > 0) {
+    const firstOpenDay = nextDays.find((d) => !d.holiday);
+    if (firstOpenDay) {
+      setSelectedDay(firstOpenDay);
+    } else if (nextDays.length > 0) {
       setSelectedDay(nextDays[0]);
     }
   }, []);
@@ -241,7 +248,7 @@ export function BookingModal({
 
         for (const day of days) {
           const occupiedForDay = cleanMap[day.dateString] || [];
-          const allSlots = buildTimeSlots(day.weekday);
+          const allSlots = day.holiday ? [] : buildTimeSlots(day.weekday);
           const isToday = day.dateString === todayIso;
 
           const avail = allSlots.filter((slot) => {
@@ -311,7 +318,8 @@ export function BookingModal({
     const dateKey = selectedDay.dateString;
     const occupiedForDay = occupiedMap[dateKey] || [];
 
-    const allSlots = buildTimeSlots(selectedDay.weekday);
+    // Feriado: dia inteiro bloqueado, sem horários disponíveis.
+    const allSlots = selectedDay.holiday ? [] : buildTimeSlots(selectedDay.weekday);
     const now = new Date();
     const year = now.getFullYear();
     const monthStr = String(now.getMonth() + 1).padStart(2, "0");
@@ -349,7 +357,11 @@ export function BookingModal({
     }
   }, [selectedDay, isFeedLoaded, occupiedMap]);
 
-  const availableTimeSlots = selectedDay ? buildTimeSlots(selectedDay.weekday) : [];
+  const availableTimeSlots = selectedDay
+    ? selectedDay.holiday
+      ? []
+      : buildTimeSlots(selectedDay.weekday)
+    : [];
 
   function scrollCarousel(direction: "left" | "right") {
     if (carouselRef.current) {
@@ -730,26 +742,37 @@ export function BookingModal({
                 >
                   {filteredDays.map((day) => {
                     const isActive = selectedDay?.dateString === day.dateString;
+                    const isHoliday = Boolean(day.holiday);
                     return (
                       <button
                         key={day.dateString}
                         type="button"
                         data-day-active={isActive ? "true" : "false"}
+                        disabled={isHoliday}
+                        title={
+                          day.holiday
+                            ? `${day.holiday.name} — dia sem atendimento`
+                            : day.fullFormatted
+                        }
                         onClick={() => {
                           setSelectedDay(day);
                           setSelectedSlot(null);
                         }}
                         className={`flex-none w-20 py-3 px-2 rounded-2xl text-center border transition-silk ${
-                          isActive
-                            ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
-                            : "bg-card hover:bg-accent border-border text-foreground"
+                          isHoliday
+                            ? "bg-muted/60 border-dashed border-border text-muted-foreground cursor-not-allowed line-through opacity-70"
+                            : isActive
+                              ? "bg-[#90464f] text-white border-[#90464f] shadow-sm scale-105"
+                              : "bg-card hover:bg-accent border-border text-foreground"
                         }`}
                       >
                         <div className="text-[11px] font-bold uppercase opacity-80">
                           {day.dayName}
                         </div>
                         <div className="text-xl font-extrabold my-0.5">{day.dayNumber}</div>
-                        <div className="text-[11px] opacity-80">{day.monthName}</div>
+                        <div className="text-[11px] opacity-80">
+                          {isHoliday ? "Feriado" : day.monthName}
+                        </div>
                       </button>
                     );
                   })}
