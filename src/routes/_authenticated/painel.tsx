@@ -23,6 +23,7 @@ import {
 } from "@/lib/clinic";
 import { buildWhatsAppReminderUrl } from "@/lib/reminders";
 import { getSingleAppointmentTokens } from "@/lib/cancellation";
+import { holidayFor, HOLIDAY_KIND_LABELS } from "@/lib/holidays";
 import { cn } from "@/lib/utils";
 import type { AppointmentExport } from "@/lib/export";
 import {
@@ -1314,6 +1315,7 @@ function Painel() {
                 {weekDays.map((day, index) => {
                   const iso = toISODate(day);
                   const isToday = iso === todayISO;
+                  const holiday = holidayFor(iso);
                   const supaAppointments =
                     weekAppointments?.filter((a) => a.appointment_date === iso) ?? [];
 
@@ -1334,6 +1336,7 @@ function Painel() {
                       className={cn(
                         "min-h-[420px] p-4 transition-colors",
                         isToday && "bg-primary/[0.02]",
+                        holiday && "bg-rose-50/50",
                       )}
                     >
                       <div
@@ -1346,6 +1349,14 @@ function Painel() {
                           <span className="text-kicker">{DAY_NAMES[index]}</span>
                           {isToday && (
                             <span className="inline-flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                          )}
+                          {holiday && (
+                            <span
+                              title={`${HOLIDAY_KIND_LABELS[holiday.kind]}: ${holiday.name}`}
+                              className="inline-flex items-center rounded-full border border-rose-200 bg-rose-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-rose-700"
+                            >
+                              Feriado
+                            </span>
                           )}
                         </span>
                         <div className="flex items-center gap-1.5">
@@ -1374,8 +1385,21 @@ function Painel() {
 
                       <div className="space-y-2.5">
                         {combined.length === 0 && (
-                          <div className="flex h-40 flex-col items-center justify-center text-center">
-                            <span className="text-xs text-muted-foreground/50">Sem consultas</span>
+                          <div className="flex h-40 flex-col items-center justify-center gap-1 text-center">
+                            {holiday ? (
+                              <>
+                                <span className="text-[10px] font-bold tracking-wide text-rose-600 uppercase">
+                                  Feriado
+                                </span>
+                                <span className="text-[11px] text-muted-foreground/80">
+                                  {holiday.name}
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50">
+                                Sem consultas
+                              </span>
+                            )}
                           </div>
                         )}
                         {combined.map((item) => (
