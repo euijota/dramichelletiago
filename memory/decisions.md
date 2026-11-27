@@ -24,3 +24,11 @@
 - **Intencional:** `has_role` continua executável por `authenticated`, porque as políticas RLS `TO authenticated` dependem dela (ver `20261111200000`, decisões 1 e 5).
 - **Fora da migration:** a proteção contra senha vazada (Auth → leaked password protection) precisa ser ligada no painel do Supabase.
 - **Teste:** `tests/e2e/agenda-publica.spec.ts` ocupa o horário sugerido e confere que ele fica bloqueado. O teste falha se o `service_role` perder EXECUTE.
+
+## 2026-11-27 — Feed iCal da agenda para o Google Agenda da Dra.
+
+- **O quê:** rota `GET /api/calendar/$token` devolve um `.ics` com as consultas não canceladas de 30 dias atrás até 180 dias à frente. A Dra. assina no Google Agenda ("Outras agendas → Do URL") para ver a agenda e receber lembretes no celular, já que o app ainda não notifica a Dra.
+- **Token:** `CALENDAR_FEED_TOKEN` (≥ 32 caracteres) na Vercel, comparação em tempo constante, 404 sem token válido (fail-closed). Trocar o valor invalida o link.
+- **LGPD:** só primeiro nome + inicial do sobrenome e o serviço; sem telefone, e-mail ou observações.
+- **Limites conhecidos:** o Google atualiza assinaturas por URL a cada ~8–24 h e ignora o `VALARM` do feed; os lembretes vêm da notificação padrão configurada na própria agenda assinada. Horário em UTC fixo (Macapá = UTC-3, sem horário de verão).
+- **Alternativa existente:** `google-apps-script/Code.gs` + `GOOGLE_APPS_SCRIPT_URL/SECRET` cria evento na hora, mas só para agendamentos públicos novos (não cobre painel, edição nem cancelamento).

@@ -26,6 +26,7 @@ const WEBHOOK_PORT = 8788;
 process.env.E2E_SUPABASE_URL = sb.url;
 process.env.E2E_SUPABASE_SERVICE_KEY = sb.service;
 process.env.E2E_WEBHOOK_URL = `http://127.0.0.1:${WEBHOOK_PORT}`;
+process.env.E2E_CALENDAR_FEED_TOKEN = "e2e-only-calendar-feed-token-0123456789abc";
 
 const appEnv = {
   SUPABASE_URL: sb.url,
@@ -35,6 +36,7 @@ const appEnv = {
   VITE_SUPABASE_PUBLISHABLE_KEY: sb.anon,
   SIGNATURE_OTP_SECRET: "e2e-only-signature-otp-secret-0123456789",
   CLINICAL_RATE_LIMIT_SECRET: "e2e-only-rate-limit-secret-0123456789ab",
+  CALENDAR_FEED_TOKEN: process.env.E2E_CALENDAR_FEED_TOKEN,
   WHATSAPP_WEBHOOK_URL: `http://127.0.0.1:${WEBHOOK_PORT}/hook`,
   VERCEL: "",
 };
