@@ -767,6 +767,7 @@ export function BookingModal({
                         key={day.dateString}
                         type="button"
                         data-day-active={isActive ? "true" : "false"}
+                        data-date={day.dateString}
                         disabled={isBlockedDay}
                         title={
                           recess
@@ -841,6 +842,7 @@ export function BookingModal({
                         key={time}
                         type="button"
                         disabled={isBooked}
+                        aria-pressed={isSelected}
                         onClick={() => setSelectedSlot(time)}
                         className={`py-2.5 px-2 rounded-xl text-sm font-bold border text-center transition-silk ${
                           isBooked
