@@ -13,7 +13,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@lovable.dev/cloud-auth-js": "^1.1.2",
@@ -50,6 +51,7 @@
     "@electric-sql/pglite": "^0.5.16",
     "@eslint/js": "^9.32.0",
     "@lovable.dev/vite-tanstack-config": "2.9.1",
+    "@playwright/test": "^1.65.1",
     "@types/node": "^22.16.5",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",

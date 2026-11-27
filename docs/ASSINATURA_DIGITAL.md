@@ -1,6 +1,6 @@
 # SPEC — Assinatura eletrônica de documentos pelo paciente
 
-> **Status:** aprovado em 2026-11-27 (seção 8 respondida: WhatsApp, TCLE + plano + orçamento, rubrica opcional). Tasks 1 a 6 feitas (a página do paciente e a conclusão com PDF final foram entregues juntas). Falta a task 7 (e2e Playwright) e a aplicação em produção.
+> **Status:** aprovado em 2026-11-27 (seção 8 respondida: WhatsApp, TCLE + plano + orçamento, rubrica opcional). Tasks 1 a 7 feitas (a página do paciente e a conclusão com PDF final foram entregues juntas). E2E: `npm run test:e2e` com `supabase start`. Falta a aplicação em produção.
 > **Fora do MVP de agenda** (ver `SPEC.md`). É uma feature nova do módulo clínico.
 > **Não é parecer jurídico.** Validar o texto dos termos com advogado/CRO-AP antes de ir pra produção.
 
