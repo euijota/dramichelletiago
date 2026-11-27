@@ -11,10 +11,8 @@ import {
 
 const APPS_SCRIPT_SECRET = process.env.GOOGLE_APPS_SCRIPT_SECRET;
 const APPS_SCRIPT_URL = process.env.GOOGLE_APPS_SCRIPT_URL;
-
-if (!APPS_SCRIPT_SECRET || !APPS_SCRIPT_URL) {
-  console.warn("[notify-server] Google Calendar integration is not fully configured");
-}
+// Sem aviso no topo do módulo: ele também roda no bundle do navegador. O handler já avisa
+// "Google Calendar is not configured, skipping sync" no servidor.
 
 // Rate limiting: simple in-memory store by IP
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
