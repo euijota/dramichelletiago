@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.signature_requests (
   otp_sends integer NOT NULL DEFAULT 0 CHECK (otp_sends >= 0),
   otp_attempts integer NOT NULL DEFAULT 0 CHECK (otp_attempts >= 0),
   otp_verified_at timestamptz,
+  -- Canal que de fato entregou o último código (vai para a evidência)
+  otp_channel text CHECK (otp_channel IS NULL OR otp_channel IN ('whatsapp', 'email')),
+  otp_contact_masked text,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'signed', 'revoked')),
   -- Código público curto do QR de verificação; não dá acesso a nada além do status
   verify_code text NOT NULL UNIQUE DEFAULT substr(replace(gen_random_uuid()::text, '-', ''), 1, 16),
@@ -240,7 +243,10 @@ BEGIN
     'document_sha256', v_req.document_sha256,
     'signer_name', v_req.signer_name,
     'signer_role', v_req.signer_role,
-    'otp_verified', v_req.otp_verified_at IS NOT NULL
+    'otp_verified', v_req.otp_verified_at IS NOT NULL,
+    'otp_channel', v_req.otp_channel,
+    'otp_contact_masked', v_req.otp_contact_masked,
+    'verify_code', v_req.verify_code
   );
 END;
 $$;
@@ -280,6 +286,29 @@ BEGIN
   WHERE id = v_req.id;
 
   RETURN jsonb_build_object('code', 'ok', 'sends_left', 2 - v_req.otp_sends);
+END;
+$$;
+
+-- 5.3b Registra o canal que aceitou o código (chamada depois do envio)
+CREATE OR REPLACE FUNCTION public.signature_record_otp_delivery(
+  p_token_hash text,
+  p_channel text,
+  p_contact_masked text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  UPDATE public.signature_requests
+  SET otp_channel = p_channel, otp_contact_masked = left(p_contact_masked, 80)
+  WHERE token_hash = p_token_hash AND status = 'pending' AND otp_hash IS NOT NULL;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('code', 'invalid_link');
+  END IF;
+  RETURN jsonb_build_object('code', 'ok');
 END;
 $$;
 
@@ -331,15 +360,16 @@ END;
 $$;
 
 -- 5.5 Assinatura. Exige código validado há no máx. 30 min e hash do documento igual ao congelado.
+-- p_signed_at é o horário impresso no manifesto do PDF (gerado pelo servidor antes desta chamada);
+-- só é aceito se estiver a no máx. 5 min do relógio do banco.
 CREATE OR REPLACE FUNCTION public.signature_complete(
   p_token_hash text,
   p_document_sha256 text,
+  p_signed_at timestamptz,
   p_signed_pdf_path text,
   p_signed_pdf_sha256 text,
   p_ip inet,
   p_user_agent text,
-  p_verification_method text,
-  p_verified_contact_masked text,
   p_consent_text_version text,
   p_rubric_png_path text DEFAULT NULL
 )
@@ -350,10 +380,13 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_req record;
-  v_signed_at timestamptz := now();
 BEGIN
   IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN
     RETURN jsonb_build_object('code', 'invalid_link');
+  END IF;
+
+  IF p_signed_at IS NULL OR abs(extract(epoch FROM now() - p_signed_at)) > 300 THEN
+    RETURN jsonb_build_object('code', 'clock_skew');
   END IF;
 
   SELECT * INTO v_req FROM public.signature_requests
@@ -364,7 +397,8 @@ BEGIN
     RETURN jsonb_build_object('code', 'invalid_link');
   END IF;
 
-  IF v_req.otp_verified_at IS NULL OR now() > v_req.otp_verified_at + interval '30 minutes' THEN
+  IF v_req.otp_verified_at IS NULL OR v_req.otp_channel IS NULL
+     OR now() > v_req.otp_verified_at + interval '30 minutes' THEN
     RETURN jsonb_build_object('code', 'otp_required');
   END IF;
 
@@ -372,19 +406,20 @@ BEGIN
     RETURN jsonb_build_object('code', 'document_mismatch');
   END IF;
 
+  -- Canal e contato vêm do próprio pedido, não do chamador
   INSERT INTO public.signature_evidence (
     request_id, signed_at, document_sha256, signed_pdf_path, signed_pdf_sha256,
     signer_name, signer_role, ip, user_agent, verification_method,
     verified_contact_masked, consent_text_version, rubric_png_path
   ) VALUES (
-    v_req.id, v_signed_at, v_req.document_sha256, p_signed_pdf_path, p_signed_pdf_sha256,
-    v_req.signer_name, v_req.signer_role, p_ip, left(p_user_agent, 512), p_verification_method,
-    p_verified_contact_masked, p_consent_text_version, p_rubric_png_path
+    v_req.id, p_signed_at, v_req.document_sha256, p_signed_pdf_path, p_signed_pdf_sha256,
+    v_req.signer_name, v_req.signer_role, p_ip, left(p_user_agent, 512), 'otp_' || v_req.otp_channel,
+    coalesce(v_req.otp_contact_masked, ''), p_consent_text_version, p_rubric_png_path
   );
 
   UPDATE public.signature_requests SET status = 'signed' WHERE id = v_req.id;
 
-  RETURN jsonb_build_object('code', 'ok', 'signed_at', v_signed_at, 'verify_code', v_req.verify_code);
+  RETURN jsonb_build_object('code', 'ok', 'signed_at', p_signed_at, 'verify_code', v_req.verify_code);
 END;
 $$;
 
@@ -459,11 +494,14 @@ GRANT EXECUTE ON FUNCTION public.signature_open_request(text) TO service_role;
 REVOKE ALL ON FUNCTION public.signature_set_otp(text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.signature_set_otp(text, text) TO service_role;
 
+REVOKE ALL ON FUNCTION public.signature_record_otp_delivery(text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.signature_record_otp_delivery(text, text, text) TO service_role;
+
 REVOKE ALL ON FUNCTION public.signature_verify_otp(text, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.signature_verify_otp(text, text) TO service_role;
 
-REVOKE ALL ON FUNCTION public.signature_complete(text, text, text, text, inet, text, text, text, text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.signature_complete(text, text, text, text, inet, text, text, text, text, text) TO service_role;
+REVOKE ALL ON FUNCTION public.signature_complete(text, text, timestamptz, text, text, inet, text, text, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.signature_complete(text, text, timestamptz, text, text, inet, text, text, text) TO service_role;
 
 REVOKE ALL ON FUNCTION public.signature_revoke_request(uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.signature_revoke_request(uuid) TO service_role;

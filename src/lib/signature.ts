@@ -9,6 +9,12 @@ export const SIGNATURE_DOCUMENT_TYPES = ["tcle", "plano_tratamento", "orcamento"
 export const SIGNER_ROLES = ["paciente", "responsavel_legal"] as const;
 export type SignatureDocumentType = (typeof SIGNATURE_DOCUMENT_TYPES)[number];
 
+// Texto exibido ao paciente e gravado (por versão) na evidência. Mudou o texto → nova versão.
+export const CONSENT_TEXT_VERSION = "v1-2026-11-27";
+export const CONSENT_TEXT =
+  "Declaro que li e compreendi integralmente este documento, tive a oportunidade de esclarecer " +
+  "minhas dúvidas com a profissional e concordo com o seu conteúdo.";
+
 const tokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/, "Link inválido ou expirado.");
 const INVALID_LINK = "Link inválido, expirado ou já utilizado.";
 const SIGNED_URL_SECONDS = 60;
@@ -23,6 +29,9 @@ const openResultSchema = z.object({
   signer_name: z.string(),
   signer_role: z.enum(SIGNER_ROLES),
   otp_verified: z.boolean(),
+  otp_channel: z.enum(["whatsapp", "email"]).nullable(),
+  otp_contact_masked: z.string().nullable(),
+  verify_code: z.string(),
 });
 
 /** Abre o pedido pelo token (marca opened_at) ou lança a mensagem neutra de link inválido. */
@@ -221,11 +230,14 @@ export const sendSignatureOtp = createServerFn({ method: "POST" })
     if (!via)
       throw new Error("Não foi possível enviar o código agora. Tente de novo em instantes.");
 
-    return {
-      sentVia: via,
-      contactMasked: sig.maskContact(contact, via),
-      sendsLeft: Number(stored.sends_left),
-    };
+    const contactMasked = sig.maskContact(contact, via);
+    await (supabaseAdmin.rpc as any)("signature_record_otp_delivery", {
+      p_token_hash: tokenHash,
+      p_channel: via,
+      p_contact_masked: contactMasked,
+    });
+
+    return { sentVia: via, contactMasked, sendsLeft: Number(stored.sends_left) };
   });
 
 export const verifySignatureOtp = createServerFn({ method: "POST" })
@@ -260,4 +272,107 @@ export const verifySignatureOtp = createServerFn({ method: "POST" })
       default:
         throw new Error(INVALID_LINK);
     }
+  });
+
+export const completeSignature = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      token: tokenSchema,
+      accepted: z.literal(true, "Marque a declaração para assinar."),
+      // PNG do canvas, opcional (~300 KB no máximo)
+      rubricPngBase64: z.string().max(400_000).nullable(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const { enforceClinicalLinkLimit, getClientIp } =
+      await import("@/lib/clinical-link-limit.server");
+    await enforceClinicalLinkLimit("action");
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const sig = await import("@/lib/signature.server");
+    const { tokenHash, req, supabaseAdmin } = await openByToken(data.token);
+
+    if (!req.otp_verified || !req.otp_channel) {
+      throw new Error("Confirme o código enviado ao seu celular antes de assinar.");
+    }
+
+    const rubric = data.rubricPngBase64
+      ? new Uint8Array(Buffer.from(data.rubricPngBase64, "base64"))
+      : null;
+    if (rubric && !sig.isPng(rubric)) throw new Error("Rubrica inválida. Limpe e desenhe de novo.");
+
+    // S6: o arquivo guardado precisa ser exatamente o que foi congelado na emissão.
+    const download = await supabaseAdmin.storage.from("signatures").download(req.document_path);
+    if (download.error || !download.data) {
+      throw new Error("Não foi possível carregar o documento. Tente novamente.");
+    }
+    const original = new Uint8Array(await download.data.arrayBuffer());
+    if (sig.sha256Hex(original) !== req.document_sha256) {
+      console.error(`[assinatura] Hash divergente no pedido ${req.request_id}`);
+      throw new Error("O documento foi alterado e não pode ser assinado. Fale com o consultório.");
+    }
+
+    const signedAt = new Date();
+    const ip = getClientIp();
+    const userAgent = getRequestHeader("user-agent") ?? null;
+    const signedPdf = await sig.buildSignedPdf({
+      original,
+      documentType: req.document_type,
+      documentSha256: req.document_sha256,
+      signerName: req.signer_name,
+      signerRole: req.signer_role,
+      signedAt,
+      ip,
+      userAgent,
+      verificationLabel: `Código de uso único enviado por ${
+        req.otp_channel === "whatsapp" ? "WhatsApp" : "e-mail"
+      } para ${req.otp_contact_masked ?? "o contato cadastrado"}`,
+      consentText: CONSENT_TEXT,
+      consentVersion: CONSENT_TEXT_VERSION,
+      verifyCode: req.verify_code,
+      rubricPng: rubric,
+    });
+
+    const folder = req.document_path.replace(/\/[^/]+$/, "");
+    const signedPath = `${folder}/assinado-${signedAt.getTime()}.pdf`;
+    const rubricPath = rubric ? `${folder}/rubrica-${signedAt.getTime()}.png` : null;
+    const bucket = supabaseAdmin.storage.from("signatures");
+    const uploads = await Promise.all([
+      bucket.upload(signedPath, signedPdf, { contentType: "application/pdf", upsert: false }),
+      rubric && rubricPath
+        ? bucket.upload(rubricPath, rubric, { contentType: "image/png", upsert: false })
+        : Promise.resolve({ error: null }),
+    ]);
+    const cleanup = () => bucket.remove([signedPath, ...(rubricPath ? [rubricPath] : [])]);
+    if (uploads.some((u) => u.error)) {
+      await cleanup();
+      throw new Error("Não foi possível salvar a assinatura. Tente novamente.");
+    }
+
+    const { data: result, error } = await (supabaseAdmin.rpc as any)("signature_complete", {
+      p_token_hash: tokenHash,
+      p_document_sha256: sig.sha256Hex(original),
+      p_signed_at: signedAt.toISOString(),
+      p_signed_pdf_path: signedPath,
+      p_signed_pdf_sha256: sig.sha256Hex(signedPdf),
+      p_ip: ip,
+      p_user_agent: userAgent,
+      p_consent_text_version: CONSENT_TEXT_VERSION,
+      p_rubric_png_path: rubricPath,
+    });
+    if (error || result?.code !== "ok") {
+      await cleanup();
+      if (result?.code === "otp_required") {
+        throw new Error("O código expirou. Peça um novo código para assinar.");
+      }
+      throw new Error(
+        error ? "Não foi possível concluir a assinatura. Tente novamente." : INVALID_LINK,
+      );
+    }
+
+    return {
+      signedAt: signedAt.toISOString(),
+      verifyUrl: sig.verifyUrl(req.verify_code),
+      // Via do paciente: baixar logo (URL vale 60s)
+      signedPdfUrl: await signedDocumentUrl(supabaseAdmin, signedPath),
+    };
   });

@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  buildSignedPdf,
   deliverToSigner,
+  formatSignedAt,
+  isPng,
   generateOtp,
   hashOtp,
   isPdf,
@@ -139,5 +142,52 @@ describe("envio para quem assina", () => {
     vi.stubEnv("WHATSAPP_WEBHOOK_URL", "");
     mocks.send.mockResolvedValue({ status: "permanent" });
     await expect(deliverToSigner(contact, msg, "k3")).resolves.toBeNull();
+  });
+});
+
+describe("PDF final assinado", () => {
+  async function samplePdf(pages: number) {
+    const { PDFDocument } = await import("pdf-lib");
+    const doc = await PDFDocument.create();
+    for (let i = 0; i < pages; i++) doc.addPage([595.28, 841.89]);
+    return doc.save();
+  }
+
+  const base = {
+    documentType: "tcle",
+    documentSha256: "b".repeat(64),
+    signerName: "Ana Clara Souza 😀",
+    signerRole: "paciente" as const,
+    signedAt: new Date("2026-11-27T15:04:05Z"),
+    ip: "200.1.2.3",
+    userAgent: "Mozilla/5.0 (iPhone)",
+    verificationLabel: "Código de uso único enviado por WhatsApp para (96) 98***-****",
+    consentText: "Declaro que li e concordo.",
+    consentVersion: "v1",
+    verifyCode: "0123456789abcdef",
+  };
+
+  it("mantém as páginas originais e acrescenta o manifesto", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const original = await samplePdf(2);
+    const out = await buildSignedPdf({ ...base, original });
+    expect(isPdf(out)).toBe(true);
+    const loaded = await PDFDocument.load(out);
+    expect(loaded.getPageCount()).toBe(3);
+    expect(loaded.getTitle()).toContain("assinado");
+  });
+
+  it("embute a rubrica quando enviada", async () => {
+    const QRCode = (await import("qrcode")).default;
+    const png = new Uint8Array(await QRCode.toBuffer("rubrica", { type: "png" }));
+    expect(isPng(png)).toBe(true);
+    const out = await buildSignedPdf({ ...base, original: await samplePdf(1), rubricPng: png });
+    expect(out.length).toBeGreaterThan(
+      (await buildSignedPdf({ ...base, original: await samplePdf(1) })).length,
+    );
+  });
+
+  it("horário impresso é o de Macapá", () => {
+    expect(formatSignedAt(base.signedAt)).toBe("27/11/2026, 12:04:05");
   });
 });

@@ -19,6 +19,7 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as TratamentosRouteImport } from './routes/tratamentos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as AssinarTokenRouteImport } from './routes/assinar/$token'
 import { Route as CancelarTokenRouteImport } from './routes/cancelar/$token'
 import { Route as ConfirmarTokenRouteImport } from './routes/confirmar/$token'
 import { Route as ApiCronConfirmation20hRouteImport } from './routes/api/cron/confirmation-20h'
@@ -73,6 +74,11 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AssinarTokenRoute = AssinarTokenRouteImport.update({
+  id: '/assinar/$token',
+  path: '/assinar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CancelarTokenRoute = CancelarTokenRouteImport.update({
   id: '/cancelar/$token',
   path: '/cancelar/$token',
@@ -105,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByTo {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
@@ -137,6 +145,7 @@ export interface FileRoutesById {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
     | '/api/cron/confirmation-20h'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
     | '/api/cron/confirmation-20h'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/_authenticated/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
     | '/api/cron/confirmation-20h'
@@ -201,6 +213,7 @@ export interface RootRouteChildren {
   PrivacidadeRoute: typeof PrivacidadeRoute
   SobreRoute: typeof SobreRoute
   TratamentosRoute: typeof TratamentosRoute
+  AssinarTokenRoute: typeof AssinarTokenRoute
   CancelarTokenRoute: typeof CancelarTokenRoute
   ConfirmarTokenRoute: typeof ConfirmarTokenRoute
   ApiCronConfirmation20hRoute: typeof ApiCronConfirmation20hRoute
@@ -279,6 +292,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/assinar/$token': {
+      id: '/assinar/$token'
+      path: '/assinar/$token'
+      fullPath: '/assinar/$token'
+      preLoaderRoute: typeof AssinarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cancelar/$token': {
       id: '/cancelar/$token'
       path: '/cancelar/$token'
@@ -331,6 +351,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   SobreRoute: SobreRoute,
   TratamentosRoute: TratamentosRoute,
+  AssinarTokenRoute: AssinarTokenRoute,
   CancelarTokenRoute: CancelarTokenRoute,
   ConfirmarTokenRoute: ConfirmarTokenRoute,
   ApiCronConfirmation20hRoute: ApiCronConfirmation20hRoute,
