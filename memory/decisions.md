@@ -16,3 +16,11 @@
 - **`getMessageTemplate`** deixou de ser `createServerFn` (endpoint público) e virou função interna do servidor.
 - **`/assinar` e `/verificar`** passam a ter `no-store`, `no-referrer` e `noindex` no `vercel.json`, como `/confirmar` e `/cancelar`.
 - **Pendências do usuário no painel do Supabase:** desligar o cadastro público e ligar a proteção contra senhas vazadas.
+
+## 2026-11-27 — Hardening dos avisos antigos do Security Advisor
+
+- **O quê:** migration `20261127174833_harden_legacy_function_grants.sql`. `rls_auto_enable` (função do event trigger `ensure_rls`) e `get_public_occupied_slots` passam a ser só `service_role`; `cancel/confirm_appointment_by_id` ganham `search_path = public, pg_temp` e grant só `service_role`.
+- **Por quê:** a agenda pública chama `get_public_occupied_slots` pela server function `getOccupiedSlots` com `supabaseAdmin`, então `anon` não precisa de EXECUTE. Event triggers não checam EXECUTE de quem roda o DDL. As RPCs legadas não são usadas pelo app; no `db reset` local elas herdavam grant default para `anon` (produção já estava restrita).
+- **Intencional:** `has_role` continua executável por `authenticated`, porque as políticas RLS `TO authenticated` dependem dela (ver `20261111200000`, decisões 1 e 5).
+- **Fora da migration:** a proteção contra senha vazada (Auth → leaked password protection) precisa ser ligada no painel do Supabase.
+- **Teste:** `tests/e2e/agenda-publica.spec.ts` ocupa o horário sugerido e confere que ele fica bloqueado. O teste falha se o `service_role` perder EXECUTE.
