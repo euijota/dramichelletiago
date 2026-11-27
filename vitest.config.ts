@@ -6,7 +6,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     // tests/e2e roda no Playwright (npm run test:e2e), não no Vitest
-    exclude: ["**/node_modules/**", "tests/e2e/**"],
+    exclude: ["**/node_modules/**", "**/.claude/**", "tests/e2e/**"],
   },
   resolve: {
     alias: {

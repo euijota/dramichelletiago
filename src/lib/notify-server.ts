@@ -314,7 +314,7 @@ export const saveAppointmentAndNotify = createServerFn({ method: "POST" })
     if (dbSaved && appointmentId) {
       try {
         // Busca template configurado (ou usa default)
-        const template = await getMessageTemplate({ data: "booking_confirmation" });
+        const template = await getMessageTemplate("booking_confirmation");
 
         // Format date for template
         const [year, month, day] = data.appointmentDate.split("-");

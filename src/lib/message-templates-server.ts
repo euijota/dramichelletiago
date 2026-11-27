@@ -36,21 +36,26 @@ export const listMessageTemplates = createServerFn({ method: "GET" })
     return data as MessageTemplate[];
   });
 
-export const getMessageTemplate = createServerFn({ method: "GET" })
-  .validator((type: TemplateType) => templateTypeSchema.parse(type))
-  .handler(async ({ data: type }) => {
-    const { data, error } = await supabaseAdmin
-      .from("message_templates")
-      .select("*")
-      .eq("type", type)
-      .eq("is_active", true)
-      .order("is_default", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+/**
+ * Modelo ativo de um tipo. Função comum do servidor (cron e agendamento), de propósito
+ * NÃO é createServerFn: não deve existir como endpoint público.
+ */
+export async function getMessageTemplate(type: TemplateType): Promise<MessageTemplate | null> {
+  const { data, error } = await supabaseAdmin
+    .from("message_templates")
+    .select("*")
+    .eq("type", templateTypeSchema.parse(type))
+    .eq("is_active", true)
+    .order("is_default", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (error) throw new Error(error.message);
-    return data as MessageTemplate | null;
-  });
+  if (error) {
+    console.error("[message-templates] falha ao carregar modelo:", error.message);
+    throw new Error("Não foi possível carregar o modelo de mensagem.");
+  }
+  return data as MessageTemplate | null;
+}
 
 export const createMessageTemplate = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
