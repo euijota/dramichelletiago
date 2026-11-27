@@ -102,7 +102,7 @@ export async function executeConfirmationReminders(now: Date = new Date()) {
   }
 
   // Template customizável (mesmo do lembrete: já possui a variável confirm_url).
-  const customTemplate = await getMessageTemplate({ data: "reminder_24h" });
+  const customTemplate = await getMessageTemplate("reminder_24h");
 
   let sent = 0;
   let failed = 0;
