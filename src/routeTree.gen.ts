@@ -22,6 +22,7 @@ import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated
 import { Route as AssinarTokenRouteImport } from './routes/assinar/$token'
 import { Route as CancelarTokenRouteImport } from './routes/cancelar/$token'
 import { Route as ConfirmarTokenRouteImport } from './routes/confirmar/$token'
+import { Route as VerificarCodeRouteImport } from './routes/verificar/$code'
 import { Route as ApiCronConfirmation20hRouteImport } from './routes/api/cron/confirmation-20h'
 import { Route as ApiInternalClinicalNotificationsProcessRouteImport } from './routes/api/internal/clinical-notifications/process'
 
@@ -89,6 +90,11 @@ const ConfirmarTokenRoute = ConfirmarTokenRouteImport.update({
   path: '/confirmar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VerificarCodeRoute = VerificarCodeRouteImport.update({
+  id: '/verificar/$code',
+  path: '/verificar/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronConfirmation20hRoute = ApiCronConfirmation20hRouteImport.update({
   id: '/api/cron/confirmation-20h',
   path: '/api/cron/confirmation-20h',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -130,6 +137,7 @@ export interface FileRoutesByTo {
   '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -148,6 +156,7 @@ export interface FileRoutesById {
   '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -166,6 +175,7 @@ export interface FileRouteTypes {
     | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   fileRoutesByTo: FileRoutesByTo
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   id:
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   fileRoutesById: FileRoutesById
@@ -216,6 +228,7 @@ export interface RootRouteChildren {
   AssinarTokenRoute: typeof AssinarTokenRoute
   CancelarTokenRoute: typeof CancelarTokenRoute
   ConfirmarTokenRoute: typeof ConfirmarTokenRoute
+  VerificarCodeRoute: typeof VerificarCodeRoute
   ApiCronConfirmation20hRoute: typeof ApiCronConfirmation20hRoute
   ApiInternalClinicalNotificationsProcessRoute: typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -313,6 +326,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfirmarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/verificar/$code': {
+      id: '/verificar/$code'
+      path: '/verificar/$code'
+      fullPath: '/verificar/$code'
+      preLoaderRoute: typeof VerificarCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/confirmation-20h': {
       id: '/api/cron/confirmation-20h'
       path: '/api/cron/confirmation-20h'
@@ -354,6 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssinarTokenRoute: AssinarTokenRoute,
   CancelarTokenRoute: CancelarTokenRoute,
   ConfirmarTokenRoute: ConfirmarTokenRoute,
+  VerificarCodeRoute: VerificarCodeRoute,
   ApiCronConfirmation20hRoute: ApiCronConfirmation20hRoute,
   ApiInternalClinicalNotificationsProcessRoute:
     ApiInternalClinicalNotificationsProcessRoute,

@@ -376,3 +376,44 @@ export const completeSignature = createServerFn({ method: "POST" })
       signedPdfUrl: await signedDocumentUrl(supabaseAdmin, signedPath),
     };
   });
+
+// ============================================================================
+// PÚBLICO (/verificar/$code) — sem conteúdo clínico, nome mascarado
+// ============================================================================
+
+export const verifySignaturePublic = createServerFn({ method: "GET" })
+  .validator((input: string) => z.string().max(64).parse(input))
+  .handler(async ({ data: code }) => {
+    const { enforceClinicalLinkLimit } = await import("@/lib/clinical-link-limit.server");
+    await enforceClinicalLinkLimit("read");
+    // Código digitado errado não é falha do servidor: é "não encontrado".
+    if (!/^[0-9a-f]{16}$/.test(code)) return { found: false as const };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { documentLabel } = await import("@/lib/signature.server");
+    const { data, error } = await (supabaseAdmin.rpc as any)("signature_verify_public", {
+      p_verify_code: code,
+    });
+    if (error) throw new Error("Não foi possível consultar agora. Tente novamente.");
+    const parsed = z
+      .object({
+        code: z.literal("ok"),
+        document_type: z.enum(SIGNATURE_DOCUMENT_TYPES),
+        signed_at: z.string(),
+        document_sha256: z.string(),
+        signed_pdf_sha256: z.string(),
+        signer_role: z.enum(SIGNER_ROLES),
+        signer_name_masked: z.string(),
+      })
+      .safeParse(data);
+    if (!parsed.success) return { found: false as const };
+    const r = parsed.data;
+    return {
+      found: true as const,
+      documentLabel: documentLabel(r.document_type),
+      signedAt: r.signed_at,
+      signerNameMasked: r.signer_name_masked,
+      signerRole: r.signer_role,
+      documentSha256: r.document_sha256,
+      signedPdfSha256: r.signed_pdf_sha256,
+    };
+  });
