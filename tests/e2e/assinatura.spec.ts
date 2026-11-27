@@ -4,6 +4,7 @@ import {
   createPatient,
   db,
   latestOtp,
+  openPatientDocuments,
   resetState,
   samplePdf,
   seedRequest,
@@ -96,15 +97,7 @@ test("doutora pede assinatura com QR no painel e acompanha em tempo real", async
   const admin = await createAdmin();
 
   const panel = await browser.newPage();
-  await panel.goto("/auth");
-  await panel.getByPlaceholder("E-mail").fill(admin.email);
-  await panel.getByPlaceholder("Senha").fill(admin.password);
-  await panel.getByPlaceholder("Senha").press("Enter");
-  await expect(panel).toHaveURL(/\/painel/);
-
-  await panel.getByText("Pacientes", { exact: true }).first().click();
-  await panel.getByText(patientName, { exact: true }).click();
-  await panel.getByRole("tab", { name: "Documentos" }).click();
+  await openPatientDocuments(panel, admin, patientName);
   await panel.getByRole("button", { name: "Pedir assinatura" }).click();
 
   const dialog = panel.getByRole("dialog");
@@ -158,14 +151,7 @@ test("doutora revoga pedido pendente e o link deixa de funcionar", async ({ brow
   const admin = await createAdmin();
 
   const panel = await browser.newPage();
-  await panel.goto("/auth");
-  await panel.getByPlaceholder("E-mail").fill(admin.email);
-  await panel.getByPlaceholder("Senha").fill(admin.password);
-  await panel.getByPlaceholder("Senha").press("Enter");
-  await expect(panel).toHaveURL(/\/painel/);
-  await panel.getByText("Pacientes", { exact: true }).first().click();
-  await panel.getByText(patientName, { exact: true }).click();
-  await panel.getByRole("tab", { name: "Documentos" }).click();
+  await openPatientDocuments(panel, admin, patientName);
 
   panel.once("dialog", (d) => d.accept());
   await panel.getByRole("button", { name: "Revogar" }).click();

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
@@ -92,4 +92,27 @@ export async function createAdmin() {
   const role = await db.from("user_roles").insert({ user_id: data.user.id, role: "admin" });
   if (role.error) throw role.error;
   return { email, password };
+}
+
+/** Faz login como admin e abre a aba Documentos do prontuário do paciente. */
+export async function openPatientDocuments(
+  page: Page,
+  admin: { email: string; password: string },
+  patientName: string,
+) {
+  await page.goto("/auth");
+  // Antes de o React hidratar, enviar o form faz um GET nativo para /auth? em vez de logar.
+  await page.waitForFunction(() =>
+    Object.keys(document.querySelector("form") ?? {}).some((k) => k.startsWith("__reactProps")),
+  );
+  await page.getByPlaceholder("E-mail").fill(admin.email);
+  await page.getByPlaceholder("Senha").fill(admin.password);
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page).toHaveURL(/\/painel/);
+
+  await page.getByText("Pacientes", { exact: true }).first().click();
+  // A lista é paginada e o banco local acumula pacientes: buscar, não contar com a página 1.
+  await page.getByPlaceholder(/Encontre pacientes por nome/).fill(patientName);
+  await page.getByText(patientName, { exact: true }).click();
+  await page.getByRole("tab", { name: "Documentos" }).click();
 }
