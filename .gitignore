@@ -55,3 +55,7 @@ scripts/
 # Estado local do CLI do Supabase (link)
 supabase/.temp/
 supabase/.branches/
+
+# Playwright
+/test-results/
+/playwright-report/

@@ -3,13 +3,15 @@ import { toast } from "sonner";
 import { CLINIC } from "@/lib/clinic";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileText, Download, Sparkles } from "lucide-react";
+import { FileText, Download, Sparkles, FileSignature } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DocumentGeneratorProps {
   patientId?: string;
   patientName: string;
   patientCpf?: string;
+  /** Orçamento: em vez de baixar, entrega o PDF para o fluxo de assinatura do paciente. */
+  onRequestSignature?: (pdf: Blob) => void;
 }
 
 const PRESCRIPTION_PRESETS = [
@@ -69,7 +71,12 @@ const PRESCRIPTION_PRESETS = [
   },
 ];
 
-export function DocumentGenerator({ patientId, patientName, patientCpf }: DocumentGeneratorProps) {
+export function DocumentGenerator({
+  patientId,
+  patientName,
+  patientCpf,
+  onRequestSignature,
+}: DocumentGeneratorProps) {
   const queryClient = useQueryClient();
   const [docType, setDocType] = useState<"receita" | "atestado" | "orcamento" | "orientacoes">(
     "receita",
@@ -110,7 +117,7 @@ export function DocumentGenerator({ patientId, patientName, patientCpf }: Docume
     setMedicines(updated);
   };
 
-  const generatePDF = async () => {
+  const generatePDF = async (forSignature = false) => {
     try {
       const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
         import("jspdf"),
@@ -230,7 +237,11 @@ export function DocumentGenerator({ patientId, patientName, patientCpf }: Docume
       doc.setFontSize(9);
       doc.text(`${CLINIC.role} · ${CLINIC.cro}`, 105, 267, { align: "center" });
 
-      doc.save(`${docType}_${patientName.replace(/\s+/g, "_")}.pdf`);
+      if (forSignature && onRequestSignature) {
+        onRequestSignature(doc.output("blob"));
+      } else {
+        doc.save(`${docType}_${patientName.replace(/\s+/g, "_")}.pdf`);
+      }
 
       // Registrar automaticamente no prontuário do paciente
       if (patientId && recordContent) {
@@ -244,7 +255,11 @@ export function DocumentGenerator({ patientId, patientName, patientCpf }: Docume
         queryClient.invalidateQueries({ queryKey: ["clinical_records", patientId] });
       }
 
-      toast.success("PDF gerado e salvo automaticamente no histórico do prontuário!");
+      toast.success(
+        forSignature
+          ? "Orçamento gerado e salvo no prontuário. Escolha como o paciente vai assinar."
+          : "PDF gerado e salvo automaticamente no histórico do prontuário!",
+      );
     } catch (e: any) {
       toast.error(`Erro ao gerar PDF: ${e.message}`);
     }
@@ -468,9 +483,18 @@ export function DocumentGenerator({ patientId, patientName, patientCpf }: Docume
       )}
 
       {/* Botão de Geração */}
-      <div className="flex justify-end pt-4 border-t border-border">
+      <div className="flex flex-wrap justify-end gap-2 pt-4 border-t border-border">
+        {docType === "orcamento" && onRequestSignature && (
+          <button
+            onClick={() => generatePDF(true)}
+            className="text-xs font-semibold px-5 py-2.5 rounded-xl border border-primary/40 text-primary hover:bg-primary/5 transition-all cursor-pointer flex items-center gap-2"
+          >
+            <FileSignature className="h-4 w-4" />
+            Gerar & Pedir Assinatura do Paciente
+          </button>
+        )}
         <button
-          onClick={generatePDF}
+          onClick={() => generatePDF()}
           className="text-xs font-semibold px-5 py-2.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer flex items-center gap-2 shadow-sm"
         >
           <Download className="h-4 w-4" />

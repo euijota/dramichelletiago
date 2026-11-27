@@ -19,8 +19,10 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as TratamentosRouteImport } from './routes/tratamentos'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as AssinarTokenRouteImport } from './routes/assinar/$token'
 import { Route as CancelarTokenRouteImport } from './routes/cancelar/$token'
 import { Route as ConfirmarTokenRouteImport } from './routes/confirmar/$token'
+import { Route as VerificarCodeRouteImport } from './routes/verificar/$code'
 import { Route as ApiCronConfirmation20hRouteImport } from './routes/api/cron/confirmation-20h'
 import { Route as ApiInternalClinicalNotificationsProcessRouteImport } from './routes/api/internal/clinical-notifications/process'
 
@@ -73,6 +75,11 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AssinarTokenRoute = AssinarTokenRouteImport.update({
+  id: '/assinar/$token',
+  path: '/assinar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CancelarTokenRoute = CancelarTokenRouteImport.update({
   id: '/cancelar/$token',
   path: '/cancelar/$token',
@@ -81,6 +88,11 @@ const CancelarTokenRoute = CancelarTokenRouteImport.update({
 const ConfirmarTokenRoute = ConfirmarTokenRouteImport.update({
   id: '/confirmar/$token',
   path: '/confirmar/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerificarCodeRoute = VerificarCodeRouteImport.update({
+  id: '/verificar/$code',
+  path: '/verificar/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronConfirmation20hRoute = ApiCronConfirmation20hRouteImport.update({
@@ -105,8 +117,10 @@ export interface FileRoutesByFullPath {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -120,8 +134,10 @@ export interface FileRoutesByTo {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -137,8 +153,10 @@ export interface FileRoutesById {
   '/sobre': typeof SobreRoute
   '/tratamentos': typeof TratamentosRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/cancelar/$token': typeof CancelarTokenRoute
   '/confirmar/$token': typeof ConfirmarTokenRoute
+  '/verificar/$code': typeof VerificarCodeRoute
   '/api/cron/confirmation-20h': typeof ApiCronConfirmation20hRoute
   '/api/internal/clinical-notifications/process': typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -154,8 +172,10 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   fileRoutesByTo: FileRoutesByTo
@@ -169,8 +189,10 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   id:
@@ -185,8 +207,10 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/tratamentos'
     | '/_authenticated/painel'
+    | '/assinar/$token'
     | '/cancelar/$token'
     | '/confirmar/$token'
+    | '/verificar/$code'
     | '/api/cron/confirmation-20h'
     | '/api/internal/clinical-notifications/process'
   fileRoutesById: FileRoutesById
@@ -201,8 +225,10 @@ export interface RootRouteChildren {
   PrivacidadeRoute: typeof PrivacidadeRoute
   SobreRoute: typeof SobreRoute
   TratamentosRoute: typeof TratamentosRoute
+  AssinarTokenRoute: typeof AssinarTokenRoute
   CancelarTokenRoute: typeof CancelarTokenRoute
   ConfirmarTokenRoute: typeof ConfirmarTokenRoute
+  VerificarCodeRoute: typeof VerificarCodeRoute
   ApiCronConfirmation20hRoute: typeof ApiCronConfirmation20hRoute
   ApiInternalClinicalNotificationsProcessRoute: typeof ApiInternalClinicalNotificationsProcessRoute
 }
@@ -279,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/assinar/$token': {
+      id: '/assinar/$token'
+      path: '/assinar/$token'
+      fullPath: '/assinar/$token'
+      preLoaderRoute: typeof AssinarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/cancelar/$token': {
       id: '/cancelar/$token'
       path: '/cancelar/$token'
@@ -291,6 +324,13 @@ declare module '@tanstack/react-router' {
       path: '/confirmar/$token'
       fullPath: '/confirmar/$token'
       preLoaderRoute: typeof ConfirmarTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verificar/$code': {
+      id: '/verificar/$code'
+      path: '/verificar/$code'
+      fullPath: '/verificar/$code'
+      preLoaderRoute: typeof VerificarCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/confirmation-20h': {
@@ -331,8 +371,10 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacidadeRoute: PrivacidadeRoute,
   SobreRoute: SobreRoute,
   TratamentosRoute: TratamentosRoute,
+  AssinarTokenRoute: AssinarTokenRoute,
   CancelarTokenRoute: CancelarTokenRoute,
   ConfirmarTokenRoute: ConfirmarTokenRoute,
+  VerificarCodeRoute: VerificarCodeRoute,
   ApiCronConfirmation20hRoute: ApiCronConfirmation20hRoute,
   ApiInternalClinicalNotificationsProcessRoute:
     ApiInternalClinicalNotificationsProcessRoute,
