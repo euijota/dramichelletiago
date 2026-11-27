@@ -212,7 +212,6 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_req record;
-  v_patient record;
 BEGIN
   IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN
     RETURN jsonb_build_object('code', 'invalid_link');
@@ -230,20 +229,18 @@ BEGIN
     UPDATE public.signature_requests SET opened_at = now() WHERE id = v_req.id;
   END IF;
 
-  SELECT phone, email INTO v_patient FROM public.patients WHERE id = v_req.patient_id;
-
-  -- Telefone/e-mail vão para o servidor (envio do código e máscara); nunca para o browser.
+  -- O servidor busca o contato (paciente ou responsável) a partir de patient_id;
+  -- nada disso vai para o browser.
   RETURN jsonb_build_object(
     'code', 'ok',
     'request_id', v_req.id,
+    'patient_id', v_req.patient_id,
     'document_type', v_req.document_type,
     'document_path', v_req.document_path,
     'document_sha256', v_req.document_sha256,
     'signer_name', v_req.signer_name,
     'signer_role', v_req.signer_role,
-    'otp_verified', v_req.otp_verified_at IS NOT NULL,
-    'patient_phone', v_patient.phone,
-    'patient_email', v_patient.email
+    'otp_verified', v_req.otp_verified_at IS NOT NULL
   );
 END;
 $$;

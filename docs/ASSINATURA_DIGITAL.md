@@ -121,9 +121,9 @@ signature_evidence           -- APPEND-ONLY: sem UPDATE/DELETE (trigger bloqueia
 ## 7. Tasks (uma por commit)
 
 1. Migration: tabelas, RLS, trigger append-only, bucket privado e RPCs de emitir/validar
-2. Server fns: criar pedido (upload + hash), emitir e validar token, OTP
+2. Server fns (`src/lib/signature.ts`): criar pedido (upload + hash), revogar, abrir pelo token, enviar e conferir o código. Exige a env `SIGNATURE_OTP_SECRET` (≥ 32 caracteres)
 3. `/assinar/$token`: verificação → leitura → assinatura (mobile-first)
-4. PDF final: manifesto + QR (lib `qrcode`, ~30 kB, carregada só nessa rota)
+4. Concluir a assinatura (`completeSignature`: confere o hash, grava a evidência) + PDF final com manifesto e QR (`pdf-lib` + `qrcode`, só no servidor)
 5. `/verificar/$code`
 6. Painel: aba Documentos, modal do QR, status via Realtime, revogar
 7. Testes: unit (token, OTP, hash) + e2e Playwright (fluxo link e QR em 375px)
