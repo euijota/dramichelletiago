@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
@@ -54,18 +53,6 @@ function Auth() {
     navigate({ to: "/painel", replace: true });
   }
 
-  async function handleGoogle() {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth`,
-      },
-    });
-    if (error) {
-      toast.error("Não foi possível entrar com o Google.");
-    }
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-gradient-blush">
       <div className="px-6 py-8">
@@ -83,20 +70,7 @@ function Auth() {
             Gestão integrada de agenda, prontuário odontológico, odontograma e financeiro.
           </p>
 
-          <button
-            onClick={handleGoogle}
-            className="mt-9 w-full rounded-full border border-border bg-background px-6 py-3.5 text-kicker text-foreground transition-silk hover:bg-accent cursor-pointer"
-          >
-            Continuar com Google
-          </button>
-
-          <div className="my-7 flex items-center gap-4">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-kicker text-muted-foreground">ou</span>
-            <span className="h-px flex-1 bg-border" />
-          </div>
-
-          <form onSubmit={handleEmailAuth} className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="mt-9 space-y-4">
             <input
               required
               type="email"
