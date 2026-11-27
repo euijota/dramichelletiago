@@ -417,3 +417,18 @@ export const verifySignaturePublic = createServerFn({ method: "GET" })
       signedPdfSha256: r.signed_pdf_sha256,
     };
   });
+
+/** Painel: link de 60s para baixar o PDF assinado (bucket privado, só service_role lê). */
+export const getSignedPdfUrl = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .validator(z.object({ requestId: z.uuid() }))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: evidence, error } = await (supabaseAdmin as any)
+      .from("signature_evidence")
+      .select("signed_pdf_path")
+      .eq("request_id", data.requestId)
+      .maybeSingle();
+    if (error || !evidence) throw new Error("Documento assinado não encontrado.");
+    return { url: await signedDocumentUrl(supabaseAdmin, evidence.signed_pdf_path as string) };
+  });

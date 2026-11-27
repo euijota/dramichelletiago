@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { OdontogramView } from "./OdontogramView";
 import { DocumentGenerator } from "./DocumentGenerator";
+import { PatientSignatures, type SignaturePrefill } from "./PatientSignatures";
 import { NewAppointmentModal } from "./NewAppointmentModal";
 import { ProcedureCatalogModal } from "./ProcedureCatalogModal";
 import { STATUS_LABELS, trimSeconds } from "@/lib/clinic";
@@ -300,6 +301,7 @@ export function PatientsManager({
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
   const [activeTab, setActiveTab] = useState<ClinicorpTab>("visao_geral");
+  const [signaturePrefill, setSignaturePrefill] = useState<SignaturePrefill | null>(null);
   const [infoSubTab, setInfoSubTab] = useState<"cadastro" | "contato" | "complemento">("cadastro");
 
   // Modais específicos do Clinicorp
@@ -4489,6 +4491,19 @@ export function PatientsManager({
               patientId={selectedPatient.id}
               patientName={selectedPatient.name}
               patientCpf={selectedPatient.cpf || undefined}
+              onRequestSignature={(pdf) =>
+                setSignaturePrefill({
+                  pdf,
+                  documentType: "orcamento",
+                  label: "Orçamento gerado agora",
+                })
+              }
+            />
+            <PatientSignatures
+              patientId={selectedPatient.id}
+              hasGuardian={Boolean(parsedSelectedGuardians.guardianName.trim())}
+              prefill={signaturePrefill}
+              onPrefillConsumed={() => setSignaturePrefill(null)}
             />
             {categorizedRecords.documents.length > 0 && (
               <div className="rounded-2xl bg-card border border-border p-5 shadow-sm space-y-3">
