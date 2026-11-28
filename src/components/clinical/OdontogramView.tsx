@@ -94,13 +94,15 @@ export function OdontogramView({
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [selectedSurfaces, setSelectedSurfaces] = useState<string[]>([]);
   const actionPanelRef = useRef<HTMLDivElement>(null);
+  // Incrementado a cada clique em "Adicionar Procedimento": rola mesmo se a região já estava selecionada
+  const [scrollRequest, setScrollRequest] = useState(0);
 
   // Painel de ações fica abaixo da arcada: leva o usuário até ele ao selecionar dente/região
   useEffect(() => {
     if (selectedTooth !== null) {
-      actionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      actionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [selectedTooth]);
+  }, [selectedTooth, scrollRequest]);
 
   const [procCategory, setProcCategory] = useState<string>("Todas");
   const [procSearch, setProcSearch] = useState<string>("");
@@ -595,11 +597,12 @@ export function OdontogramView({
             onClick={() => {
               setSelectedTooth(0);
               setSelectedSurfaces([]);
+              setScrollRequest((n) => n + 1);
             }}
             className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary-deep text-xs font-semibold flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Procedimento sem dente (ex.: Profilaxia)</span>
+            <span>Adicionar Procedimento</span>
           </button>
           <button
             type="button"
