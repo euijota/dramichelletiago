@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -93,6 +93,14 @@ export function OdontogramView({
   const [dentition, setDentition] = useState<"permanent" | "deciduous" | "mixed">("permanent");
   const [selectedTooth, setSelectedTooth] = useState<number | null>(null);
   const [selectedSurfaces, setSelectedSurfaces] = useState<string[]>([]);
+  const actionPanelRef = useRef<HTMLDivElement>(null);
+
+  // Painel de ações fica abaixo da arcada: leva o usuário até ele ao selecionar dente/região
+  useEffect(() => {
+    if (selectedTooth !== null) {
+      actionPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [selectedTooth]);
 
   const [procCategory, setProcCategory] = useState<string>("Todas");
   const [procSearch, setProcSearch] = useState<string>("");
@@ -584,6 +592,17 @@ export function OdontogramView({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
+            onClick={() => {
+              setSelectedTooth(0);
+              setSelectedSurfaces([]);
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary-deep text-xs font-semibold flex items-center gap-1.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Procedimento sem dente (ex.: Profilaxia)</span>
+          </button>
+          <button
+            type="button"
             onClick={handleOpenCatalogClick}
             className="px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground flex items-center gap-1.5 cursor-pointer"
           >
@@ -750,7 +769,10 @@ export function OdontogramView({
 
       {/* Painel de Ações do Dente ou Região Selecionada */}
       {selectedTooth !== null && (
-        <div className="p-6 rounded-3xl bg-card border border-primary/30 shadow-petal space-y-5">
+        <div
+          ref={actionPanelRef}
+          className="p-6 rounded-3xl bg-card border border-primary/30 shadow-petal space-y-5 scroll-mt-4"
+        >
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-4 border-b border-border">
             <div>
               <h4 className="font-display text-xl text-foreground flex items-center gap-2 flex-wrap">
