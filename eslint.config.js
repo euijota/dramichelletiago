@@ -7,7 +7,16 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", ".output", ".vinxi", ".vercel", ".nitro", "scripts", "src/routeTree.gen.ts"],
+    ignores: [
+      ".claude",
+      "dist",
+      ".output",
+      ".vinxi",
+      ".vercel",
+      ".nitro",
+      "scripts",
+      "src/routeTree.gen.ts",
+    ],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
